@@ -328,3 +328,24 @@ func TestAPIRoutesArePrivateByDefault(t *testing.T) {
 		}
 	}
 }
+
+// B-08: audit history is append-only. No API route may change or remove audit
+// records; a future audit read API is allowed only with GET.
+func TestNoAPIRouteCanModifyAuditEvents(t *testing.T) {
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range r.Routes() {
+		if strings.Contains(strings.ToLower(route.Path), "audit") && route.Method != http.MethodGet {
+			t.Errorf("%s %s could modify audit events; audit history is append-only", route.Method, route.Path)
+		}
+	}
+	for _, method := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodPost} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(method, APIPrefix+"/audit-events/1", nil))
+		if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed && w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s/audit-events/1: status %d", method, APIPrefix, w.Code)
+		}
+	}
+}

@@ -39,6 +39,9 @@ const (
 	ActorUser   = "USER"
 	ActorCLI    = "CLI"
 	ActorSystem = "SYSTEM"
+	// ActorAnonymous is an unauthenticated requester, e.g. a failed sign-in: the
+	// targeted account is the entity, not the actor.
+	ActorAnonymous = "ANONYMOUS"
 )
 
 // Outcomes (audit_events.outcome).
@@ -65,6 +68,10 @@ func UserActor(userID, username string) Actor {
 
 // CLIActor is an operator running a command such as cmd/user.
 func CLIActor(label string) Actor { return Actor{Type: ActorCLI, Label: label} }
+
+// AnonymousActor is a request without a signed-in user (label describes it,
+// e.g. "sign-in attempt"). Never put typed usernames or other input here.
+func AnonymousActor(label string) Actor { return Actor{Type: ActorAnonymous, Label: label} }
 
 // Summary is the safe, structured description of what changed.
 type Summary map[string]any
@@ -144,6 +151,10 @@ func (e *Event) prepare() ([]byte, error) {
 	case ActorUser:
 		if e.Actor.UserID == "" {
 			return nil, invalid("user actor needs a user ID")
+		}
+	case ActorAnonymous:
+		if e.Actor.UserID != "" {
+			return nil, invalid("anonymous actor must not carry a user ID")
 		}
 	case ActorCLI, ActorSystem:
 	default:

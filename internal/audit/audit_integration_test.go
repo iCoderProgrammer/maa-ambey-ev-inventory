@@ -53,11 +53,12 @@ func TestAuditEventConstraints(t *testing.T) {
 	ctx := context.Background()
 	pool := dbtest.MigratedPool(t)
 	for name, sql := range map[string]string{
-		"user actor without user": `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('USER', 'x', 'user.created', 'user')`,
-		"bad actor type":          `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('ROBOT', 'x', 'user.created', 'user')`,
-		"undotted action":         `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('CLI', 'x', 'created', 'user')`,
-		"bad outcome":             `INSERT INTO audit_events (actor_type, actor_label, action, entity_type, outcome) VALUES ('CLI', 'x', 'user.created', 'user', 'OK')`,
-		"summary not an object":   `INSERT INTO audit_events (actor_type, actor_label, action, entity_type, summary) VALUES ('CLI', 'x', 'user.created', 'user', '[1]')`,
+		"anonymous actor with user": `INSERT INTO audit_events (actor_type, actor_user_id, actor_label, action, entity_type) VALUES ('ANONYMOUS', gen_random_uuid(), 'x', 'auth.sign_in_failed', 'user')`,
+		"user actor without user":   `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('USER', 'x', 'user.created', 'user')`,
+		"bad actor type":            `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('ROBOT', 'x', 'user.created', 'user')`,
+		"undotted action":           `INSERT INTO audit_events (actor_type, actor_label, action, entity_type) VALUES ('CLI', 'x', 'created', 'user')`,
+		"bad outcome":               `INSERT INTO audit_events (actor_type, actor_label, action, entity_type, outcome) VALUES ('CLI', 'x', 'user.created', 'user', 'OK')`,
+		"summary not an object":     `INSERT INTO audit_events (actor_type, actor_label, action, entity_type, summary) VALUES ('CLI', 'x', 'user.created', 'user', '[1]')`,
 	} {
 		_, err := pool.Exec(ctx, sql)
 		var pgErr *pgconn.PgError

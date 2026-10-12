@@ -167,6 +167,9 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   request ID, JSONB summary). `BEFORE UPDATE/DELETE/TRUNCATE` triggers raise `42501`, so no normal
   application path can rewrite history; only a migration rollback (refused in staging/production without
   `--confirm`) or a DBA can remove it.
+- Actor types: `USER` (signed-in), `CLI` (operator command), `SYSTEM` (job) and `ANONYMOUS` (added in
+  migration 000005: unauthenticated attempts such as failed sign-ins, which must not be attributed to the
+  targeted account).
 - Events are written inside the business transaction (`audit.Record(ctx, tx, …)`); an invalid event aborts
   the change. Failed/refused sign-ins have no data change and are written on their own.
 - Secrets are blocked by key/value rules in `audit.Record` (fail closed). IP addresses are not stored in

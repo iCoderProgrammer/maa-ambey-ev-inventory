@@ -1,0 +1,33 @@
+# B-08 audit trail demonstration — 2026-10-12T13:55:18Z
+# Isolated stack: throwaway Postgres (maa-review-pg), API :8091 (this build), Vite :5174. Test accounts are throwaway; no passwords appear below.
+
+1. wrong password          → request_id 8a1d0be3-534d-4222-adf8-68d7adec516b
+2. unknown username        → request_id 653a4463-ca59-4177-83c3-707458b1f79a  (not audited: would store typed text)
+3. sign in                 → request_id 26972713-c39b-462a-bcc3-3462a4c3dca0
+4. sign out                → request_id 76ecdaf5-c8ad-4845-aef8-12ac27d7b984
+5. disabled account login  → request_id 0b35782d-7b1a-471e-8e12-e730e1d99a53
+
+## audit_events (oldest first)
+ id |   occurred_at_utc    | actor_type |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary                                               
+----+----------------------+------------+-----------------+----------------------+---------+-------------+-----------+--------------------------------------+-----------------------------------------------------------------------------------------------------
+  1 | 2026-10-12T13:54:58Z | CLI        | cmd/user:hp     | user.created         | SUCCESS | user        | f0d1714e… |                                      | {"status": "ACTIVE", "username": "owner.review", "emailProvided": false}
+  2 | 2026-10-12T13:54:58Z | CLI        | cmd/user:hp     | user.created         | SUCCESS | user        | 650817e3… |                                      | {"status": "ACTIVE", "username": "disabled.review", "emailProvided": false}
+  3 | 2026-10-12T13:54:58Z | CLI        | cmd/user:hp     | user.disabled        | SUCCESS | user        | 650817e3… |                                      | {"status": {"to": "DISABLED", "from": "ACTIVE"}, "username": "disabled.review", "sessionsEnded": 0}
+  4 | 2026-10-12T13:55:18Z | USER       | owner.review    | auth.sign_in_failed  | FAILURE | user        | f0d1714e… | 8a1d0be3-534d-4222-adf8-68d7adec516b | {"reason": "wrong_password"}
+  5 | 2026-10-12T13:55:18Z | USER       | owner.review    | auth.signed_in       | SUCCESS | user        | f0d1714e… | 26972713-c39b-462a-bcc3-3462a4c3dca0 | {"sessionId": "f1dcf444-269f-49c0-ae1c-221627eff21b"}
+  6 | 2026-10-12T13:55:18Z | USER       | owner.review    | auth.signed_out      | SUCCESS | user        | f0d1714e… | 76ecdaf5-c8ad-4845-aef8-12ac27d7b984 | {"sessionId": "f1dcf444-269f-49c0-ae1c-221627eff21b"}
+  7 | 2026-10-12T13:55:18Z | USER       | disabled.review | auth.sign_in_refused | DENIED  | user        | 650817e3… | 0b35782d-7b1a-471e-8e12-e730e1d99a53 | {"reason": "account_disabled"}
+(7 rows)
+
+## Tamper attempts through the database connection (same role the API uses)
+$ UPDATE audit_events SET action = 'user.deleted' WHERE id = 1
+  ERROR:  audit_events is append-only: UPDATE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+$ DELETE FROM audit_events WHERE id = 1
+  ERROR:  audit_events is append-only: DELETE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+$ TRUNCATE audit_events
+  ERROR:  audit_events is append-only: TRUNCATE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+## Row count after tamper attempts
+7

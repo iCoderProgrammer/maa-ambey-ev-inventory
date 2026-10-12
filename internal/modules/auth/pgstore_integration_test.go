@@ -330,6 +330,26 @@ func TestPGAuthAndAdminActionsAreAudited(t *testing.T) {
 	if signedIn.actorType != "USER" || signedIn.requestID != "req-2" || signedIn.label != "asha" {
 		t.Errorf("signed_in row = %+v", signedIn)
 	}
+	// Failed/refused attempts are anonymous: the account is the entity, never the actor.
+	rows, err := pool.Query(ctx, `SELECT actor_type, actor_user_id IS NULL, entity_type FROM audit_events
+		WHERE action IN ('auth.sign_in_failed', 'auth.sign_in_refused')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for rows.Next() {
+		var actorType, entityType string
+		var noUser bool
+		_ = rows.Scan(&actorType, &noUser, &entityType)
+		n++
+		if actorType != "ANONYMOUS" || !noUser || entityType != "user" {
+			t.Errorf("attempt row: actor=%s noUser=%v entity=%s", actorType, noUser, entityType)
+		}
+	}
+	rows.Close()
+	if n != 2 {
+		t.Errorf("want 2 attempt rows, got %d", n)
+	}
 	var disabled struct{ actorType, label, summary string }
 	_ = pool.QueryRow(ctx, `SELECT actor_type, actor_label, summary::text FROM audit_events WHERE action = 'user.disabled'`).
 		Scan(&disabled.actorType, &disabled.label, &disabled.summary)

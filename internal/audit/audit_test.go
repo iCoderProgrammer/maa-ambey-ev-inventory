@@ -54,6 +54,7 @@ func TestRecordRejectsInvalidEvents(t *testing.T) {
 	}{
 		{"user actor without id", func(e *Event) { e.Actor.UserID = "" }, "needs a user ID"},
 		{"unknown actor type", func(e *Event) { e.Actor.Type = "ROBOT" }, "unknown actor type"},
+		{"anonymous actor with user", func(e *Event) { e.Actor.Type = ActorAnonymous }, "must not carry a user ID"},
 		{"blank label", func(e *Event) { e.Actor.Label = " " }, "actor label"},
 		{"undotted action", func(e *Event) { e.Action = "disable" }, "dotted"},
 		{"upper-case action", func(e *Event) { e.Action = "User.Disabled" }, "dotted"},
@@ -120,5 +121,17 @@ func TestRecordRejectsOversizedSummary(t *testing.T) {
 	e.Summary = big
 	if err := Record(context.Background(), &captureExec{}, e); !errors.Is(err, ErrInvalidEvent) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRecordAnonymousActor(t *testing.T) {
+	e := valid()
+	e.Actor = AnonymousActor("sign-in attempt")
+	var db captureExec
+	if err := Record(context.Background(), &db, e); err != nil {
+		t.Fatal(err)
+	}
+	if db.args[1] != ActorAnonymous || db.args[2] != nil {
+		t.Errorf("actor type/user = %v/%v", db.args[1], db.args[2])
 	}
 }

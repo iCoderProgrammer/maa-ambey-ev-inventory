@@ -140,7 +140,9 @@ Sensitive changes are recorded in `audit_events` through `internal/audit`:
 
 - Call `audit.Record(ctx, tx, audit.Event{...})` with the **same transaction** as the change, so the
   event exists exactly when the change does. Use `audit.UserActor(principal.UserID, principal.Username)`
-  for requests, `audit.CLIActor(...)` for commands; pass the request ID (`c.GetString(httpx.RequestIDKey)`).
+  for signed-in requests, `audit.CLIActor(...)` for commands and `audit.AnonymousActor(...)` for
+  unauthenticated attempts (e.g. a failed sign-in: the targeted account is the entity, not the actor);
+  pass the request ID (`c.GetString(httpx.RequestIDKey)`).
 - `Action` is a dotted past-tense key (`user.disabled`, `auth.signed_in`); `Outcome` is `SUCCESS`
   (default), `DENIED` or `FAILURE`; `EntityType`/`EntityID` name the record; `Reference` holds a
   business document number when there is one.
@@ -149,9 +151,11 @@ Sensitive changes are recorded in `audit_events` through `internal/audit`:
   cookie, otp, credential … and password-hash-looking values are **rejected** (the whole write fails),
   so a mistake is caught in tests instead of leaking. Reference people by ID, not phone/address/ID numbers.
 - The table is append-only at the database level: `UPDATE`, `DELETE` and `TRUNCATE` raise SQLSTATE
-  `42501`. Corrections are new events, never edits.
-- Currently audited: `auth.signed_in`, `auth.signed_out`, `auth.sign_in_failed` (existing accounts
-  only — typed unknown usernames are not stored), `auth.sign_in_refused` (disabled account), and
+  `42501`. Corrections are new events, never edits. No API route may change audit history
+  (`TestNoAPIRouteCanModifyAuditEvents`); a future read API may only use GET.
+- Currently audited: `auth.signed_in`, `auth.signed_out` (actor = the user), `auth.sign_in_failed`
+  (existing accounts only — typed unknown usernames are not stored) and `auth.sign_in_refused` (disabled
+  account), both with an `ANONYMOUS` actor, and
   `cmd/user` actions `user.created`, `user.enabled`, `user.disabled`, `user.password_changed`,
   `user.sessions_revoked`. Also audited (B-07): `access.grant_proposed`, `access.grant_approved`, `access.grant_revoked`,
   `access.role_assigned`, `access.role_unassigned`, `location.created`, `access.location_scope_added`,

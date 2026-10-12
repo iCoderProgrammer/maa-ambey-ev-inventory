@@ -111,10 +111,16 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, Principal, 
 	}
 
 	// Attempts against existing accounts are audited (unknown usernames are not:
-	// they would store whatever was typed, possibly a password).
+	// they would store whatever was typed, possibly a password). Until the
+	// sign-in succeeds the requester is anonymous: the account is the target
+	// (entity), not the actor.
 	userEvent := func(action, outcome, reason string) audit.Event {
+		actor := audit.AnonymousActor("sign-in attempt")
+		if outcome == audit.OutcomeSuccess {
+			actor = audit.UserActor(user.ID, user.Username)
+		}
 		ev := audit.Event{
-			Actor: audit.UserActor(user.ID, user.Username), Action: action, Outcome: outcome,
+			Actor: actor, Action: action, Outcome: outcome,
 			EntityType: "user", EntityID: user.ID, RequestID: in.RequestID,
 		}
 		if reason != "" {

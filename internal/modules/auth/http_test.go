@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth/authtest"
@@ -385,6 +386,10 @@ func TestAuthEventsAreAuditedWithoutSecrets(t *testing.T) {
 		t.Fatalf("audited actions = %v, want %v (unknown usernames are not audited)", got, want)
 	}
 	for _, ev := range h.store.Events {
+		if (ev.Action == "auth.sign_in_failed" || ev.Action == "auth.sign_in_refused") &&
+			(ev.Actor.Type != audit.ActorAnonymous || ev.Actor.UserID != "") {
+			t.Errorf("%s must be recorded with an anonymous actor, got %+v", ev.Action, ev.Actor)
+		}
 		b, _ := json.Marshal(ev)
 		for _, secret := range []string{password, "wrong password here", cookie.Value, csrf, "argon2"} {
 			if strings.Contains(string(b), secret) {

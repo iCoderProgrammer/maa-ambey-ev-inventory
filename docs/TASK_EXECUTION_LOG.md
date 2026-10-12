@@ -1179,6 +1179,70 @@ CI does not set it; `.env.example` ships `false`; the user's `.env` is git-ignor
 RB-5 permission matrix and approval thresholds (no role holds any approved permission); brand scope per user;
 initial showroom location (code/name/address); OQ-8 (registry cycle D-08 ↔ E-02, outside B-07).
 
+### B-08-FOLLOWUP — Audit actor fix and append-only re-verification (user-requested "Proceed with B-08")
+
+- **Status:** COMPLETE · **Date:** 2026-10-12 · B-08 scope only; B-09 not started. No grant, role, brand scope or
+  location was added anywhere.
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_08_append-only-audit-event-framework.md
+  (re-read; scope and acceptance criteria unchanged). Dependencies B-04, B-05, B-06 COMPLETE (entries above;
+  registry fixed in VERIFY-B07).
+
+#### Issue found and fixed
+- **Wrong actor on failed/refused sign-ins:** `auth.sign_in_failed` / `auth.sign_in_refused` were recorded with
+  actor `USER` = the targeted account, i.e. the audit trail said the account holder did something an
+  unauthenticated requester did (visible in `docs/evidence/B-08/audit-trail-demo.txt`, rows 4 and 7).
+  Fix: new actor type `ANONYMOUS` (`audit.AnonymousActor`, label "sign-in attempt", never typed input); the account
+  stays the entity. `auth.signed_in` / `auth.signed_out` keep the user as actor.
+- Migration `000005_audit_anonymous_actor` (up: widen `audit_events_actor_type_valid`, add
+  `audit_events_anonymous_has_no_user`; down: restore the narrower check `NOT VALID`, because audit rows cannot be
+  changed or deleted to make it valid). Additive; dev DB already at version 5.
+- Existing dev-DB rows from before the fix (2 × `auth.sign_in_refused` with actor `USER`) stay as they are —
+  append-only by design; not rewritten.
+- API append-only guard: `TestNoAPIRouteCanModifyAuditEvents` (server) fails if any `/audit` route other than GET
+  is registered, and checks PUT/PATCH/DELETE/POST `/api/v1/audit-events/1` are not served.
+- gofmt fix in `internal/audit/audit_integration_test.go` (map alignment; `make lint-backend` failed before it).
+
+#### Acceptance criteria (re-verified)
+- [x] Actor, action, entity type/id, reference, timestamp, request ID, safe summary recorded (evidence below)
+- [x] Append-only from normal application paths: DB triggers (UPDATE/DELETE/TRUNCATE → 42501) and no mutating API
+  route — `TestAuditEventsAreAppendOnly`, `TestNoAPIRouteCanModifyAuditEvents`
+- [x] Sensitive values not logged: `TestRecordRejectsSecretsInSummary`, `TestAuthEventsAreAuditedWithoutSecrets`,
+  PG test + evidence secret scan (0 rows)
+- [x] Reusable service documented (`internal/audit` package doc, API_CONVENTIONS "Audit events", ADR-009)
+
+#### Evidence
+`docs/evidence/B-08/audit-trail-demo-anonymous-actor.txt` — isolated stack (throwaway Postgres :5447, API :8091
+this build; random throwaway password never printed): failed/refused sign-ins now `ANONYMOUS` with no user,
+signed-in/out `USER`, CLI rows `cmd/user:hp`, every HTTP row has its request ID; API PUT/PATCH/DELETE/POST
+`/api/v1/audit-events/1` → 404; SQL UPDATE/DELETE/TRUNCATE refused, row count unchanged (7); `ANONYMOUS` row with
+a user refused by the CHECK. The older `audit-trail-demo.txt` (pre-fix) is kept as the before state.
+
+#### Checks (actual results)
+`make lint-backend` 0 · `make lint-frontend` 0 · `make typecheck-frontend` 0 · `make test-integration` 0 ·
+`make test-frontend` 0 (86 tests) · `make swagger-check` 0 · `make build-backend` 0 · `make build-frontend` 0.
+Named B-08 tests all PASS: audit (8), server `TestNoAPIRouteCanModifyAuditEvents`, auth
+`TestAuthEventsAreAuditedWithoutSecrets`, `TestPGAuthAndAdminActionsAreAudited`,
+`TestPGSessionIsNotCreatedWithoutItsAuditEvent`.
+
+#### B-07 re-verification (separate)
+- Go: `internal/modules/access`, `cmd/access`, `internal/config`, `internal/server` — ok, 39 PASS, 0 FAIL, 0 SKIP.
+- Playwright on an isolated stack (Postgres :5447, API :8091 proposed grants **off**, Vite :5174; 0 role
+  permissions, 0 role assignments): **36 passed, 4 skipped** — same as VERIFY-B07-FINAL (2 viewport-specific by
+  design; 2 "user with the permission" skipped because that needs a grant, which is not created). Audit rows from
+  the run: sign_in_failed ×2 and sign_in_refused ×2 `ANONYMOUS`, signed_in ×30 / signed_out ×2 `USER`, all with
+  request IDs; 0 rows contain a test password or argon2. Isolated stack removed afterwards.
+
+#### Files changed (this follow-up)
+`migrations/000005_audit_anonymous_actor.{up,down}.sql`, `internal/audit/{audit.go,audit_test.go,audit_integration_test.go}`,
+`internal/modules/auth/{service.go,http_test.go,pgstore_integration_test.go}`, `internal/server/server_test.go`,
+`docs/API_CONVENTIONS.md`, `docs/ARCHITECTURE_DECISIONS.md` (ADR-009 actor types),
+`docs/evidence/B-08/{audit-trail-demo.txt,audit-trail-demo-anonymous-actor.txt}`, this log.
+
+#### Remaining blockers / open items (unchanged)
+No audit read API/UI (needs an approved permission; no registry task for the Audit Log screen); IP-address and
+audit retention policies open; B-07 owner approvals (RB-5 matrix + thresholds, brand scope per user, showroom
+location details) and OQ-8 still pending.
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--

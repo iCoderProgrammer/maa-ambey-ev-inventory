@@ -1,0 +1,44 @@
+# B-08 audit trail demonstration (after the ANONYMOUS-actor fix) — 2026-10-12T17:39:55Z
+# Isolated stack: throwaway Postgres (maa-b08-pg :5447), API :8091 (this build, migrations 1-5). Random throwaway password, never printed.
+
+1. wrong password          → request_id d86141d5-d8a3-4e21-ac2d-ea0f1e4ed3c0
+2. unknown username        → request_id 2a3ecdab-2c69-47f4-8cc4-0a16901f579d  (not audited: would store typed text)
+3. sign in                 → request_id 9190548d-aa20-47c6-89ab-e563ba3e9a57
+4. sign out                → request_id ec63901b-a54f-471b-b423-6a88515f1eb4
+5. disabled account login  → request_id 0296979b-3fbf-446d-be2a-33b44d153ab1
+6. API attempts to modify audit history (no such route exists):
+   PUT /api/v1/audit-events/1 → HTTP 404
+   PATCH /api/v1/audit-events/1 → HTTP 404
+   DELETE /api/v1/audit-events/1 → HTTP 404
+   POST /api/v1/audit-events/1 → HTTP 404
+
+## audit_events (oldest first)
+ id |   occurred_at_utc    | actor_type | has_actor_user |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary                                               
+----+----------------------+------------+----------------+-----------------+----------------------+---------+-------------+-----------+--------------------------------------+-----------------------------------------------------------------------------------------------------
+  1 | 2026-10-12T17:39:54Z | CLI        | f              | cmd/user:hp     | user.created         | SUCCESS | user        | 0ca38235… |                                      | {"status": "ACTIVE", "username": "owner.review", "emailProvided": false}
+  2 | 2026-10-12T17:39:54Z | CLI        | f              | cmd/user:hp     | user.created         | SUCCESS | user        | 6ada7c0c… |                                      | {"status": "ACTIVE", "username": "disabled.review", "emailProvided": false}
+  3 | 2026-10-12T17:39:54Z | CLI        | f              | cmd/user:hp     | user.disabled        | SUCCESS | user        | 6ada7c0c… |                                      | {"status": {"to": "DISABLED", "from": "ACTIVE"}, "username": "disabled.review", "sessionsEnded": 0}
+  4 | 2026-10-12T17:39:55Z | ANONYMOUS  | f              | sign-in attempt | auth.sign_in_failed  | FAILURE | user        | 0ca38235… | d86141d5-d8a3-4e21-ac2d-ea0f1e4ed3c0 | {"reason": "wrong_password"}
+  5 | 2026-10-12T17:39:55Z | USER       | t              | owner.review    | auth.signed_in       | SUCCESS | user        | 0ca38235… | 9190548d-aa20-47c6-89ab-e563ba3e9a57 | {"sessionId": "66a635cb-38ff-4c37-be6b-abea07a3bcb8"}
+  6 | 2026-10-12T17:39:55Z | USER       | t              | owner.review    | auth.signed_out      | SUCCESS | user        | 0ca38235… | ec63901b-a54f-471b-b423-6a88515f1eb4 | {"sessionId": "66a635cb-38ff-4c37-be6b-abea07a3bcb8"}
+  7 | 2026-10-12T17:39:55Z | ANONYMOUS  | f              | sign-in attempt | auth.sign_in_refused | DENIED  | user        | 6ada7c0c… | 0296979b-3fbf-446d-be2a-33b44d153ab1 | {"reason": "account_disabled"}
+(7 rows)
+
+## Secret scan (password, wrong-password text, argon2, CSRF token)
+matching rows: 0
+
+## Tamper attempts through the database connection (same role the API uses)
+$ UPDATE audit_events SET action = 'user.deleted' WHERE id = 1
+  ERROR:  audit_events is append-only: UPDATE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+$ DELETE FROM audit_events WHERE id = 1
+  ERROR:  audit_events is append-only: DELETE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+$ TRUNCATE audit_events
+  ERROR:  audit_events is append-only: TRUNCATE is not allowed
+  CONTEXT:  PL/pgSQL function audit_events_reject_change() line 3 at RAISE
+## Row count after tamper attempts
+7
+## Constraint: ANONYMOUS actor cannot carry a user
+  ERROR:  new row for relation "audit_events" violates check constraint "audit_events_anonymous_has_no_user"
+  DETAIL:  Failing row contains (8, 2026-10-12 17:39:56.175508+00, ANONYMOUS, 6ada7c0c-a85f-4e16-95ca-3dbf60015235, x, auth.sign_in_failed, SUCCESS, user, null, null, null, {}).
