@@ -5,6 +5,7 @@
 ui/.env
 ui/.env.*
 !ui/.env.example
+.envrc
 *.pem
 *.key
 *.p12
