@@ -13,7 +13,7 @@
    POST /api/v1/audit-events/1 → HTTP 404
 
 ## audit_events (oldest first)
- id |   occurred_at_utc    | actor_type | has_actor_user |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary                                               
+ id |   occurred_at_utc    | actor_type | has_actor_user |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary
 ----+----------------------+------------+----------------+-----------------+----------------------+---------+-------------+-----------+--------------------------------------+-----------------------------------------------------------------------------------------------------
   1 | 2026-10-12T17:39:54Z | CLI        | f              | cmd/user:hp     | user.created         | SUCCESS | user        | 0ca38235… |                                      | {"status": "ACTIVE", "username": "owner.review", "emailProvided": false}
   2 | 2026-10-12T17:39:54Z | CLI        | f              | cmd/user:hp     | user.created         | SUCCESS | user        | 6ada7c0c… |                                      | {"status": "ACTIVE", "username": "disabled.review", "emailProvided": false}

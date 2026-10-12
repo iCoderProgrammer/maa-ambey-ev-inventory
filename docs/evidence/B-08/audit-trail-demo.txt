@@ -8,7 +8,7 @@
 5. disabled account login  → request_id 0b35782d-7b1a-471e-8e12-e730e1d99a53
 
 ## audit_events (oldest first)
- id |   occurred_at_utc    | actor_type |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary                                               
+ id |   occurred_at_utc    | actor_type |   actor_label   |        action        | outcome | entity_type |  entity   |              request_id              |                                               summary
 ----+----------------------+------------+-----------------+----------------------+---------+-------------+-----------+--------------------------------------+-----------------------------------------------------------------------------------------------------
   1 | 2026-10-12T13:54:58Z | CLI        | cmd/user:hp     | user.created         | SUCCESS | user        | f0d1714e… |                                      | {"status": "ACTIVE", "username": "owner.review", "emailProvided": false}
   2 | 2026-10-12T13:54:58Z | CLI        | cmd/user:hp     | user.created         | SUCCESS | user        | 650817e3… |                                      | {"status": "ACTIVE", "username": "disabled.review", "emailProvided": false}
