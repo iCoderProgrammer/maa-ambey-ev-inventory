@@ -111,7 +111,8 @@ optional: opening stock is flagged as an opening balance, and no PO/GRN history 
 
 Authorisation is enforced by the backend: deny by default, with route guards plus object-level
 and brand/location-scope checks (SEC-001, SEC-002). Hiding a button in the UI is not
-authorisation. See ADR-007 in `ARCHITECTURE_DECISIONS.md` for the planned design (B-06, B-07).
+authorisation. Built in B-07 (ADR-007): the five roles exist as data with **no permission granted**;
+each cell below becomes a grant only when the owner approves it (recorded with approver and reference).
 
 ### Permission decisions awaiting approval
 

@@ -11,6 +11,8 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 )
 
 // Login errors. Handlers map them to the error envelope.
@@ -56,6 +58,8 @@ type LoginInput struct {
 	UserAgent string
 	// PreviousToken is the session cookie the browser already had, revoked on success.
 	PreviousToken string
+	// RequestID links audit events to the request log.
+	RequestID string
 }
 
 // Service implements sign-in and session validation.
@@ -106,18 +110,39 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, Principal, 
 		return "", Principal{}, err
 	}
 
+	// Attempts against existing accounts are audited (unknown usernames are not:
+	// they would store whatever was typed, possibly a password).
+	userEvent := func(action, outcome, reason string) audit.Event {
+		ev := audit.Event{
+			Actor: audit.UserActor(user.ID, user.Username), Action: action, Outcome: outcome,
+			EntityType: "user", EntityID: user.ID, RequestID: in.RequestID,
+		}
+		if reason != "" {
+			ev.Summary = audit.Summary{"reason": reason}
+		}
+		return ev
+	}
+	recordAttempt := func(ev audit.Event) {
+		if err := s.store.RecordAudit(ctx, ev); err != nil {
+			s.log.ErrorContext(ctx, "could not audit sign-in attempt", slog.String("user_id", user.ID), slog.Any("error", err))
+		}
+	}
+
 	ok, err := VerifyPassword(user.PasswordHash, in.Password)
 	if err != nil {
 		s.log.ErrorContext(ctx, "stored password hash is unusable", slog.String("user_id", user.ID), slog.Any("error", err))
+		recordAttempt(userEvent("auth.sign_in_failed", audit.OutcomeFailure, "unusable_password_hash"))
 		return "", Principal{}, s.fail(ctx, username, in.IP, "unusable password hash")
 	}
 	if !ok {
+		recordAttempt(userEvent("auth.sign_in_failed", audit.OutcomeFailure, "wrong_password"))
 		return "", Principal{}, s.fail(ctx, username, in.IP, "wrong password")
 	}
 	if user.Status != StatusActive {
 		// Only revealed to someone who knows the password.
 		s.throttle.Failure(username, in.IP)
 		s.log.WarnContext(ctx, "sign-in refused: account disabled", slog.String("user_id", user.ID), slog.String("ip", in.IP))
+		recordAttempt(userEvent("auth.sign_in_refused", audit.OutcomeDenied, "account_disabled"))
 		return "", Principal{}, ErrAccountDisabled
 	}
 
@@ -141,7 +166,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, Principal, 
 	if ip, err := netip.ParseAddr(in.IP); err == nil {
 		ns.IP = &ip
 	}
-	sessionID, err := s.store.CreateSession(ctx, ns)
+	sessionID, err := s.store.CreateSession(ctx, ns, userEvent("auth.signed_in", audit.OutcomeSuccess, ""))
 	if err != nil {
 		return "", Principal{}, err
 	}
@@ -210,9 +235,14 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Principal, er
 	}, nil
 }
 
-// Logout revokes the given session.
-func (s *Service) Logout(ctx context.Context, p Principal) error {
-	if err := s.store.RevokeSession(ctx, p.SessionID, RevokedLogout, s.now().UTC()); err != nil {
+// Logout revokes the given session and audits it.
+func (s *Service) Logout(ctx context.Context, p Principal, requestID string) error {
+	ev := audit.Event{
+		Actor: audit.UserActor(p.UserID, p.Username), Action: "auth.signed_out",
+		EntityType: "user", EntityID: p.UserID, RequestID: requestID,
+		Summary: audit.Summary{"sessionId": p.SessionID},
+	}
+	if err := s.store.RevokeSession(ctx, p.SessionID, RevokedLogout, s.now().UTC(), ev); err != nil {
 		return err
 	}
 	s.log.InfoContext(ctx, "signed out", slog.String("user_id", p.UserID), slog.String("session_id", p.SessionID))

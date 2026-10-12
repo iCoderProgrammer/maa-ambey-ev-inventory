@@ -1,5 +1,72 @@
 basePath: /api/v1
 definitions:
+  AccessGrant:
+    properties:
+      approvalReference:
+        type: string
+      approvedAt:
+        type: string
+      approvedBy:
+        type: string
+      permission:
+        example: access.roles.view
+        type: string
+      status:
+        enum:
+        - PROPOSED
+        - APPROVED
+        example: PROPOSED
+        type: string
+    type: object
+  AccessLocation:
+    properties:
+      code:
+        example: SR1
+        type: string
+      id:
+        example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        type: string
+      name:
+        example: Main showroom
+        type: string
+    type: object
+  AccessMatrixRole:
+    properties:
+      description:
+        example: Client-confirmed role. Permissions pending owner sign-off.
+        type: string
+      grants:
+        items:
+          $ref: '#/definitions/AccessGrant'
+        type: array
+      key:
+        example: owner
+        type: string
+      name:
+        example: Owner
+        type: string
+    type: object
+  AccessPermission:
+    properties:
+      description:
+        example: View cost prices and stock valuation
+        type: string
+      key:
+        example: catalogue.cost_price.view
+        type: string
+      sensitive:
+        example: true
+        type: boolean
+    type: object
+  AccessRole:
+    properties:
+      key:
+        example: viewer
+        type: string
+      name:
+        example: Viewer
+        type: string
+    type: object
   DataResponse:
     properties:
       data: {}
@@ -49,10 +116,54 @@ definitions:
         example: dev
         type: string
     type: object
+  LocationScope:
+    properties:
+      all:
+        example: false
+        type: boolean
+      locations:
+        items:
+          $ref: '#/definitions/AccessLocation'
+        type: array
+    type: object
   LoginRequest:
     properties:
       password:
         example: correct horse battery staple
+        type: string
+      username:
+        example: asha.verma
+        type: string
+    type: object
+  Me:
+    properties:
+      locationScope:
+        $ref: '#/definitions/LocationScope'
+      permissions:
+        example:
+        - access.roles.view
+        items:
+          type: string
+        type: array
+      proposedGrantsActive:
+        description: True only when unapproved (proposed) grants are switched on (local
+          development).
+        example: false
+        type: boolean
+      roles:
+        items:
+          $ref: '#/definitions/AccessRole'
+        type: array
+      user:
+        $ref: '#/definitions/MeUser'
+    type: object
+  MeUser:
+    properties:
+      displayName:
+        example: Asha Verma
+        type: string
+      id:
+        example: 5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b
         type: string
       username:
         example: asha.verma
@@ -73,6 +184,25 @@ definitions:
         - not_ready
         example: ready
         type: string
+    type: object
+  RoleMatrix:
+    properties:
+      approvedGrantCount:
+        example: 0
+        type: integer
+      matrixStatus:
+        enum:
+        - PENDING_OWNER_SIGN_OFF
+        - PARTIALLY_APPROVED
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/AccessPermission'
+        type: array
+      roles:
+        items:
+          $ref: '#/definitions/AccessMatrixRole'
+        type: array
     type: object
   Session:
     properties:
@@ -110,6 +240,39 @@ info:
   title: Maa Ambey Enterprises Inventory API
   version: 0.1.0
 paths:
+  /access/roles:
+    get:
+      description: Every role, its grants (PROPOSED or APPROVED with approver and
+        reference) and the permission catalogue. matrixStatus is PENDING_OWNER_SIGN_OFF
+        while no grant is approved. Read-only; grants change only through the audited
+        cmd/access tool. Requires access.roles.view.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/RoleMatrix'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Role and permission matrix
+      tags:
+      - access
   /auth/login:
     post:
       consumes:
@@ -247,6 +410,35 @@ paths:
       summary: Liveness check
       tags:
       - health
+  /me:
+    get:
+      description: The permissions contract for the signed-in user. Permissions come
+        only from owner-approved grants (plus proposed grants when RBAC_ALLOW_PROPOSED_GRANTS
+        is on in local development). Empty until the permission matrix is approved.
+        The UI uses this to decide what to show; every endpoint checks again.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Me'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Current user's roles, permissions and location scope
+      tags:
+      - access
   /ready:
     get:
       description: Reports whether PostgreSQL is reachable ("database") and migrated

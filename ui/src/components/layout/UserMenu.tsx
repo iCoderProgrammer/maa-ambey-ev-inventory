@@ -2,16 +2,61 @@ import { ChevronDown, Info, LogOut, UserRound } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/Button'
+import { useMe } from '@/features/access/hooks/useAccess'
 import { useLogout, useSession } from '@/features/auth/hooks/useSession'
 import { ApiError } from '@/lib/api/client'
 
+function AccessSummary({ me }: { me: ReturnType<typeof useMe> }) {
+  if (me.isPending) {
+    return <p className="mt-3.5 text-xs text-muted">Loading roles and locations…</p>
+  }
+  if (!me.data) {
+    return (
+      <p className="mt-3.5 text-xs text-muted">
+        Roles and locations could not be loaded. Access is still checked by the server.
+      </p>
+    )
+  }
+  const { roles, permissions, locationScope, proposedGrantsActive } = me.data
+  const locations = locationScope.all
+    ? 'All locations'
+    : locationScope.locations.length > 0
+      ? locationScope.locations.map((l) => l.name).join(', ')
+      : 'No location assigned'
+  return (
+    <div className="mt-3.5 flex flex-col gap-2 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+        <dt className="text-muted">Roles</dt>
+        <dd className="text-ink">
+          {roles.length > 0 ? roles.map((r) => r.name).join(', ') : 'No role assigned'}
+        </dd>
+        <dt className="text-muted">Locations</dt>
+        <dd className="text-ink">{locations}</dd>
+      </dl>
+      {permissions.length === 0 && (
+        <div className="flex gap-2.5 rounded-control border border-info/20 bg-info-subtle p-3 leading-relaxed text-ink">
+          <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+          <p>
+            No permissions are granted yet. The permission matrix is pending the owner&apos;s
+            sign-off.
+          </p>
+        </div>
+      )}
+      {proposedGrantsActive && (
+        <p className="text-muted">Development mode: unapproved (proposed) grants are active.</p>
+      )}
+    </div>
+  )
+}
+
 /**
- * Account menu for the signed-in user (B-06). It only renders inside protected
+ * Account menu for the signed-in user (B-06, roles and locations from B-07). It only renders inside protected
  * routes, so the session shown here has been confirmed by the server. Sign-out
  * waits for the server to revoke the session before leaving the app.
  */
 export function UserMenu() {
   const session = useSession()
+  const me = useMe()
   const logout = useLogout()
   const navigate = useNavigate()
   const user = session.data?.status === 'authenticated' ? session.data.session.user : null
@@ -62,10 +107,7 @@ export function UserMenu() {
               <p className="truncate text-xs text-muted">{user.username}</p>
             </div>
           </div>
-          <div className="mt-3.5 flex gap-2.5 rounded-control border border-info/20 bg-info-subtle p-3 text-xs leading-relaxed text-ink">
-            <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>Roles and permissions are not assigned yet; they arrive with backlog task B-07.</p>
-          </div>
+          <AccessSummary me={me} />
           {logout.isError && (
             <p role="alert" className="mt-3 text-xs font-medium text-danger">
               {logout.error instanceof ApiError

@@ -369,3 +369,27 @@ func TestSessionLookupFailureIsNotTreatedAsSignedOut(t *testing.T) {
 		t.Error("internal error leaked")
 	}
 }
+
+func TestAuthEventsAreAuditedWithoutSecrets(t *testing.T) {
+	h := newHarness(t, false)
+	h.login("asha", "wrong password here")
+	h.login("ghost", "wrong password here")
+	cookie, csrf := h.signIn()
+	h.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]string{auth.CSRFHeader: csrf}, cookie)
+	h.store.SetStatus("asha", auth.StatusDisabled)
+	h.login("asha", password)
+
+	want := []string{"auth.sign_in_failed", "auth.signed_in", "auth.signed_out", "auth.sign_in_refused"}
+	got := h.store.Actions()
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("audited actions = %v, want %v (unknown usernames are not audited)", got, want)
+	}
+	for _, ev := range h.store.Events {
+		b, _ := json.Marshal(ev)
+		for _, secret := range []string{password, "wrong password here", cookie.Value, csrf, "argon2"} {
+			if strings.Contains(string(b), secret) {
+				t.Errorf("%s event contains a secret", ev.Action)
+			}
+		}
+	}
+}

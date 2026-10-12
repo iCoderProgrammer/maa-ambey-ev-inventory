@@ -206,6 +206,7 @@ func (h *Handler) Login(c *gin.Context) {
 		IP:            c.ClientIP(),
 		UserAgent:     c.Request.UserAgent(),
 		PreviousToken: previous,
+		RequestID:     c.GetString(httpx.RequestIDKey),
 	})
 	var throttled *ThrottledError
 	switch {
@@ -285,7 +286,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		httpx.Error(c, http.StatusUnauthorized, httpx.CodeUnauthenticated, "Please sign in to continue.")
 		return
 	}
-	if err := h.svc.Logout(c.Request.Context(), p); err != nil {
+	if err := h.svc.Logout(c.Request.Context(), p, c.GetString(httpx.RequestIDKey)); err != nil {
 		h.log.ErrorContext(c.Request.Context(), "sign-out failed",
 			slog.String("request_id", c.GetString(httpx.RequestIDKey)), slog.Any("error", err))
 		httpx.InternalError(c)

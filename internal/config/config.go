@@ -50,6 +50,10 @@ type Config struct {
 	LoginMaxFailures       int
 	LoginMaxFailuresPerIP  int
 	LoginFailureWindow     time.Duration
+
+	// RBACAllowProposedGrants makes PROPOSED (not yet owner-approved) role grants
+	// count. Local development only (APP_ENV=development); refused elsewhere (B-07).
+	RBACAllowProposedGrants bool
 }
 
 // IsProduction reports whether the API runs with production safeguards.
@@ -92,6 +96,7 @@ func load(getenv func(string) string) (Config, error) {
 	cfg.LoginMaxFailures = p.int("LOGIN_MAX_FAILURES", 5)
 	cfg.LoginMaxFailuresPerIP = p.int("LOGIN_MAX_FAILURES_PER_IP", 20)
 	cfg.LoginFailureWindow = p.duration("LOGIN_FAILURE_WINDOW", 15*time.Minute)
+	cfg.RBACAllowProposedGrants = p.bool("RBAC_ALLOW_PROPOSED_GRANTS", false)
 
 	errs := p.errs
 	errs = append(errs, cfg.validate()...)
@@ -161,6 +166,9 @@ func (c Config) validate() []error {
 	}
 	if c.LoginMaxFailures < 1 || c.LoginMaxFailuresPerIP < c.LoginMaxFailures {
 		errs = append(errs, errors.New("LOGIN_MAX_FAILURES must be at least 1 and LOGIN_MAX_FAILURES_PER_IP at least LOGIN_MAX_FAILURES"))
+	}
+	if c.RBACAllowProposedGrants && c.AppEnv != EnvDevelopment {
+		errs = append(errs, fmt.Errorf("RBAC_ALLOW_PROPOSED_GRANTS must be false in %s: it is for local development only; elsewhere only owner-approved grants count", c.AppEnv))
 	}
 	if c.LoginFailureWindow < time.Minute {
 		errs = append(errs, errors.New("LOGIN_FAILURE_WINDOW must be at least 1m"))

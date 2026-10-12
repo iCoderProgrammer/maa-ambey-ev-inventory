@@ -22,7 +22,9 @@ export interface PlannedModulePageProps {
 export function PlannedModulePage({ section, item }: PlannedModulePageProps) {
   const Icon = item.icon
   const sectionNav = navigation.find((s) => s.label === section)
-  const relatedItems = sectionNav?.items.filter((i) => i.path !== item.path).slice(0, 3) ?? []
+  // Permission-gated pages are left out: whether to show them depends on the user's grants.
+  const relatedItems =
+    sectionNav?.items.filter((i) => i.path !== item.path && !i.permission).slice(0, 3) ?? []
 
   return (
     <div className="flex flex-col gap-6">

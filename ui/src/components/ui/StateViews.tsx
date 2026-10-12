@@ -1,4 +1,4 @@
-import { AlertTriangle, Inbox, Loader2 } from 'lucide-react'
+import { AlertTriangle, Inbox, Loader2, ShieldX } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ApiError } from '@/lib/api/client'
 import { cn } from '@/lib/utils/cn'
@@ -29,8 +29,48 @@ export interface ErrorStateProps {
   onRetry?: () => void
 }
 
-/** Shows a safe message plus the request ID for support; never stack traces. */
+export interface AccessDeniedStateProps {
+  /** What the user tried to open, e.g. "the role and permission matrix". */
+  what?: string
+  requestId?: string
+}
+
+/**
+ * The server refused access (403) or the user lacks the permission. Says so plainly,
+ * without naming internal permission keys or hinting at what exists behind it.
+ */
+export function AccessDeniedState({ what = 'this page', requestId }: AccessDeniedStateProps) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col items-center gap-3 rounded-card border border-border bg-surface px-4 py-10 text-center"
+    >
+      <span
+        className="grid size-12 place-items-center rounded-full bg-warning-subtle text-warning"
+        aria-hidden="true"
+      >
+        <ShieldX className="size-6" />
+      </span>
+      <div className="flex flex-col items-center gap-1.5">
+        <p className="text-base font-semibold tracking-tight text-ink">Access denied</p>
+        <p className="max-w-md text-sm leading-relaxed text-muted">
+          You do not have permission to view {what}. If you need it, ask the owner or your
+          administrator to grant it.
+        </p>
+        {requestId && <p className="font-mono text-xs text-muted">Reference: {requestId}</p>}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Shows a safe message plus the request ID for support; never stack traces.
+ * A 403 is shown as access denied (retrying would not help).
+ */
 export function ErrorState({ error, title = 'Something went wrong', onRetry }: ErrorStateProps) {
+  if (error instanceof ApiError && error.status === 403 && error.code === 'FORBIDDEN') {
+    return <AccessDeniedState requestId={error.requestId} />
+  }
   const message =
     error instanceof ApiError ? error.message : 'An unexpected error occurred. Please try again.'
   const requestId = error instanceof ApiError ? error.requestId : undefined

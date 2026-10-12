@@ -68,3 +68,38 @@ func TestApplySeedsRejectsEmptySource(t *testing.T) {
 		t.Fatal("an empty seed source must be an error, not a silent no-op")
 	}
 }
+
+func TestSeedsAddOnlyTheConfirmedRolesWithoutGrants(t *testing.T) {
+	ctx := context.Background()
+	pool, err := Connect(ctx, testConfig(t))
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for range 2 {
+		if _, err := ApplySeeds(ctx, tx, seeds.FS); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var roles int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM roles WHERE key IN ('owner','inventory_manager','sales_executive','accountant','viewer')`).Scan(&roles); err != nil {
+		t.Fatal(err)
+	}
+	if roles != 5 {
+		t.Errorf("want the 5 confirmed roles, got %d", roles)
+	}
+	// A developer database may already hold grants added with cmd/access; the
+	// seeds themselves must add none (rows created in this transaction).
+	var seeded int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE rp.created_at = now()`).Scan(&seeded); err != nil {
+		t.Fatal(err)
+	}
+	if seeded != 0 {
+		t.Errorf("seeds created %d grants; they must create none", seeded)
+	}
+}

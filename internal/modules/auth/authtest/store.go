@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 )
 
@@ -20,6 +21,8 @@ type Store struct {
 	nextID   int
 	// FailNext makes the next call return this error (then clears it).
 	FailNext error
+	// Events holds every audit event written, in order.
+	Events []audit.Event
 }
 
 type session struct {
@@ -90,7 +93,7 @@ func (s *Store) FindUserByUsername(_ context.Context, username string) (auth.Use
 }
 
 // CreateSession implements auth.Store.
-func (s *Store) CreateSession(_ context.Context, ns auth.NewSession) (string, error) {
+func (s *Store) CreateSession(_ context.Context, ns auth.NewSession, ev audit.Event) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.fail(); err != nil {
@@ -104,7 +107,28 @@ func (s *Store) CreateSession(_ context.Context, ns auth.NewSession) (string, er
 		},
 		userID: ns.UserID, tokenHash: ns.TokenHash,
 	})
+	ev.Summary = audit.Summary{"sessionId": id}
+	s.Events = append(s.Events, ev)
 	return id, nil
+}
+
+// RecordAudit implements auth.Store.
+func (s *Store) RecordAudit(_ context.Context, ev audit.Event) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Events = append(s.Events, ev)
+	return nil
+}
+
+// Actions lists the audited actions in order.
+func (s *Store) Actions() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.Events))
+	for i, e := range s.Events {
+		out[i] = e.Action
+	}
+	return out
 }
 
 // FindSessionByTokenHash implements auth.Store.
@@ -141,15 +165,16 @@ func (s *Store) TouchSession(_ context.Context, id string, at time.Time) error {
 }
 
 // RevokeSession implements auth.Store.
-func (s *Store) RevokeSession(_ context.Context, id, reason string, at time.Time) error {
+func (s *Store) RevokeSession(_ context.Context, id, reason string, at time.Time, ev audit.Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.fail(); err != nil {
 		return err
 	}
 	for _, ss := range s.sessions {
-		if ss.ID == id {
+		if ss.ID == id && ss.RevokedAt == nil {
 			revoke(ss, reason, at)
+			s.Events = append(s.Events, ev)
 		}
 	}
 	return nil

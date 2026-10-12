@@ -15,6 +15,7 @@
 // the first line of stdin is used, for scripted setups. Passwords are never
 // accepted as flags, which would leak into shell history and process lists.
 // Roles and permissions are assigned by B-07; a new user is granted nothing.
+// Every change is written to audit_events with the operator's OS account.
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	osuser "os/user"
 	"regexp"
 	"strings"
 	"time"
@@ -32,6 +34,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
@@ -133,6 +136,7 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 	}
 	store := auth.NewPGStore(pool)
 	now := time.Now().UTC()
+	actor := operator()
 
 	switch req.command {
 	case "list":
@@ -157,7 +161,7 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		u, err := store.CreateUser(ctx, req.username, req.displayName, req.email, hash)
+		u, err := store.CreateUser(ctx, actor, req.username, req.displayName, req.email, hash)
 		if errors.Is(err, auth.ErrUsernameTaken) {
 			return fmt.Errorf("a user with username %q or that e-mail already exists", req.username)
 		}
@@ -172,7 +176,7 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		n, err := store.SetPassword(ctx, req.username, hash, now)
+		n, err := store.SetPassword(ctx, actor, req.username, hash, now)
 		if err != nil {
 			return notFound(err, req.username)
 		}
@@ -184,7 +188,7 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 		if req.command == "enable" {
 			status = auth.StatusActive
 		}
-		n, err := store.SetStatus(ctx, req.username, status, now)
+		n, err := store.SetStatus(ctx, actor, req.username, status, now)
 		if err != nil {
 			return notFound(err, req.username)
 		}
@@ -192,7 +196,7 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 		return nil
 
 	case "revoke-sessions":
-		n, err := store.RevokeAllSessions(ctx, req.username, now)
+		n, err := store.RevokeAllSessions(ctx, actor, req.username, now)
 		if err != nil {
 			return notFound(err, req.username)
 		}
@@ -200,6 +204,16 @@ func run(args []string, stdin io.Reader, out io.Writer) error {
 		return nil
 	}
 	return nil
+}
+
+// operator identifies who ran the command, for the audit trail: the OS account
+// (there is no signed-in user on the command line).
+func operator() audit.Actor {
+	name := "unknown"
+	if u, err := osuser.Current(); err == nil && u.Username != "" {
+		name = u.Username
+	}
+	return audit.CLIActor("cmd/user:" + name)
 }
 
 func notFound(err error, username string) error {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/netip"
 	"time"
+
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 )
 
 // User statuses (users.status).
@@ -66,11 +68,15 @@ type SessionRecord struct {
 // implementation is PGStore; every query is parameterised.
 type Store interface {
 	FindUserByUsername(ctx context.Context, username string) (User, error)
-	// CreateSession inserts the session and records the user's last login in one transaction.
-	CreateSession(ctx context.Context, s NewSession) (string, error)
+	// CreateSession inserts the session, records the user's last login and
+	// appends ev (with the new session ID added to its summary) in one transaction.
+	CreateSession(ctx context.Context, s NewSession, ev audit.Event) (string, error)
 	FindSessionByTokenHash(ctx context.Context, tokenHash []byte) (SessionRecord, error)
 	TouchSession(ctx context.Context, sessionID string, at time.Time) error
-	// RevokeSession revokes one active session; revoking an already revoked session is a no-op.
-	RevokeSession(ctx context.Context, sessionID, reason string, at time.Time) error
+	// RevokeSession revokes one active session and appends ev in the same
+	// transaction. Revoking an already revoked session is a no-op (no event).
+	RevokeSession(ctx context.Context, sessionID, reason string, at time.Time, ev audit.Event) error
 	RevokeSessionByTokenHash(ctx context.Context, tokenHash []byte, reason string, at time.Time) error
+	// RecordAudit appends an event that has no accompanying data change (e.g. a refused sign-in).
+	RecordAudit(ctx context.Context, ev audit.Event) error
 }

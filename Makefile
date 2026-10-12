@@ -30,7 +30,7 @@ PUSH_SSH    := ssh -i $(PUSH_KEY) -o IdentitiesOnly=yes
 
 .PHONY: help setup env-files check-go check-node check-docker \
         dev dev-backend dev-frontend \
-        db-up db-down db-logs db-psql db-migrate-up db-migrate-down db-migrate-version db-migrate-create db-seed user \
+        db-up db-down db-logs db-psql db-migrate-up db-migrate-down db-migrate-version db-migrate-create db-seed user access \
         swagger swagger-check test test-backend test-integration test-frontend \
         lint lint-backend lint-frontend fmt typecheck typecheck-frontend build build-backend build-frontend ci clean push
 
@@ -97,6 +97,9 @@ db-migrate-version: check-go ## Show the current migration version
 db-seed: check-go ## Apply idempotent seeds from seeds/ (safe to re-run; run migrations first)
 	$(GO) run ./cmd/seed
 
+access: check-go ## Roles, grants, locations: make access ARGS="roles" (also permissions, show, grant, revoke, assign, unassign, location-create, scope-add, scope-remove)
+	$(GO) run ./cmd/access $(ARGS)
+
 user: check-go ## Manage staff accounts: make user ARGS="create --username asha.verma --name 'Asha Verma'" (also list, disable, enable, set-password, revoke-sessions)
 	$(GO) run ./cmd/user $(ARGS)
 
@@ -153,12 +156,13 @@ typecheck-frontend: check-node ## TypeScript type check (tsc -b --noEmit)
 
 build: build-backend build-frontend ## Build API binaries and UI bundle
 
-build-backend: check-go ## Build bin/api, bin/migrate, bin/seed and bin/user
+build-backend: check-go ## Build bin/api, bin/migrate, bin/seed, bin/user and bin/access
 	@mkdir -p bin
 	$(GO) build -ldflags "-X main.version=$(VERSION)" -o $(API_BIN) ./cmd/api
 	$(GO) build -o $(MIG_BIN) ./cmd/migrate
 	$(GO) build -o bin/seed ./cmd/seed
 	$(GO) build -o bin/user ./cmd/user
+	$(GO) build -o bin/access ./cmd/access
 
 build-frontend: check-node ## Production UI build into ui/dist
 	cd $(UI_DIR) && $(NPM) run build

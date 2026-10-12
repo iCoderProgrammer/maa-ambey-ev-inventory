@@ -1,4 +1,5 @@
 import { MutationCache, QueryCache, QueryClient, type QueryKey } from '@tanstack/react-query'
+import { meQueryKey } from '@/features/access/hooks/useAccess'
 import { AuthErrorCode, type SessionState } from '@/features/auth/api/auth'
 import { sessionQueryKey } from '@/features/auth/hooks/useSession'
 import { ApiError } from '@/lib/api/client'
@@ -18,6 +19,12 @@ export function createQueryClient(): QueryClient {
       setCsrfToken(null)
       const ended: SessionState = { status: 'anonymous', expired: true }
       queryClient.setQueryData<SessionState>(sessionQueryKey, ended)
+    } else if (error.code === 'FORBIDDEN') {
+      // The server refused a permission the UI thought it had (e.g. revoked meanwhile):
+      // re-read the permissions contract so navigation and actions follow the server.
+      if (!(key?.[0] === meQueryKey[0] && key[1] === meQueryKey[1])) {
+        void queryClient.invalidateQueries({ queryKey: meQueryKey })
+      }
     } else if (error.code === AuthErrorCode.CsrfFailed) {
       // The token may be stale (e.g. after signing in from another tab): re-read it.
       void queryClient.invalidateQueries({ queryKey: sessionQueryKey })

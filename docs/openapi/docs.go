@@ -15,6 +15,56 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/access/roles": {
+            "get": {
+                "description": "Every role, its grants (PROPOSED or APPROVED with approver and reference) and the permission catalogue. matrixStatus is PENDING_OWNER_SIGN_OFF while no grant is approved. Read-only; grants change only through the audited cmd/access tool. Requires access.roles.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "access"
+                ],
+                "summary": "Role and permission matrix",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/RoleMatrix"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Verifies username and password and starts a server-side session. The session token is returned only in an HttpOnly, SameSite=Strict cookie (` + "`" + `__Host-maa_session` + "`" + ` over HTTPS, ` + "`" + `maa_session` + "`" + ` in local development); the body carries the CSRF token for later mutations. Failures are generic: unknown user and wrong password both return INVALID_CREDENTIALS. ACCOUNT_DISABLED is only returned when the password was correct. Repeated failures return 429 with Retry-After.",
@@ -226,6 +276,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/me": {
+            "get": {
+                "description": "The permissions contract for the signed-in user. Permissions come only from owner-approved grants (plus proposed grants when RBAC_ALLOW_PROPOSED_GRANTS is on in local development). Empty until the permission matrix is approved. The UI uses this to decide what to show; every endpoint checks again.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "access"
+                ],
+                "summary": "Current user's roles, permissions and location scope",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Me"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ready": {
             "get": {
                 "description": "Reports whether PostgreSQL is reachable (\"database\") and migrated to the schema version this build expects with no failed migration (\"migrations\"). Returns 503 when not ready. The API never migrates on its own.",
@@ -284,6 +378,102 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "AccessGrant": {
+            "type": "object",
+            "properties": {
+                "approvalReference": {
+                    "type": "string"
+                },
+                "approvedAt": {
+                    "type": "string"
+                },
+                "approvedBy": {
+                    "type": "string"
+                },
+                "permission": {
+                    "type": "string",
+                    "example": "access.roles.view"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PROPOSED",
+                        "APPROVED"
+                    ],
+                    "example": "PROPOSED"
+                }
+            }
+        },
+        "AccessLocation": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "SR1"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Main showroom"
+                }
+            }
+        },
+        "AccessMatrixRole": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Client-confirmed role. Permissions pending owner sign-off."
+                },
+                "grants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessGrant"
+                    }
+                },
+                "key": {
+                    "type": "string",
+                    "example": "owner"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Owner"
+                }
+            }
+        },
+        "AccessPermission": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "View cost prices and stock valuation"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "catalogue.cost_price.view"
+                },
+                "sensitive": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "AccessRole": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "viewer"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Viewer"
+                }
+            }
+        },
         "DataResponse": {
             "type": "object",
             "properties": {
@@ -355,12 +545,75 @@ const docTemplate = `{
                 }
             }
         },
+        "LocationScope": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessLocation"
+                    }
+                }
+            }
+        },
         "LoginRequest": {
             "type": "object",
             "properties": {
                 "password": {
                     "type": "string",
                     "example": "correct horse battery staple"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
+        "Me": {
+            "type": "object",
+            "properties": {
+                "locationScope": {
+                    "$ref": "#/definitions/LocationScope"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "access.roles.view"
+                    ]
+                },
+                "proposedGrantsActive": {
+                    "description": "True only when unapproved (proposed) grants are switched on (local development).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessRole"
+                    }
+                },
+                "user": {
+                    "$ref": "#/definitions/MeUser"
+                }
+            }
+        },
+        "MeUser": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string",
+                    "example": "Asha Verma"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
                 },
                 "username": {
                     "type": "string",
@@ -388,6 +641,34 @@ const docTemplate = `{
                         "not_ready"
                     ],
                     "example": "ready"
+                }
+            }
+        },
+        "RoleMatrix": {
+            "type": "object",
+            "properties": {
+                "approvedGrantCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "matrixStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_OWNER_SIGN_OFF",
+                        "PARTIALLY_APPROVED"
+                    ]
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessPermission"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessMatrixRole"
+                    }
                 }
             }
         },

@@ -16,6 +16,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth/authtest"
 )
@@ -36,6 +37,19 @@ func testAuth(t *testing.T) *auth.Handler {
 	return auth.NewHandler(svc, auth.CookieConfig{}, log)
 }
 
+// noAccess grants nothing, like a fresh database before owner sign-off.
+type noAccess struct{}
+
+func (noAccess) LoadAccess(_ context.Context, userID string, _ bool) (access.Access, error) {
+	return access.NewAccess(userID, nil, nil, nil, false), nil
+}
+
+func (noAccess) RoleMatrix(context.Context) (access.Matrix, error) { return access.Matrix{}, nil }
+
+func testAccess() *access.Handler {
+	return access.NewHandler(noAccess{}, false, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
 type okSchema struct{}
 
 func (okSchema) CheckSchema(context.Context) error { return nil }
@@ -53,7 +67,7 @@ func testConfig() config.Config {
 
 func newTestRouter(t *testing.T, cfg config.Config) *gin.Engine {
 	t.Helper()
-	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
+	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +226,7 @@ func TestTimeoutKeepsHandlerResponse(t *testing.T) {
 
 func TestPanicIsAccessLoggedWithRequestID(t *testing.T) {
 	var buf strings.Builder
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,17 +289,20 @@ func TestCORSIgnoresSameHostOrigin(t *testing.T) {
 
 func TestNewRouterRequiresSchemaCheckerAndAuth(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Version: "test"}); err == nil {
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Access: testAccess(), Version: "test"}); err == nil {
 		t.Error("NewRouter must refuse to start without a schema checker")
 	}
-	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Version: "test"}); err == nil {
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Access: testAccess(), Version: "test"}); err == nil {
 		t.Error("NewRouter must refuse to start without authentication")
+	}
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without access control")
 	}
 }
 
 // Only health, readiness and the sign-in routes are reachable without a session.
 func TestAPIRoutesArePrivateByDefault(t *testing.T) {
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}

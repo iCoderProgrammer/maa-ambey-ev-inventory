@@ -58,6 +58,9 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"absolute below idle", map[string]string{"SESSION_IDLE_TIMEOUT": "2h", "SESSION_ABSOLUTE_TIMEOUT": "1h"}, "SESSION_ABSOLUTE_TIMEOUT must be between"},
 		{"insecure cookie in staging", map[string]string{"APP_ENV": "staging", "SESSION_COOKIE_SECURE": "false"}, "SESSION_COOKIE_SECURE must be true in staging"},
 		{"zero login failures", map[string]string{"LOGIN_MAX_FAILURES": "0"}, "LOGIN_MAX_FAILURES must be at least 1"},
+		{"proposed grants in test", map[string]string{"APP_ENV": "test", "RBAC_ALLOW_PROPOSED_GRANTS": "true"}, "RBAC_ALLOW_PROPOSED_GRANTS must be false in test"},
+		{"proposed grants in staging", map[string]string{"APP_ENV": "staging", "SESSION_COOKIE_SECURE": "true", "RBAC_ALLOW_PROPOSED_GRANTS": "true"}, "RBAC_ALLOW_PROPOSED_GRANTS must be false in staging"},
+		{"proposed grants in production", map[string]string{"APP_ENV": "production", "DATABASE_URL": "postgres://u:p@db:5432/app?sslmode=require", "SESSION_COOKIE_SECURE": "true", "CORS_ALLOWED_ORIGINS": "https://x.example", "RBAC_ALLOW_PROPOSED_GRANTS": "true"}, "RBAC_ALLOW_PROPOSED_GRANTS must be false in production"},
 		{"insecure prod db", map[string]string{"APP_ENV": "production"}, "sslmode=disable in production"},
 	}
 	for _, tt := range tests {
@@ -100,5 +103,14 @@ func TestProductionDisablesSwaggerByDefault(t *testing.T) {
 	}
 	if !cfg.SessionCookieSecure {
 		t.Error("session cookies must be Secure by default in production")
+	}
+}
+
+func TestProposedGrantsAllowedInLocalDevelopment(t *testing.T) {
+	env := validEnv()
+	env["RBAC_ALLOW_PROPOSED_GRANTS"] = "true"
+	cfg, err := load(envFrom(env))
+	if err != nil || !cfg.RBACAllowProposedGrants {
+		t.Fatalf("development must allow the switch: %v", err)
 	}
 }

@@ -26,6 +26,11 @@ export interface NavItem {
   /** Backlog task IDs (05_Implementation_Tasks) that deliver this module. Empty = implemented. */
   backlog: string[]
   summary: string
+  /**
+   * Permission key the server must grant before the link is shown. Hiding the link is
+   * presentation only: the page and its API check the same permission.
+   */
+  permission?: string
 }
 
 export interface NavSection {
@@ -164,8 +169,9 @@ export const navigation: NavSection[] = [
         label: 'Users & Roles',
         path: '/admin/users',
         icon: UserCog,
-        backlog: ['B-06', 'B-07'],
-        summary: 'Staff accounts, roles, permissions and location scope.',
+        backlog: [],
+        summary: 'Roles, permission grants and their approval status.',
+        permission: 'access.roles.view',
       },
       {
         label: 'Store Settings',

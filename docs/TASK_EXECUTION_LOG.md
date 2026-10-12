@@ -36,8 +36,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-04 | Go API bootstrap and OpenAPI | P0 | B-01 | COMPLETE |
 | B-05 | PostgreSQL and migration baseline | P0 | B-01, B-04 | COMPLETE |
 | B-06 | Authentication and session handling | P0 | B-04, B-05 | COMPLETE |
-| B-07 | RBAC and location scope | P0 | B-06, B-08 | NOT STARTED |
-| B-08 | Append-only audit event framework | P0 | B-04, B-05, B-07 | NOT STARTED |
+| B-07 | RBAC and location scope | P0 | B-06, B-08 | COMPLETE |
+| B-08 | Append-only audit event framework | P0 | B-04, B-05, B-06 (registry fixed 2026-10-12; was B-07 — cycle) | COMPLETE |
 | B-09 | Private attachment service | P0 | B-04, B-05, B-07 | NOT STARTED |
 | C-01 | Brand/model/variant database schema | P0 | B-05 | NOT STARTED |
 | C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | NOT STARTED |
@@ -860,6 +860,324 @@ repeatable record (`ui/e2e/`).
 - E2E needs a running stack and accounts, so it is not part of `make ci` yet.
 - B-07 ↔ B-08 dependency cycle in `TASK_REGISTRY.csv` needs a decision before starting B-07.
 - B-05, B-06 and this review are uncommitted on `dev`.
+
+### B-08 — Append-only audit event framework
+
+- **Status:** COMPLETE
+- **Started:** 2026-10-12 · **Finished:** 2026-10-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_08_append-only-audit-event-framework.md
+- **Order decision:** the registry has a cycle (B-07 needs B-08, B-08 needs B-07). The user chose on 2026-10-12:
+  **B-08 first, then B-07**, so role/permission changes in B-07 are audited from day one (SEC-004).
+  B-08 therefore does not use permissions; it adds no read endpoint (reading needs a permission → B-07 or later).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-04 | COMPLETE | B-04 entry; review 2026-10-12 |
+| B-05 | COMPLETE | B-05 entry; migrations/round-trip tests green |
+| B-07 | NOT STARTED — cycle resolved by user decision above | — |
+
+#### Acceptance criteria
+- [x] AC1 Audit event table + service: actor, action, entity type/id, reference, timestamp, request ID, safe summary
+- [x] AC2 Append-only: rows cannot be updated, deleted or truncated through normal application paths (DB-enforced), proven by test
+- [x] AC3 Sensitive values (passwords, hashes, tokens, CSRF, secrets) cannot enter audit payloads, proven by test
+- [x] AC4 Reusable helper for sensitive mutations, written in the same transaction as the change; documented
+- [x] AC5 Thin integration example only: sign-in/sign-out and `cmd/user` account administration
+- [x] AC6 UI: NOT APPLICABLE (no audit screen in scope; Audit Log stays a planned module)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE — Prompt B: no audit screen unless already in scope; none exists (Audit Log stays a
+planned module). No permission contract exists yet for a read-only placeholder (B-07).
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000003_create_audit_events` (up/down): identity PK, actor type/user (FK RESTRICT)/label, action
+  (dotted format CHECK), outcome, entity type/id, reference, request ID, JSONB summary (object, ≤ 8 KB),
+  four indexes; `BEFORE UPDATE OR DELETE` row trigger and `BEFORE TRUNCATE` statement trigger raise `42501`.
+- `internal/audit`: `Event`, `Actor` (`UserActor`, `CLIActor`), `Summary`, `Change`, `Record(ctx, execer, ev)`
+  validating actor/action/outcome/entity/lengths and failing closed on secret-looking keys (password, token,
+  hash, secret, csrf, cookie, otp, credential, api key …), password-hash-looking values, oversized/unsupported data.
+  Package doc shows the transactional usage.
+- Thin integration: `auth.Service` — `auth.signed_in` written in the session-creation transaction,
+  `auth.signed_out` in the revoke transaction (idempotent: second sign-out writes nothing),
+  `auth.sign_in_failed` / `auth.sign_in_refused` for existing accounts only; `cmd/user` — `user.created`,
+  `user.enabled`, `user.disabled` (status from/to), `user.password_changed`, `user.sessions_revoked`, each in the
+  same transaction as the change, actor `cmd/user:<OS user>`. Request IDs passed from handlers.
+- Tests: `audit_test` (valid event, 7 invalid shapes, 16 secret/unsafe summaries, size limit),
+  `audit_integration_test` (UPDATE/DELETE/TRUNCATE refused with 42501 and row unchanged; DB CHECKs; rollback
+  of the caller's transaction removes the event), auth `http_test` (actions in order, unknown username not
+  audited, no password/cookie/CSRF/hash in events), `pgstore_integration_test` (full sequence of 7 audited
+  actions, no secrets or token in the table, request ID and actor fields, session not created when its event is
+  invalid).
+- Dev database migrated to version 3 (`make db-migrate-up`, additive).
+- Live check on a throwaway database: `cmd/user create/disable` rows with actor `cmd/user:hp`; `DELETE` refused
+  even for the database owner ("audit_events is append-only: DELETE is not allowed").
+- Commands: `make test-integration` ✅, `make lint-backend` ✅, `make build-backend` ✅ (no route changes; OpenAPI
+  unchanged).
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE — no new endpoint; existing auth endpoints unchanged in contract.
+
+#### Stage 4 — Browser testing
+Result: PASS (regression). Sign-in/sign-out now write audit rows in their transactions, so the full Playwright
+suite ran against a fresh isolated stack (Postgres :5447, API :8091 new build, Vite :5174): 34 passed,
+2 skipped (viewport-specific). The browser runs produced 37 audit rows (signed_in, signed_out, sign_in_failed,
+sign_in_refused, user.created, user.disabled); a scan found no password, hash or test-password text; all 34
+HTTP-originated rows carry a request ID.
+
+#### Files changed (B-08)
+`migrations/000003_create_audit_events.{up,down}.sql`, `internal/audit/{audit.go,audit_test.go,audit_integration_test.go}`,
+`internal/modules/auth/{store.go,pgstore.go,service.go,http.go,http_test.go,pgstore_integration_test.go}`,
+`internal/modules/auth/authtest/store.go`, `cmd/user/main.go`, `docs/API_CONVENTIONS.md` (Audit events),
+`docs/ARCHITECTURE_DECISIONS.md` (ADR-009), `docs/DEVELOPMENT_SETUP.md`.
+
+#### Known issues / pending approvals
+- No audit read API/UI yet; needs a permission (B-07) and the Audit Log screen has no explicit registry task.
+- IP-address retention policy for audit is open; IPs are not stored in audit events.
+- Retention/archiving of audit rows is not defined (H-06 / operations).
+- The user's running API (:8081) is a pre-B-08 build: `/ready` says the schema is newer — restart `make dev`.
+
+#### Final status
+COMPLETE — continuing with B-07 as instructed (B-08 first, then B-07).
+
+
+### B-07 — RBAC and location scope
+
+- **Status:** COMPLETE
+- **Started:** 2026-10-12 · **Finished:** 2026-10-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_07_rbac-and-location-scope.md
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-06 | COMPLETE | B-06 entry + review (E2E 34/34) |
+| B-08 | COMPLETE | B-08 entry (done first by user decision) |
+
+#### Pending client input (not guessed)
+RB-5 / A-05: every cell of the permission matrix is "Pending"; brand scope per user is pending; the initial
+showroom location's code/name/address were not supplied. B-07 therefore ships the mechanism with **no grants**
+and **no locations**; both are entered later as data (with approval evidence) through an audited CLI.
+
+#### Acceptance criteria
+- [x] AC1 Direct API requests without an explicitly approved permission are denied (403), deny by default
+- [x] AC2 Confirmed role identities represented: Owner, Inventory Manager, Sales Executive, Accountant, Viewer
+- [x] AC3 Granular grants/approval thresholds clearly marked pending owner sign-off (data + API + UI); no grants
+      assumed; sensitive permission keys (cost prices, refunds, adjustments, user roles, invoice settings, exports,
+      tax, discounts, audit) defined but not granted
+- [x] AC4 Unapproved (proposed) grants never count in staging/production
+- [x] AC5 Location scope enforced by policy helpers; cross-location access denied; tested
+- [x] AC6 Negative tests: direct API access, privilege escalation, cross-location access
+- [x] AC7 Role/permission/scope changes audited (SEC-004)
+- [x] AC8 Frontend: navigation/actions from the permissions contract, access-denied state, consistent 401/403,
+      no sensitive fields leaked
+
+#### Stage 1 — UI
+Result: UI COMPLETE — MOCK DATA ONLY (fetch mocked in tests; no runtime mock adapter, the API follows in Stage 2).
+- Contract: `GET /me` → `{user, roles[{key,name}], permissions[string], locationScope{all, locations[{id,code,name}]},
+  proposedGrantsActive}`; `GET /access/roles` (needs `access.roles.view`) → `{matrixStatus, approvedGrantCount,
+  roles[{key,name,description,grants[{permission,status,approvedBy,approvalReference,approvedAt}]}],
+  permissions[{key,description,sensitive}]}`; 403 `FORBIDDEN`.
+- `ui/src/features/access/`: `api/access.ts`, `hooks/useAccess.ts` (`useMe`, `usePermission` — unknown = not
+  granted), `components/RequirePermission.tsx`, `RolesPage.tsx` (read-only: pending-sign-off banner, dev-mode
+  banner for proposed grants, roles with "None — pending sign-off" / Approved / "Proposed — not approved",
+  permission catalogue with sensitivity).
+- `StateViews`: `AccessDeniedState`; `ErrorState` shows access denied for 403 `FORBIDDEN` only (not
+  `CSRF_FAILED`), without retry. Navigation items can declare `permission`; Sidebar and planned-page related
+  links hide gated items unless granted. Users & Roles is now implemented (route `/admin/users`).
+- Account menu: roles, location scope, "No permissions are granted yet … pending the owner's sign-off".
+- Tests: `access.test.tsx` (8). Vitest 84/84 ✅, tsc ✅, ESLint ✅.
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000004_create_access_control` (up/down): `permissions` (15 keys incl. cost price view/edit, refunds
+  create/approve, stock adjustment create/approve, roles view/manage, invoice settings, tax settings, discount
+  approval, report/customer export, audit view, `locations.all`), `roles`, `role_permissions` (PROPOSED/APPROVED;
+  APPROVED requires approver + reference + date — CHECK), `user_roles`, `locations` (identity only),
+  `user_location_scopes`; FKs RESTRICT. Seed `seeds/0002_roles.sql`: the five confirmed roles, neutral
+  descriptions, **no grants**. No location seeded (showroom details pending).
+- `internal/modules/access`: `policy.go` (permission constants, `Access.Has`, `Scope.Allows/Check/Restrict`,
+  `ErrOutOfScope`), `store.go` (`LoadAccess` with/without proposed grants, `RoleMatrix`, audited `Grant` (no silent
+  downgrade of an approved grant), `Revoke`, `AssignRole`/`UnassignRole`, `CreateLocation`, `Add/RemoveLocationScope`),
+  `http.go` (`Current` loads access once per request, `Require(permission)` → 403 FORBIDDEN without naming the
+  permission and panics on unknown keys, `GET /me`, `GET /access/roles` behind `access.roles.view`).
+- Config `RBAC_ALLOW_PROPOSED_GRANTS` (default false; refused in staging/production; warning logged when on).
+- `cmd/access` CLI (`make access ARGS=...`): roles, permissions, show, grant (PROPOSED, or APPROVED only with both
+  `--approved-by` and `--approval-ref`), revoke, assign/unassign, location-create, scope-add/remove; schema check;
+  actor `cmd/access:<OS user>` in every audit event.
+- Tests: `policy_test` (only granted keys, case/space variants denied, scope allows/check/restrict incl.
+  cross-location refusal), `http_test` (contract, empty arrays, 403 on direct GET/POST without permission and no
+  permission name in the body, 401 before 403, view ≠ edit, proposed grants only with the switch, client headers
+  cannot add permissions, no POST/PUT/PATCH/DELETE on `/access/roles`, cross-location 403 / own 200 /
+  `locations.all` 200, single load per request, 503 on lookup failure, unknown key panic),
+  `pgstore_integration_test` (code ↔ DB catalogue, fresh DB has 0 grants and the 5 roles pending, effective access
+  through assignment/proposed/approved/unassign, downgrade refused, unknown user/role/permission, location scope
+  incl. inactive location and `locations.all`, 9 audited actions in order with evidence, DB refuses APPROVED
+  without evidence), seed test (5 roles, no grants added), server test (Access dependency required; every
+  non-public route 401 without session), config test, CLI parse test.
+- Dev database migrated to version 4 and seeded (roles), additive.
+- Commands: `make lint` ✅, `make test-integration` ✅, `make build` ✅, `make swagger` ✅ (`/me`, `/access/roles`).
+
+#### Stage 3 — API integration
+Result: COMPLETE. UI uses `GET /me` and `GET /access/roles` through `apiRequest` + TanStack Query; no mocks in the
+production path. Real checks on an isolated stack (Postgres :5447, API :8091, Vite :5174), API first started like
+staging/production (proposed grants off): anonymous `/me` 401; `roles.review` (Viewer, PROPOSED
+`access.roles.view`, scope SR-TEST) → `/me` permissions `[]`, `/access/roles` 403; `POST /access/roles` 405;
+`owner.review` (no roles) → `/me` roles `[]`, `/access/roles` 403; denials logged.
+
+#### Stage 4 — Browser testing
+Result: PASS. Playwright (installed Chrome), desktop + Pixel 7, API with `RBAC_ALLOW_PROPOSED_GRANTS=true`:
+38 passed, 2 skipped (viewport-specific). New: user without grants sees no Users & Roles link, direct
+`/admin/users` → Access denied, API 403, account menu "No role assigned" + "No permissions are granted yet";
+user with the (proposed) permission → link, page with pending-sign-off banner, development-mode banner, the five
+roles, sensitive permission keys, no horizontal overflow, statuses inside the viewport. All earlier B-03…B-06
+flows passed again.
+- Fixed during testing: on phone width the grant statuses and sensitivity were pushed off-screen inside the
+  table scroll (UI guidelines: never hide statuses on narrow screens) → description hidden and sensitivity moved
+  under the key on small screens; E2E now asserts statuses fit the viewport.
+- Evidence: `docs/evidence/B-07/01-access-denied-no-grants.png`, `02-account-menu-no-roles.png`,
+  `03-roles-page-pending-signoff.png`, `04-account-menu-viewer-scope.png`, `05-roles-page-mobile.png`.
+- Audit rows from the run: `access.role_assigned`, `access.grant_proposed`, `location.created`,
+  `access.location_scope_added` by `cmd/access:hp`. Stack removed afterwards; throwaway passwords deleted.
+
+#### Final checks
+`make lint` ✅, `make typecheck-frontend` ✅, `make test-integration` ✅, `make test-frontend` ✅ (84),
+`make build` ✅, `npm run test:e2e` ✅ 38/38.
+
+#### Files changed (B-07)
+Backend: `migrations/000004_create_access_control.{up,down}.sql`, `seeds/0002_roles.sql`,
+`internal/modules/access/{policy,store,http}.go` + tests, `internal/config/config{,_test}.go`,
+`internal/server/server{,_test}.go`, `internal/database/seed_integration_test.go`, `cmd/api/main.go`,
+`cmd/access/{main,main_test}.go`, `Makefile` (`access` target, `bin/access`), `.env.example`, `docs/openapi/*`.
+Frontend: `ui/src/features/access/*`, `ui/src/components/ui/StateViews.tsx`, `ui/src/app/{navigation,routes}.ts(x)`,
+`ui/src/app/PlannedModulePage.tsx`, `ui/src/components/layout/{Sidebar,UserMenu}.tsx`, `ui/src/test/render.tsx`,
+`ui/e2e/{support,access.e2e}.ts`.
+Docs: `API_CONVENTIONS.md` (Authorisation), `ARCHITECTURE_DECISIONS.md` (ADR-007 as built), `DEVELOPMENT_SETUP.md`
+(Roles, permissions and locations; E2E roles user), `REQUIREMENTS_BASELINE.md`.
+
+#### Known issues / pending approvals
+- **RB-5 / A-05:** the whole permission matrix and approval thresholds await the owner; until then every
+  protected action is denied for everyone (by design). Enter decisions with `cmd/access grant … --approved-by
+  --approval-ref`.
+- Brand scope per user (RB-5) is not modelled yet. Initial showroom location details (code/name/address) not
+  supplied, so no location exists.
+- No user-management or grant-editing screens (CLI only); no registry task names them, nor the Audit Log screen.
+- Discount/approval thresholds (amount limits) are not modelled; they are business values pending sign-off.
+- JS bundle 676 kB (warning); lazy routes still planned.
+- The user's running API (:8081) is an old build and the dev DB is now version 4: restart `make dev`.
+
+#### Final status
+COMPLETE — B-09 not started.
+
+
+### VERIFY-B07 — Final manual verification of B-07 (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-10-12 · No new task started.
+- **Note:** B-08 was already COMPLETE (done before B-07 by the user's earlier choice); the next registry task is B-09.
+
+#### Evidence check
+`docs/evidence/B-07/01…05` exist and match the B-07 entry (01–04 at 1366 px, 05 at 390 px re-captured after the
+mobile status fix). Added: `06-manual-tester-roles-page.png`, `07-manual-tester-after-revoke.png`.
+
+#### Manual test on the user's local stack (Vite :5173 → API :8081 → dev DB), account `manual.tester`
+Setup as documented and already applied by the user: `.env` `APP_ENV=development`, `RBAC_ALLOW_PROPOSED_GRANTS=true`
+(git-ignored), Viewer role, PROPOSED `access.roles.view`. Driven with Playwright on the installed Chrome (the Claude
+in Chrome window was hidden earlier); password read from the git-ignored `.dev-test-accounts`, never printed.
+28/28 checks passed:
+- Users & Roles link visible; page shows pending-sign-off and development-mode banners; Viewer row
+  `access.roles.view` "Proposed — not approved"; other four roles "None — pending sign-off"; 15 catalogue entries;
+  no action buttons (read-only); account menu Viewer / "No location assigned" / development note.
+- Direct API: `/me` permissions `["access.roles.view"]`, `proposedGrantsActive: true`; `/access/roles` 200;
+  POST/PUT/PATCH/DELETE `/access/roles` 405; logout without CSRF 403 `CSRF_FAILED`; `X-Permissions`/`X-Role`
+  headers ignored.
+- `cmd/access revoke` while signed in → API 403 at once; after reload "Access denied" and the link disappears;
+  `unassign` → `/me` empty; grant and role restored afterwards (audited in the dev DB).
+- Deny by default: anonymous `/me`, `/access/roles` 401, anonymous logout 401, `/admin/users` → sign-in page;
+  `disabled.tester` refused; no console/page errors.
+
+#### Flag kept to local development
+- Separate API instance (:8093, the user's :8081 untouched): `APP_ENV=staging`/`production` with the flag on →
+  refuses to start; development with the flag off → `manual.tester` gets `permissions: []` and `/access/roles` 403.
+- **Fixed:** config also accepted the flag with `APP_ENV=test`. Now only `APP_ENV=development` accepts it
+  (`internal/config/config.go`, tests for test/staging/production refusal and development acceptance); comments,
+  `.env.example`, DEVELOPMENT_SETUP, API_CONVENTIONS, ADR-007 updated. CI does not set the flag.
+- Added a UI test for APPROVED grants / partial approval (coverage gap: no real approved grant exists yet).
+
+#### Registry dependency cycle
+- `prompt-pack/TASK_REGISTRY.csv` and its identical copy: **B-08 dependencies `B-04, B-05, B-07` → `B-04, B-05, B-06`**
+  (B-08 needs `users`, not RBAC). B-07 keeps `B-06, B-08`. Copies still byte-identical; CRLF kept.
+- Prompt-pack Markdown still lists B-07 for B-08 (approved text, not edited); CSV is the source of truth (ADR-009).
+- Whole-registry cycle check: B-07/B-08 cycle gone; **one more cycle found: D-08 ↔ E-02** — recorded as OQ-8, not
+  changed (outside B-07). C-05 → A-01 refers to a discovery item, expected.
+
+#### Checks
+`make lint` ✅, `make typecheck-frontend` ✅, `make test-integration` ✅, `make test-frontend` ✅ (85), `make build` ✅.
+
+#### Remaining owner approvals
+RB-5 permission matrix + approval thresholds (all grants), brand scope per user, initial showroom location
+details, plus OQ-8 (D-08 ↔ E-02 order).
+
+### VERIFY-B07-FINAL — Final technical verification of B-07 (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-10-12 · No other task started. No grant of any kind was added.
+
+#### Dependency status (reported separately from the technical results)
+- Registry (after the fix recorded in VERIFY-B07): B-07 → `B-06, B-08`; B-08 → `B-04, B-05, B-06`; no cycle.
+- **B-06: COMPLETE. B-08: COMPLETE** (entry "B-08 — Append-only audit event framework": done before B-07 on the
+  user's choice; migration 000003 applied — dev DB at version 4; `internal/audit` tests re-run green today in
+  `make test-integration`). B-08 is backend-only, so its evidence is tests + audit rows, not screenshots.
+- Therefore B-07 has no incomplete dependency. B-07 *business* blockers (owner approvals) remain — see below.
+
+#### Evidence review
+`docs/evidence/B-07/01…07` exist and match earlier entries (01–04 desktop 1366 px, 05 mobile 390 px after the
+mobile fix, 06–07 from VERIFY-B07). Added today: `08-final-dev-roles-page.png`, `09-final-dev-roles-page-mobile.png`,
+`10-final-no-grants-location-scope.png`, `11-final-session-revoked.png`.
+
+#### A. User's local stack (Vite :5173 → API :8081 → dev DB), `manual.tester`, read-only — 23/23 PASS
+Documented local setup already in place (`APP_ENV=development`, `RBAC_ALLOW_PROPOSED_GRANTS=true` in git-ignored
+`.env`; Viewer + the user's own PROPOSED `access.roles.view`). Playwright + installed Chrome; no grant/role/scope changed.
+- Roles page: pending-sign-off + development-mode banners, Viewer grant "Proposed — not approved", 0 approved,
+  no buttons in main (read-only). `/me`: Viewer, only `access.roles.view`, no locations, `proposedGrantsActive: true`.
+- Privilege escalation: POST/PUT/PATCH/DELETE `/access/roles` and POST/PUT `/me` → 405; spoofed
+  `X-Permissions`/`X-Role`/`X-User-Id` ignored; unknown `/api/v1/access/grants` → 404; mutation without CSRF → 403.
+- Frontend 401: forged session cookie (test context only) on Users & Roles → sign-in with "Your session has ended",
+  re-sign-in returns to `/admin/users`. Mobile (Pixel 7): statuses inside the viewport, no horizontal overflow.
+- Anonymous `/me`, `/access/roles` → 401; `/admin/users` → sign-in; `disabled.tester` refused; no console errors.
+
+#### B. Isolated stack (throwaway Postgres :5447, API :8091 with proposed grants **off**, Vite :5174), 0 grants — 10/10 PASS
+- User without roles/permissions: no Users & Roles link, `/admin/users` → Access denied (no table), API 403
+  `FORBIDDEN` without naming the permission; `/me` empty, `proposedGrantsActive: false`.
+- Location scope: user scoped to SR-A only (SR-B exists) → `/me` and account menu show SR-A only; `scope-remove`
+  → `/me` has no locations. (No production endpoint consumes location scope yet; cross-location *enforcement* is
+  covered by automated tests: `Scope.Check/Restrict`, HTTP stand-in route 403/200, PG integration.)
+- `cmd/user revoke-sessions` while on the page → the page's next `/auth/session` → 401 `SESSION_EXPIRED` → sign-in
+  with "Your session has ended". Audit rows: `location.created` ×2, `access.location_scope_added/removed`,
+  `user.sessions_revoked`.
+- One script artefact (not a bug): an extra API call before the reload received `SESSION_EXPIRED` and correctly
+  cleared the cookie, so the reload showed the plain sign-in page; the check now uses the page's own request.
+
+#### Bug found and fixed
+- **Stale navigation after a server 403:** when the server refused a permission the cached `/me` still listed
+  (e.g. revoked meanwhile), the page showed Access denied but the sidebar kept offering the link for up to 60 s.
+  Fix: `ui/src/app/queryClient.ts` re-reads `/me` on any 403 `FORBIDDEN`. Regression test in `access.test.tsx`
+  (reproduced without granting anything: cached `/me` with the permission, server 403); verified to **fail without
+  the fix** and pass with it.
+
+#### Automated checks (actual results)
+`make lint-backend` 0 · `make lint-frontend` 0 · `make typecheck-frontend` 0 · `make test-integration` 0 (incl.
+access, audit, auth, server, config, cmd/access) · `make test-frontend` 0 (86 tests) · `make swagger-check` 0 ·
+`make build-backend` 0 · `make build-frontend` 0 (bundle 676 kB, warning only) ·
+`npm run test:e2e` (isolated stack): **36 passed, 4 skipped** — 2 viewport-specific by design, 2 = "user with the
+permission" (desktop+mobile) skipped on purpose: no `E2E_ROLES` user, because creating one needs a grant. That
+positive path was verified in A on the user's own setup.
+
+#### Proposed grants kept local
+Only `APP_ENV=development` accepts `RBAC_ALLOW_PROPOSED_GRANTS=true` (config refuses test/staging/production; tests).
+CI does not set it; `.env.example` ships `false`; the user's `.env` is git-ignored. Dev DB after testing:
+1 PROPOSED grant (the user's), 0 APPROVED; isolated stack removed.
+
+#### Owner approvals still pending (B-07 business blockers)
+RB-5 permission matrix and approval thresholds (no role holds any approved permission); brand scope per user;
+initial showroom location (code/name/address); OQ-8 (registry cycle D-08 ↔ E-02, outside B-07).
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

@@ -147,6 +147,27 @@ make user ARGS="revoke-sessions --username asha.verma"
 New DB integration tests must get their connection through the `testConfig` helper pattern
 (skip normally, `t.Fatal` when `REQUIRE_INTEGRATION_TESTS=1`).
 
+## Roles, permissions and locations
+
+Nobody has any permission until the owner approves the permission matrix (RB-5). Grants, role
+assignments and location scope are data, changed only with the audited `cmd/access` tool:
+
+```bash
+make access ARGS="roles"                     # roles, grants and matrix status
+make access ARGS="permissions"               # permission catalogue
+make access ARGS="assign --username asha.verma --role viewer"
+make access ARGS="grant --role viewer --permission access.roles.view"            # PROPOSED
+make access ARGS="grant --role owner --permission reports.export --approved-by 'Name' --approval-ref 'Signed matrix 2026-10-20'"  # APPROVED
+make access ARGS="location-create --code SR1 --name 'Showroom name'"
+make access ARGS="scope-add --username asha.verma --location SR1"
+make access ARGS="show --username asha.verma"
+```
+
+- Record an **APPROVED** grant only with the owner's real sign-off. To try features locally before
+  that, record **PROPOSED** grants and set `RBAC_ALLOW_PROPOSED_GRANTS=true` in `.env` (`APP_ENV=development` only — test, staging and production refuse to start with it;
+  the UI then shows a "Development mode" notice). Restart the API after changing it.
+- Role and grant changes apply to signed-in users on their next request.
+
 ## End-to-end browser tests (Playwright)
 
 `ui/e2e/*.e2e.ts` drive the real stack in headless Google Chrome (installed Chrome, no browser
@@ -157,9 +178,14 @@ make db-up && make db-migrate-up && make db-seed && make dev        # or any run
 make user ARGS="create --username e2e.active --name 'E2E Active'"
 make user ARGS="create --username e2e.disabled --name 'E2E Disabled'"
 make user ARGS="disable --username e2e.disabled"
+# optional, for the roles-page test: a user holding access.roles.view (needs RBAC_ALLOW_PROPOSED_GRANTS=true)
+make user ARGS="create --username e2e.roles --name 'E2E Roles'"
+make access ARGS="assign --username e2e.roles --role viewer"
+make access ARGS="grant --role viewer --permission access.roles.view"
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
-  E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... npm run test:e2e
+  E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
+  E2E_ROLES_USERNAME=e2e.roles E2E_ROLES_PASSWORD=... npm run test:e2e
 ```
 
 - Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
@@ -199,6 +225,8 @@ browser/E2E tests (Playwright, added with the first UI task that needs them).
 5. Add any schema via `make db-migrate-create`.
 6. Brand-aware queries must filter by the caller's permitted brands (server-side), never only by a
    client-supplied `brandId`.
+- Sensitive create/update/approve/cancel/export actions record an audit event with `audit.Record` in the
+  same transaction (see API_CONVENTIONS "Audit events").
 
 ## Adding a frontend feature
 

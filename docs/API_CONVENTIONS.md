@@ -107,6 +107,56 @@ a new sign-in from the same browser, password change, account disable and admin 
 sign-ins are limited per username+IP (`LOGIN_MAX_FAILURES`, default 5) and per IP
 (`LOGIN_MAX_FAILURES_PER_IP`, default 20) within `LOGIN_FAILURE_WINDOW` (default 15m).
 
+## Authorisation (B-07)
+
+Deny by default, in two layers: the session middleware (B-06) rejects anonymous requests, then
+every feature route declares the permission it needs:
+
+```go
+api.GET("/stock/valuation", accessH.Require(access.PermCostPriceView), h.Valuation)
+```
+
+- `Require` answers **403 `FORBIDDEN`** ("You do not have permission to do this.") without naming
+  the permission; it panics at start-up for a key that is not in the catalogue.
+- Object/location checks belong in the handler or service: `a, ok := accessH.Current(c)`, then
+  `a.Has(...)`, `a.Scope.Check(locationID)` (cross-location → 403) or `a.Scope.Restrict(clientIDs)`
+  for list filters (a location outside scope is an error, never silently dropped). Never trust a
+  client-supplied location, role or permission.
+- Permissions come only from **APPROVED** grants (approver + reference recorded) on the user's roles.
+  `PROPOSED` grants count only with `RBAC_ALLOW_PROPOSED_GRANTS=true`, accepted only with `APP_ENV=development`.
+- There is no HTTP API to change grants, roles or scope; `cmd/access` does it and audits every change.
+
+| Endpoint | Success | Errors |
+| --- | --- | --- |
+| `GET /api/v1/me` | `{"data":{"user":{id,username,displayName},"roles":[{key,name}],"permissions":["…"],"locationScope":{"all":false,"locations":[{id,code,name}]},"proposedGrantsActive":false}}` | 401; 503 if access cannot be loaded |
+| `GET /api/v1/access/roles` (needs `access.roles.view`) | `{"data":{"matrixStatus":"PENDING_OWNER_SIGN_OFF"\|"PARTIALLY_APPROVED","approvedGrantCount":0,"roles":[{key,name,description,grants:[{permission,status,approvedBy,approvalReference,approvedAt}]}],"permissions":[{key,description,sensitive}]}}` | 401; 403 `FORBIDDEN`; 503 |
+
+The UI renders navigation and actions from `/me` (unknown = not granted) and shows "Access denied" for
+403 `FORBIDDEN`; hiding a link is never the security boundary.
+
+## Audit events (B-08)
+
+Sensitive changes are recorded in `audit_events` through `internal/audit`:
+
+- Call `audit.Record(ctx, tx, audit.Event{...})` with the **same transaction** as the change, so the
+  event exists exactly when the change does. Use `audit.UserActor(principal.UserID, principal.Username)`
+  for requests, `audit.CLIActor(...)` for commands; pass the request ID (`c.GetString(httpx.RequestIDKey)`).
+- `Action` is a dotted past-tense key (`user.disabled`, `auth.signed_in`); `Outcome` is `SUCCESS`
+  (default), `DENIED` or `FAILURE`; `EntityType`/`EntityID` name the record; `Reference` holds a
+  business document number when there is one.
+- `Summary` is a small JSON object of plain values (≤ 8 KB, strings ≤ 500 characters); use
+  `audit.Change{From, To}` for before/after. Keys containing password, token, hash, secret, csrf,
+  cookie, otp, credential … and password-hash-looking values are **rejected** (the whole write fails),
+  so a mistake is caught in tests instead of leaking. Reference people by ID, not phone/address/ID numbers.
+- The table is append-only at the database level: `UPDATE`, `DELETE` and `TRUNCATE` raise SQLSTATE
+  `42501`. Corrections are new events, never edits.
+- Currently audited: `auth.signed_in`, `auth.signed_out`, `auth.sign_in_failed` (existing accounts
+  only — typed unknown usernames are not stored), `auth.sign_in_refused` (disabled account), and
+  `cmd/user` actions `user.created`, `user.enabled`, `user.disabled`, `user.password_changed`,
+  `user.sessions_revoked`. Also audited (B-07): `access.grant_proposed`, `access.grant_approved`, `access.grant_revoked`,
+  `access.role_assigned`, `access.role_unassigned`, `location.created`, `access.location_scope_added`,
+  `access.location_scope_removed`. No read API yet (`audit.events.view` exists, not granted).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

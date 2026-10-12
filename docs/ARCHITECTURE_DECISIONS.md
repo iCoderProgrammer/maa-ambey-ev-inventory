@@ -112,9 +112,9 @@ Brand-scoped access: every brand-filtered query will take the caller's permitted
 the server-side session (B-07) and intersect it with any client-supplied `brandId`; a client
 `brandId` is never trusted on its own.
 
-## ADR-007 — Role/permission architecture (design only; built in B-06/B-07)
+## ADR-007 — Role/permission architecture (built in B-07)
 
-- **Status:** Proposed. The five roles are confirmed (Owner, Inventory Manager, Sales Executive,
+- **Status:** Accepted (implemented 2026-10-12; grants pending owner sign-off). The five roles are confirmed (Owner, Inventory Manager, Sales Executive,
   Accountant, Viewer); the permission matrix is pending (REQUIREMENTS_BASELINE §5).
 - **Model:** `roles`, `permissions` (stable keys such as `catalogue.brand.activate` or
   `stock.adjustment.approve`), `role_permissions`, `user_roles`, plus optional user brand and
@@ -126,8 +126,16 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   brand scope, self-approval (LED-006) and state. Repository queries always filter by the
   principal's permitted brand IDs, intersected with any client `brandId`.
 - **UI:** may hide actions using permissions returned by `/me`, but never relies on that.
-- B-06 added users, sessions and the deny-by-default session middleware (ADR-008); permission
-  checks per route are still B-07.
+- B-06 added users, sessions and the deny-by-default session middleware (ADR-008).
+- B-07 as built: tables `permissions` (catalogue, 15 keys, mirrored by `internal/modules/access`
+  constants and checked by a test), `roles` (5 seeded identities), `role_permissions` (`PROPOSED` or
+  `APPROVED`; approved needs approver + reference + date, DB-enforced), `user_roles`, `locations`
+  (identity only; no seed — showroom details pending), `user_location_scopes`. `locations.all` is a
+  permission. Effective access = APPROVED grants of the user's roles (+ PROPOSED only when
+  `RBAC_ALLOW_PROPOSED_GRANTS=true`, accepted only with `APP_ENV=development`). Grants/roles/scope change only via
+  `cmd/access`, audited (ADR-009). `GET /me` and `GET /access/roles`; `Require(permission)` per route;
+  `Scope.Check/Restrict` for object and list level. Brand scope per user is still pending (RB-5) and
+  not modelled.
 
 ## ADR-008 — Authentication: local accounts and server-side sessions (B-06)
 
@@ -152,6 +160,27 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Deferred:** audit events for sign-in/out go to the structured log until B-08 adds the audit table;
   self-service password reset, MFA and user-management screens are not in B-06.
 
+## ADR-009 — Append-only audit events (B-08)
+
+- **Status:** Accepted.
+- One table `audit_events` (bigint identity, actor type/user/label, action, outcome, entity, reference,
+  request ID, JSONB summary). `BEFORE UPDATE/DELETE/TRUNCATE` triggers raise `42501`, so no normal
+  application path can rewrite history; only a migration rollback (refused in staging/production without
+  `--confirm`) or a DBA can remove it.
+- Events are written inside the business transaction (`audit.Record(ctx, tx, …)`); an invalid event aborts
+  the change. Failed/refused sign-ins have no data change and are written on their own.
+- Secrets are blocked by key/value rules in `audit.Record` (fail closed). IP addresses are not stored in
+  audit events (sessions keep the sign-in IP); an IP-retention policy is still open (Architecture §5).
+- No read endpoint or UI yet: reading needs a permission key (B-07). The Audit Log screen has no explicit
+  registry task — flagged in the execution log.
+- Order: B-08 was done before B-07 by user decision (registry cycle), so B-07 audits role changes from the start.
+- Registry fix (2026-10-12, at the user's request): `TASK_REGISTRY.csv` (both identical copies) now lists
+  B-08's dependencies as `B-04, B-05, B-06` instead of `B-04, B-05, B-07`. B-08 needs `users` (audit
+  `actor_user_id`) from B-06, not RBAC; B-07 keeps `B-06, B-08`. The prompt-pack Markdown (`B_08_*.md`,
+  `ALL_TASK_PROMPTS.md`, `*_v1.2.md`) still says B-07 — approved prompt text, not edited; the CSV is
+  the source of truth. A full-registry check found one other cycle, **D-08 ↔ E-02** (D-08 depends on E-02,
+  E-02 on D-08), to be resolved before either starts (OQ-8).
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -164,4 +193,5 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-4 | Are motor / battery / charger serials mandatory, and is battery-swap history needed (Architecture §12.3, INV-003/004)? | D-04 |
 | OQ-5 | Deployment provider, API host, DB region, backup RPO/RTO (Architecture §12). | H-06, H-10 |
 | ~~OQ-6~~ | Session strategy — **resolved 2026-10-12**: local accounts + server-side sessions in an HttpOnly cookie (ADR-008). Session lifetimes (2h idle / 12h absolute) and the password policy are proposals the owner may change via config. | — |
+| OQ-8 | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI): which goes first, or should D-08 only link to the timeline once E-02 exists? | D-08, E-02 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

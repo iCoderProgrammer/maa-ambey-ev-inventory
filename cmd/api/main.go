@@ -15,6 +15,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/logger"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/server"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
@@ -76,7 +77,12 @@ func run() error {
 	}
 	authHandler := auth.NewHandler(authSvc, auth.CookieConfig{Secure: cfg.SessionCookieSecure}, log)
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Version: version})
+	if cfg.RBACAllowProposedGrants {
+		log.Warn("RBAC_ALLOW_PROPOSED_GRANTS is on: unapproved role grants count (development/test only)")
+	}
+	accessHandler := access.NewHandler(access.NewPGStore(pool), cfg.RBACAllowProposedGrants, log)
+
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

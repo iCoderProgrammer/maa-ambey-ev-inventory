@@ -4,8 +4,23 @@ import { expect, type Page } from '@playwright/test'
  * Test accounts come from the environment, never from the repository. Create
  * them with `make user ARGS="create ..."` on a non-production database.
  */
-export function account(kind: 'active' | 'disabled'): { username: string; password: string } {
-  const prefix = kind === 'active' ? 'E2E' : 'E2E_DISABLED'
+export type AccountKind = 'active' | 'disabled' | 'roles'
+
+const prefixes: Record<AccountKind, string> = {
+  active: 'E2E',
+  disabled: 'E2E_DISABLED',
+  // Optional: a user holding access.roles.view (see DEVELOPMENT_SETUP "End-to-end browser tests").
+  roles: 'E2E_ROLES',
+}
+
+export function hasAccount(kind: AccountKind): boolean {
+  return Boolean(
+    process.env[`${prefixes[kind]}_USERNAME`] && process.env[`${prefixes[kind]}_PASSWORD`],
+  )
+}
+
+export function account(kind: AccountKind): { username: string; password: string } {
+  const prefix = prefixes[kind]
   const username = process.env[`${prefix}_USERNAME`]
   const password = process.env[`${prefix}_PASSWORD`]
   if (!username || !password) {
@@ -21,8 +36,8 @@ export async function fillLogin(page: Page, username: string, password: string) 
 }
 
 /** Signs in through the real form and waits for the app shell. */
-export async function signIn(page: Page, path = '/') {
-  const { username, password } = account('active')
+export async function signIn(page: Page, path = '/', kind: AccountKind = 'active') {
+  const { username, password } = account(kind)
   await page.goto(path)
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await fillLogin(page, username, password)

@@ -1,6 +1,7 @@
 import { NavLink, useMatch, useResolvedPath } from 'react-router'
 import { navigation, type NavItem } from '@/app/navigation'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { useMe } from '@/features/access/hooks/useAccess'
 import { cn } from '@/lib/utils/cn'
 
 export interface SidebarProps {
@@ -81,6 +82,14 @@ function SidebarLink({ item, collapsed, onNavigate }: SidebarLinkProps) {
 }
 
 export function Sidebar({ collapsed, onNavigate }: SidebarProps) {
+  const me = useMe()
+  // Links to permission-gated pages appear only once the server has granted the permission.
+  const visible = (item: NavItem) =>
+    !item.permission || (me.data?.permissions.includes(item.permission) ?? false)
+  const sections = navigation
+    .map((section) => ({ ...section, items: section.items.filter(visible) }))
+    .filter((section) => section.items.length > 0)
+
   return (
     <nav
       aria-label="Main"
@@ -90,7 +99,7 @@ export function Sidebar({ collapsed, onNavigate }: SidebarProps) {
       )}
     >
       <div className="flex-1">
-        {navigation.map((section, si) => (
+        {sections.map((section, si) => (
           <div key={section.label ?? `section-${String(si)}`} className="mb-2">
             {section.label &&
               (collapsed ? (

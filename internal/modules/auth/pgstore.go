@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
 )
 
 // PGStore implements Store and the user administration used by cmd/user.
@@ -39,7 +41,7 @@ func (s *PGStore) FindUserByUsername(ctx context.Context, username string) (User
 }
 
 // CreateSession implements Store.
-func (s *PGStore) CreateSession(ctx context.Context, ns NewSession) (string, error) {
+func (s *PGStore) CreateSession(ctx context.Context, ns NewSession, ev audit.Event) (string, error) {
 	var id string
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
@@ -54,9 +56,25 @@ func (s *PGStore) CreateSession(ctx context.Context, ns NewSession) (string, err
 		if _, err := tx.Exec(ctx, `UPDATE users SET last_login_at = $2 WHERE id = $1`, ns.UserID, ns.CreatedAt); err != nil {
 			return fmt.Errorf("record last login: %w", err)
 		}
-		return nil
+		return audit.Record(ctx, tx, withSummary(ev, "sessionId", id))
 	})
 	return id, err
+}
+
+// withSummary returns ev with one more summary field, leaving the caller's map untouched.
+func withSummary(ev audit.Event, key string, value any) audit.Event {
+	summary := make(audit.Summary, len(ev.Summary)+1)
+	for k, v := range ev.Summary {
+		summary[k] = v
+	}
+	summary[key] = value
+	ev.Summary = summary
+	return ev
+}
+
+// RecordAudit implements Store.
+func (s *PGStore) RecordAudit(ctx context.Context, ev audit.Event) error {
+	return audit.Record(ctx, s.pool, ev)
 }
 
 // FindSessionByTokenHash implements Store.
@@ -92,14 +110,19 @@ func (s *PGStore) TouchSession(ctx context.Context, sessionID string, at time.Ti
 }
 
 // RevokeSession implements Store.
-func (s *PGStore) RevokeSession(ctx context.Context, sessionID, reason string, at time.Time) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE user_sessions SET revoked_at = $2, revoked_reason = $3
-		WHERE id = $1 AND revoked_at IS NULL`, sessionID, at, reason)
-	if err != nil {
-		return fmt.Errorf("revoke session: %w", err)
-	}
-	return nil
+func (s *PGStore) RevokeSession(ctx context.Context, sessionID, reason string, at time.Time, ev audit.Event) error {
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `
+			UPDATE user_sessions SET revoked_at = $2, revoked_reason = $3
+			WHERE id = $1 AND revoked_at IS NULL`, sessionID, at, reason)
+		if err != nil {
+			return fmt.Errorf("revoke session: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return nil // already revoked: nothing happened, nothing to audit
+		}
+		return audit.Record(ctx, tx, ev)
+	})
 }
 
 // RevokeSessionByTokenHash implements Store.
@@ -115,13 +138,21 @@ func (s *PGStore) RevokeSessionByTokenHash(ctx context.Context, tokenHash []byte
 
 // ── User administration (cmd/user) ────────────────────────────────────────
 
-// CreateUser inserts an ACTIVE user. Inputs must already be validated.
-func (s *PGStore) CreateUser(ctx context.Context, username, displayName string, email *string, passwordHash string) (User, error) {
+// CreateUser inserts an ACTIVE user and audits it. Inputs must already be validated.
+func (s *PGStore) CreateUser(ctx context.Context, actor audit.Actor, username, displayName string, email *string, passwordHash string) (User, error) {
 	var u User
-	err := scanUser(s.pool.QueryRow(ctx, `
-		INSERT INTO users (username, display_name, email, password_hash)
-		VALUES ($1, $2, $3, $4)
-		RETURNING `+userColumns, username, displayName, email, passwordHash), &u)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := scanUser(tx.QueryRow(ctx, `
+			INSERT INTO users (username, display_name, email, password_hash)
+			VALUES ($1, $2, $3, $4)
+			RETURNING `+userColumns, username, displayName, email, passwordHash), &u); err != nil {
+			return err
+		}
+		return audit.Record(ctx, tx, audit.Event{
+			Actor: actor, Action: "user.created", EntityType: "user", EntityID: u.ID,
+			Summary: audit.Summary{"username": u.Username, "status": u.Status, "emailProvided": email != nil},
+		})
+	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return User{}, ErrUsernameTaken
@@ -150,48 +181,65 @@ func (s *PGStore) ListUsers(ctx context.Context) ([]User, error) {
 	return users, rows.Err()
 }
 
-// SetStatus changes a user's status. Disabling also revokes every active
-// session in the same transaction. Returns the number of sessions revoked.
-func (s *PGStore) SetStatus(ctx context.Context, username, status string, at time.Time) (int64, error) {
-	return s.updateUserAndRevoke(ctx, username, RevokedUserDisabled, at, status == StatusDisabled,
-		`UPDATE users SET status = $2, version = version + 1 WHERE username = $1 RETURNING id::text`, status)
+// SetStatus changes a user's status and audits it. Disabling also revokes
+// every active session in the same transaction. Returns the sessions revoked.
+func (s *PGStore) SetStatus(ctx context.Context, actor audit.Actor, username, status string, at time.Time) (int64, error) {
+	action := "user.enabled"
+	if status == StatusDisabled {
+		action = "user.disabled"
+	}
+	return s.updateUserAndRevoke(ctx, actor, action, username, RevokedUserDisabled, at, status == StatusDisabled,
+		`UPDATE users u SET status = $2, version = u.version + 1
+		 FROM users old WHERE u.id = old.id AND u.username = $1
+		 RETURNING u.id::text, old.status`, status)
 }
 
-// SetPassword replaces the password hash and revokes every active session.
-func (s *PGStore) SetPassword(ctx context.Context, username, passwordHash string, at time.Time) (int64, error) {
-	return s.updateUserAndRevoke(ctx, username, RevokedPasswordChanged, at, true,
-		`UPDATE users SET password_hash = $2, password_changed_at = $3, version = version + 1 WHERE username = $1 RETURNING id::text`,
+// SetPassword replaces the password hash, revokes every active session and
+// audits the change (never the password or hash).
+func (s *PGStore) SetPassword(ctx context.Context, actor audit.Actor, username, passwordHash string, at time.Time) (int64, error) {
+	return s.updateUserAndRevoke(ctx, actor, "user.password_changed", username, RevokedPasswordChanged, at, true,
+		`UPDATE users SET password_hash = $2, password_changed_at = $3, version = version + 1
+		 WHERE username = $1 RETURNING id::text, status`,
 		passwordHash, at)
 }
 
-// RevokeAllSessions revokes every active session of a user.
-func (s *PGStore) RevokeAllSessions(ctx context.Context, username string, at time.Time) (int64, error) {
-	return s.updateUserAndRevoke(ctx, username, RevokedAdmin, at, true,
-		`SELECT id::text FROM users WHERE username = $1`)
+// RevokeAllSessions revokes every active session of a user and audits it.
+func (s *PGStore) RevokeAllSessions(ctx context.Context, actor audit.Actor, username string, at time.Time) (int64, error) {
+	return s.updateUserAndRevoke(ctx, actor, "user.sessions_revoked", username, RevokedAdmin, at, true,
+		`SELECT id::text, status FROM users WHERE username = $1`)
 }
 
-func (s *PGStore) updateUserAndRevoke(ctx context.Context, username, reason string, at time.Time, revoke bool, sql string, args ...any) (int64, error) {
+// updateUserAndRevoke runs sql (returning user id and previous status),
+// optionally revokes the user's sessions and appends one audit event, all in
+// one transaction.
+func (s *PGStore) updateUserAndRevoke(ctx context.Context, actor audit.Actor, action, username, reason string, at time.Time,
+	revoke bool, sql string, args ...any) (int64, error) {
 	var revoked int64
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var userID string
-		err := tx.QueryRow(ctx, sql, append([]any{username}, args...)...).Scan(&userID)
+		var userID, previousStatus string
+		err := tx.QueryRow(ctx, sql, append([]any{username}, args...)...).Scan(&userID, &previousStatus)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return fmt.Errorf("update user: %w", err)
 		}
-		if !revoke {
-			return nil
+		if revoke {
+			tag, err := tx.Exec(ctx, `
+				UPDATE user_sessions SET revoked_at = $2, revoked_reason = $3
+				WHERE user_id = $1 AND revoked_at IS NULL`, userID, at, reason)
+			if err != nil {
+				return fmt.Errorf("revoke sessions: %w", err)
+			}
+			revoked = tag.RowsAffected()
 		}
-		tag, err := tx.Exec(ctx, `
-			UPDATE user_sessions SET revoked_at = $2, revoked_reason = $3
-			WHERE user_id = $1 AND revoked_at IS NULL`, userID, at, reason)
-		if err != nil {
-			return fmt.Errorf("revoke sessions: %w", err)
+		summary := audit.Summary{"username": username, "sessionsEnded": revoked}
+		if action == "user.enabled" || action == "user.disabled" {
+			summary["status"] = audit.Change{From: previousStatus, To: args[0]}
 		}
-		revoked = tag.RowsAffected()
-		return nil
+		return audit.Record(ctx, tx, audit.Event{
+			Actor: actor, Action: action, EntityType: "user", EntityID: userID, Summary: summary,
+		})
 	})
 	return revoked, err
 }
