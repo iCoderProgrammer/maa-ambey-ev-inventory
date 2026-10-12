@@ -2,6 +2,7 @@
 package server
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/health"
 )
 
@@ -24,12 +26,17 @@ type Deps struct {
 	Config  config.Config
 	Log     *slog.Logger
 	DB      health.Pinger
+	Schema  health.SchemaChecker
+	Auth    *auth.Handler
 	Version string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
+	if d.DB == nil || d.Schema == nil || d.Auth == nil {
+		return nil, errors.New("server: DB, Schema and Auth dependencies are required")
+	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -67,9 +74,20 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	}
 
 	api := r.Group(APIPrefix)
-	api.Use(middleware.NewRateLimiter(d.Config.RateLimitRPS, d.Config.RateLimitBurst).Middleware())
+	// Deny by default (B-06): every /api/v1 route needs a valid session, and
+	// state-changing requests its CSRF token, unless listed as public here.
+	// Permission checks per route arrive with B-07.
+	public := append([]string{
+		"GET " + APIPrefix + "/health",
+		"GET " + APIPrefix + "/ready",
+	}, auth.PublicRoutes(APIPrefix)...)
+	api.Use(
+		middleware.NewRateLimiter(d.Config.RateLimitRPS, d.Config.RateLimitBurst).Middleware(),
+		d.Auth.RequireSession(public...),
+	)
 
-	health.NewHandler(d.DB, d.Version, d.Log).Register(api)
+	health.NewHandler(d.DB, d.Schema, d.Version, d.Log).Register(api)
+	d.Auth.Register(api)
 
 	return r, nil
 }

@@ -3,6 +3,9 @@ package database
 import (
 	"context"
 	"testing"
+	"testing/fstest"
+
+	"github.com/jarvisconsulting/maa-ambey-enterprises/seeds"
 )
 
 // Verifies the real seed files are idempotent and seed only unverified,
@@ -27,7 +30,7 @@ func TestSeedsAreIdempotent(t *testing.T) {
 	}
 
 	for i := range 3 {
-		if _, err := ApplySeeds(ctx, tx, "../../seeds"); err != nil {
+		if _, err := ApplySeeds(ctx, tx, seeds.FS); err != nil {
 			t.Fatalf("run %d: %v", i+1, err)
 		}
 	}
@@ -57,5 +60,11 @@ func TestSeedsAreIdempotent(t *testing.T) {
 	}
 	if after-before > len(slugs) {
 		t.Errorf("seeds inserted %d rows, want at most %d", after-before, len(slugs))
+	}
+}
+
+func TestApplySeedsRejectsEmptySource(t *testing.T) {
+	if _, err := ApplySeeds(context.Background(), nil, fstest.MapFS{}); err == nil {
+		t.Fatal("an empty seed source must be an error, not a silent no-op")
 	}
 }

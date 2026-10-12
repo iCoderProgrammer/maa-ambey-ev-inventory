@@ -34,8 +34,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-02 | Lint, type-check, tests and CI | P0 | B-01 | COMPLETE |
 | B-03 | React application shell | P0 | B-01 | COMPLETE |
 | B-04 | Go API bootstrap and OpenAPI | P0 | B-01 | COMPLETE |
-| B-05 | PostgreSQL and migration baseline | P0 | B-01, B-04 | NOT STARTED |
-| B-06 | Authentication and session handling | P0 | B-04, B-05 | NOT STARTED |
+| B-05 | PostgreSQL and migration baseline | P0 | B-01, B-04 | COMPLETE |
+| B-06 | Authentication and session handling | P0 | B-04, B-05 | COMPLETE |
 | B-07 | RBAC and location scope | P0 | B-06, B-08 | NOT STARTED |
 | B-08 | Append-only audit event framework | P0 | B-04, B-05, B-07 | NOT STARTED |
 | B-09 | Private attachment service | P0 | B-04, B-05, B-07 | NOT STARTED |
@@ -533,6 +533,333 @@ Theme reset to "system" afterwards. Evidence: `docs/evidence/UI-POLISH-01/` (6 s
 
 #### Final status
 COMPLETE — B-05 not started.
+
+### B-05 — PostgreSQL and migration baseline
+
+- **Status:** COMPLETE
+- **Started:** 2026-10-12 · **Finished:** 2026-10-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_05_postgresql-and-migration-baseline.md
+- **Branch:** `dev`. Pre-existing uncommitted changes not made by this task (Makefile `push` target, 21 UI
+  styling files) are left untouched and are not part of B-05.
+
+#### Dependencies
+| Dependency | Verified status | Evidence (code/tests/log) |
+| --- | --- | --- |
+| B-01 | COMPLETE | B-01 entry; `.env.example`, compose, config validation tests |
+| B-04 | COMPLETE | B-04 entry; `/api/v1/ready` pings PostgreSQL, error envelope, swagger-check |
+
+#### Baseline found (foundation scaffold)
+pgx pool (`internal/database/postgres.go`), config validation of `DATABASE_URL`, `cmd/migrate` (golang-migrate,
+up/down N/version/force), migration `000001_create_brands`, transactional idempotent seeds (`cmd/seed`), Compose
+PostgreSQL 18 with healthcheck, no auto-migrate on boot.
+
+Gaps vs acceptance criteria: migration files are read from a working-directory path (binary not self-contained,
+no check that every `up` has a `down`); `down`/`force` have no guard outside development; `cmd/migrate` duplicates
+`DATABASE_URL` validation; `/ready` reports ready against an unmigrated or dirty schema; seeding an unmigrated DB
+fails with a raw SQL error; no automated `up → down → up` test.
+
+#### Acceptance criteria
+- [x] AC1 DB starts through Docker Compose (healthcheck, localhost-only port, persistent volume)
+- [x] AC2 Migrations apply and revert per a documented policy: every version has an up and a down, `up → down → up`
+      tested automatically, `down`/`force` refused in staging/production without explicit confirmation, no "drop all"
+- [x] AC3 Bad configuration fails clearly without leaking credentials (missing/invalid URL, missing database name,
+      unreachable DB, unmigrated/dirty schema for seed)
+- [x] AC4 No destructive auto-reset: API never migrates/drops on boot; seeds idempotent and transactional
+- [x] AC5 Health/readiness integration: `/ready` reports database and schema state (503 when schema pending/dirty),
+      frontend shows the reason without guessing
+- [x] AC6 Frontend: local database startup and connection configuration documented; browser never talks to PostgreSQL
+
+#### Stage 1 — UI
+Result: COMPLETE — no mock needed (`/ready` already real; contract extended with a `migrations` check).
+Prompt B scope is documentation only; the one UI change is so the new check is reported honestly:
+- `ui/src/features/system/readinessChecks.ts` (new): check labels (`migrations` → "Database schema") and the
+  not-ready reason (database first, then schema, else "Not ready").
+- Header pill shows "Schema not ready" instead of the misleading "Database unavailable" when only the schema is
+  behind; System status card labels the row and explains that an administrator must run migrations and data is
+  never reset automatically.
+- Tests: `readinessChecks.test.ts` (new), `SystemStatus.test.tsx` (+ schema-pending case). Vitest 47/47 ✅.
+
+#### Stage 2 — Backend
+Result: COMPLETE. No new migration, no new route (contract change on `GET /api/v1/ready` only).
+- `migrations/migrations.go` (new): `//go:embed *.sql`, `Validate`/`Latest` enforce naming, version ≥ 1, no gaps,
+  one name per version, every version has up + down.
+- `seeds/seeds.go` (new): embedded seeds; `ApplySeeds` takes an `fs.FS` and errors when no files are found
+  (found during CLI testing: running `bin/seed` outside the repo root printed "ok: 0 seed file(s) applied").
+- `internal/database/schema.go` (new): `SchemaVersion`, `CheckSchema` (not migrated / dirty / behind / ahead),
+  `SchemaChecker`.
+- `internal/modules/health`: `/ready` adds `migrations` check (skipped and `down` when DB unreachable); reasons
+  logged only. `server.NewRouter` requires the schema checker. `cmd/api` logs schema state at boot, never migrates.
+- `internal/config`: exported `ValidateDatabaseURL` (adds "must name a database"), shared by API, migrate, seed.
+- `cmd/migrate`: embedded source (iofs), shared URL validation, strict arg parsing, `down`/`force` refused for
+  `APP_ENV=staging|production` without `--confirm`, `force` bounded to 0..latest, no drop command, connection
+  errors redact the password (userinfo form only; first version mangled text when the password was short — fixed).
+- `cmd/seed`: refuses a non-current schema with the reason.
+- `Makefile`: `db-migrate-down` passes `CONFIRM=1` → `--confirm` (only this line; the pre-existing uncommitted
+  `push` target is untouched).
+- Tests: `migrations/migrations_test.go`, `cmd/migrate/main_test.go` (policy + bad config + redaction),
+  `internal/database/schema_test.go`, `migrations_integration_test.go` (round trip `up → down → up` ×2 in a
+  scratch database created and dropped by the test; dev schema current), seed empty-source test, health and
+  server tests. Mutation check: removing `DROP TABLE` from the down script makes the round-trip test fail ✅.
+- Commands: `make lint-backend` ✅ (gofmt, vet, tidy, swagger-check), `make test-integration` ✅ (all packages),
+  `make build-backend` ✅, `make swagger` (description + example updated) ✅.
+- CLI checks against throwaway DB `maa_b05_check` (dev DB untouched): missing URL / no DB name / wrong password
+  (SQLSTATE 28P01, no password shown) / unreachable port / prod `down` refused / `drop` unknown / seed on
+  unmigrated DB refused / up / up again "no change" / seed ×2 idempotent (3 brands, pending + unverified) /
+  down / up / dirty flag → `/ready` 503 + seed refused → `force 1` → ready. API with bad URL and with DB down
+  exits 1 with clear message.
+
+#### Stage 3 — API integration
+Result: COMPLETE. Frontend already consumes the real `/ready` via `apiRequest` + TanStack Query; no mock exists.
+`docs/API_CONVENTIONS.md` and OpenAPI document the `migrations` check.
+
+#### Stage 4 — Browser testing
+Result: PASS. Claude in Chrome → Vite :5174 (`API_PROXY_TARGET=http://localhost:8091`) → freshly built API :8091 →
+scratch DB `maa_b05_check` in the Compose PostgreSQL. The user's own servers (:5173/:8081) were not touched.
+- Unmigrated schema: header "Schema not ready", rows Database = Ready, Database schema = Unavailable, explanation
+  shown → `docs/evidence/B-05/01-schema-not-ready.jpg`.
+- `migrate up` then Refresh (no API restart): "API online", both rows Ready →
+  `docs/evidence/B-05/02-schema-ready-after-migrate-up.jpg`.
+- Rolled back + reload: no console errors. Network: `/ready` 503 handled as data; an extra `/health`+`/ready`
+  pair appears with status 0 (aborted by React StrictMode's dev double-mount; the extension labels it 503).
+  API log confirms `/health` never returned non-200.
+- Cleanup: tab closed, :5174/:8091 stopped, scratch DBs dropped; dev DB still version 1, clean, 3 brands.
+
+#### Files changed (B-05)
+`migrations/migrations.go`, `migrations/migrations_test.go`, `seeds/seeds.go`, `internal/database/{schema.go,
+schema_test.go,seed.go,seed_integration_test.go,migrations_integration_test.go}`, `internal/config/{config.go,
+config_test.go}`, `internal/modules/health/{handler.go,handler_test.go}`, `internal/server/{server.go,server_test.go}`,
+`cmd/{api,migrate,seed}/main.go`, `cmd/migrate/main_test.go`, `docs/openapi/*`, `Makefile` (one target),
+`ui/src/features/system/{readinessChecks.ts,readinessChecks.test.ts,api/health.ts,components/ApiStatusIndicator.tsx,
+components/SystemStatusCard.tsx,components/SystemStatus.test.tsx}`, `docs/{DEVELOPMENT_SETUP,ARCHITECTURE_DECISIONS,
+API_CONVENTIONS}.md`, `docs/evidence/B-05/*`.
+
+#### Known issues / pending approvals
+- `make lint-frontend` fails on Prettier for 9 files with pre-existing uncommitted UI edits not made by B-05
+  (`PlannedModulePage`, `PageHeader`, `Card`, `Field`, `StateViews`, `DashboardPage`, `index.css`, plus those
+  edits' lines in `ApiStatusIndicator`/`SystemStatusCard`). B-05's own lines pass Prettier and ESLint. Not
+  reformatted here to avoid rewriting someone else's work. `make ci` will fail until they are formatted.
+- The same uncommitted `DashboardPage` edit hardcodes the brand roster and labels it "Initial authorised and
+  partner EV brands"; this conflicts with the rule that brands come from the API and roster ≠ authorisation.
+  Not changed (outside B-05).
+- The API already running on :8081 is a pre-B-05 build; restart it to get the `migrations` check.
+- Backup/restore drill and production migration runbook remain H-06 / OQ-5.
+
+#### Final status
+COMPLETE — B-06 not started.
+
+
+### B-06 — Authentication and session handling
+
+- **Status:** COMPLETE
+- **Started:** 2026-10-12 · **Finished:** 2026-10-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_06_authentication-and-session-handling.md
+- **Auth decision (OQ-6):** approved by the user on 2026-10-12 ("Start B-06" after the proposal): local
+  username/password with strong hashing (argon2id), server-side sessions in PostgreSQL, opaque token in a
+  secure HttpOnly SameSite=Strict cookie, CSRF header token, login throttling. Matches PRD §NFR security,
+  Architecture §2/§9 and SEC-006. No hardcoded admin: the first user is created with a CLI.
+- **Branch / tree:** `dev`; B-05 is still uncommitted (user has not asked for a commit); pre-existing UI edits
+  by someone else remain untouched except `UserMenu.tsx`, which is B-03's explicit B-06 placeholder.
+
+#### Dependencies
+| Dependency | Verified status | Evidence (code/tests/log) |
+| --- | --- | --- |
+| B-04 | COMPLETE | B-04 entry; error envelope, rate limiter, CORS; `make test-integration` ✅ 2026-10-12 |
+| B-05 | COMPLETE | B-05 entry; embedded migrations, schema check, seeds; `make test-integration` ✅ 2026-10-12 |
+
+#### Scope boundaries
+- In: users + sessions schema, password hashing, login/logout/session endpoints, session middleware (deny by
+  default for every non-public route), CSRF for mutations, login throttling, disabled-user denial, session
+  revocation (logout, disable, password change, CLI), user-admin CLI, login screen, route protection, expired
+  session handling, account menu with real sign-out.
+- Out (later tasks): roles/permissions and location scope (B-07), persisted audit events (B-08; login events
+  are logged with slog for now), user-management screens, password reset by e-mail, MFA.
+
+#### Acceptance criteria
+- [x] AC1 Unauthenticated API mutations are denied (401) — and, deny by default, every non-public route
+- [x] AC2 Disabled user cannot sign in; disabling a user ends their existing sessions
+- [x] AC3 Session invalidation works: logout, expiry (idle + absolute), disable, password change, CLI revoke
+- [x] AC4 UI never pretends a mocked session is real: protected routes need a server-confirmed session
+- [x] AC5 Passwords hashed (argon2id), generic login failure, throttled failures (429 + Retry-After), no
+      credentials in localStorage, HttpOnly/SameSite cookie, CSRF on cookie-authenticated mutations
+- [x] AC6 Login UI states: invalid credentials, disabled account, rate-limited, expired session, network/server
+      error, pending (no double submit); accessible and responsive
+
+#### Stage 1 — UI
+Result: UI COMPLETE — MOCK DATA ONLY (API mocked in tests only; no runtime mock adapter, because the real
+endpoints are built in Stage 2 of this task and a fake login must never reach the production path).
+- Contract (also in `docs/API_CONVENTIONS.md` after Stage 2): `POST /auth/login {username,password}` →
+  `{data:{user:{id,username,displayName},csrfToken,expiresAt}}` + HttpOnly cookie; `GET /auth/session` (401
+  `UNAUTHENTICATED` / `SESSION_EXPIRED` = not signed in); `POST /auth/logout` → `{data:{signedOut:true}}`;
+  mutations send `X-CSRF-Token`; errors `INVALID_CREDENTIALS` 401, `ACCOUNT_DISABLED` 403, `RATE_LIMITED` 429 +
+  `Retry-After`, `CSRF_FAILED` 403.
+- `ui/src/lib/api/csrf.ts` (in-memory CSRF token), `client.ts` (sends it on non-GET, `retryAfterSeconds`).
+- `ui/src/features/auth/`: `api/auth.ts` (Zod schemas, 401 → anonymous state), `hooks/useSession.ts` (session
+  query, login/logout mutations that drop other users' cached data), `components/RequireAuth.tsx` (pending,
+  offline, cannot-check error, redirect with `from`), `LoginPage.tsx` (RHF + Zod, show/hide password, all error
+  states, ended-session notice, double-submit guard), `redirect.ts` (no open redirect).
+- `ui/src/app/queryClient.ts`: any 401 from another call marks the session ended → sign-in page;
+  `CSRF_FAILED` re-reads the session. `routes.tsx`: `/login` public, everything else under `RequireAuth`.
+- `UserMenu.tsx`: B-03 placeholder replaced with the confirmed user and a real "Sign out" (navigates only after
+  the server confirms; failure says "You are still signed in").
+- Tests: `auth.test.tsx` (14), `redirect.test.ts`, client CSRF/Retry-After tests; test render helper seeds a
+  session fixture. Vitest 73/73 ✅, tsc ✅, ESLint ✅, Prettier ✅ for B-06 files.
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000002_create_users_and_sessions` (up/down): `users` (normalised username CHECK, unique username,
+  case-insensitive unique e-mail, argon2id-only hash CHECK, status ACTIVE/DISABLED, version, `updated_at` trigger) and
+  `user_sessions` (SHA-256 token hash unique, CSRF token, created/last seen/absolute expiry, revocation reason CHECK,
+  IP, user agent; FK RESTRICT; partial index on active sessions). Down drops only these tables.
+- `internal/modules/auth`: `password.go` (argon2id PHC, bounded verify params, 4 concurrent hashes, policy 12–128),
+  `token.go`, `throttle.go` (per username+IP and per IP), `store.go` + `pgstore.go` (pgx, parameterised; admin
+  ops revoke sessions in the same transaction), `service.go` (login with dummy-hash timing, disabled check after
+  password, new token per sign-in + superseded revoke, idle/absolute expiry, status re-checked every request,
+  throttled touch), `http.go` (handlers, `RequireSession` deny-by-default middleware with CSRF, cookie handling).
+  `authtest` = in-memory store for tests only.
+- Routes: `POST /api/v1/auth/login`, `GET /api/v1/auth/session`, `POST /api/v1/auth/logout`. Router requires the
+  auth handler; public list = health, ready, login, session. CORS allows `X-CSRF-Token`.
+- Config: `SESSION_IDLE_TIMEOUT` 2h, `SESSION_ABSOLUTE_TIMEOUT` 12h, `SESSION_COOKIE_SECURE` (default false only in
+  development/test; refused false in staging/production), `LOGIN_MAX_FAILURES` 5, `LOGIN_MAX_FAILURES_PER_IP` 20,
+  `LOGIN_FAILURE_WINDOW` 15m — documented as proposals pending owner sign-off.
+- `cmd/user` CLI (`make user ARGS=...`): create/list/disable/enable/set-password/revoke-sessions; hidden prompt,
+  no password flags, schema check first. Dependency: `golang.org/x/term v0.46.0` (2026-09-08), which bumped
+  indirect `golang.org/x/sys` to v0.48.0 (2026-08-31); `golang.org/x/crypto` became a direct dependency (argon2).
+- `internal/database/dbtest`: shared throwaway-database helper (create → migrate → drop); B-05 round-trip test
+  moved onto it.
+- Tests: `password_test`, `throttle_test`, `http_test` (cookie flags, `__Host-`, generic failures, disabled, disable
+  ends session, validation/415, throttling 429 + Retry-After, session endpoint, deny by default incl. CSRF, logout
+  revokes, idle + absolute expiry, re-sign-in supersedes, store outage → 503 not sign-out), `pgstore_integration_test`
+  (constraints, token hash only, last login, touch, logout, disable/password change/unknown user, history kept,
+  8 concurrent sign-ins unique, double logout revokes once), server test that every `/api/v1` route except the four
+  public ones answers 401, CLI parse/password tests, config tests.
+- Dev database migrated to version 2 with `make db-migrate-up` (additive: two new tables).
+- Commands: `make test-integration` ✅ (all packages), `make lint-backend` ✅ (gofmt, vet, tidy, swagger-check),
+  `make build-backend` ✅, `make swagger` ✅ (auth endpoints + schemas in OpenAPI).
+- Docs: `API_CONVENTIONS.md` (Authentication section), ADR-008, OQ-6 resolved, `DEVELOPMENT_SETUP.md` (Users and
+  sign-in), `.env.example`.
+
+#### Stage 3 — API integration
+Result: COMPLETE. The UI calls the real endpoints through `apiRequest` + TanStack Query; no mock exists in
+the production path. Contract checked with curl through the Vite proxy against a fresh API (:8091) on a
+throwaway database `maa_b06_check`: unauthenticated mutation 401, session 401, wrong password and unknown user
+identical 401, disabled + correct password 403, form post 415, foreign Origin 403, login 200 with
+`Set-Cookie: maa_session=…; Path=/; HttpOnly; SameSite=Strict`, session 200, logout without CSRF 403, logout
+200, replayed revoked cookie 401 `SESSION_EXPIRED`, 6th failed attempt 429 `Retry-After: 900`.
+Test users were created with `cmd/user` (random throwaway passwords kept in the scratchpad, deleted after);
+`create` with a short password and a duplicate username were refused.
+
+#### Stage 4 — Browser testing
+Result: PASS. Claude in Chrome → Vite :5174 (`API_PROXY_TARGET=http://localhost:8091`) → API :8091 →
+`maa_b06_check`. The user's own servers (:5173/:8081) were not touched.
+- `/inventory/vehicles` without a session → `/login`; no app shell or dashboard requests.
+- Wrong password → alert, username kept, password cleared and focused → `docs/evidence/B-06/01-invalid-credentials.jpg`.
+- Disabled user with correct password → "Account disabled" → `02-account-disabled.jpg`.
+- Correct sign-in → back to `/inventory/vehicles`, header "Asha Test"; full reload keeps the session; the session
+  cookie is not readable by JavaScript; web storage only holds the theme key → `03-signed-in-account-menu.jpg`.
+- `cmd/user revoke-sessions` while signed in → next action (Sign out) got 401 → "Your session has ended. Sign in
+  again" → `04-revoked-session-ended.jpg`.
+- Locked username → "Too many sign-in attempts … about 14 minutes" → `05-rate-limited.jpg`.
+- Normal sign-out → sign-in page without the ended notice; browser Back stays on sign-in.
+- 390 px (same-origin iframe; the window could not be resized): no horizontal overflow, 40 px submit button →
+  `06-login-mobile-390.png`.
+- Console: no errors. Network: an extra aborted `/auth/session` per load from React StrictMode (dev only; the
+  extension labels it with a status, the API log shows no such response).
+- API log: sign-in/out events logged; no passwords, hashes or tokens.
+- Fixed during testing: the alert repeated the same sentence as title and message for wrong-password and
+  rate-limit errors (now: actionable message / wait time only); a session ended on the server was only noticed on
+  the next protected call, so the session is now re-checked every 5 minutes as well as on focus.
+- Cleanup: tab closed, :5174/:8091 stopped, `maa_b06_check` dropped, throwaway passwords deleted.
+
+#### Final checks
+`make lint-backend` ✅, `make test-integration` ✅, `make build-backend` ✅, `make typecheck-frontend` ✅,
+`make test-frontend` ✅ (73 tests), `make build-frontend` ✅, ESLint ✅. Prettier: B-06 files clean; the same 9
+pre-existing uncommitted UI files still fail (not B-06).
+
+#### Files changed (B-06)
+Backend: `migrations/000002_create_users_and_sessions.{up,down}.sql`, `internal/modules/auth/*` (+ `authtest/`),
+`internal/database/dbtest/dbtest.go`, `internal/database/migrations_integration_test.go`, `internal/httpx/response.go`,
+`internal/config/config{,_test}.go`, `internal/middleware/cors.go`, `internal/server/server{,_test}.go`,
+`cmd/api/main.go`, `cmd/user/{main,main_test}.go`, `go.mod`, `go.sum`, `Makefile` (`user` target, `bin/user`),
+`.env.example`, `docs/openapi/*`.
+Frontend: `ui/src/features/auth/*`, `ui/src/lib/api/{csrf.ts,client.ts,client.test.ts}`, `ui/src/app/{queryClient,routes}.tsx|ts`,
+`ui/src/components/layout/UserMenu.tsx`, `ui/src/test/render.tsx`, `AppShell.test.tsx`, `SystemStatus.test.tsx`.
+Docs: `API_CONVENTIONS.md`, `ARCHITECTURE_DECISIONS.md` (ADR-008, OQ-6), `DEVELOPMENT_SETUP.md`, this log,
+`docs/evidence/B-06/*`.
+
+#### Known issues / pending approvals
+- Session lifetimes (2h idle / 12h absolute), password policy (12–128) and throttle limits are proposals; the owner
+  can change them via environment variables.
+- Login throttling is per API instance (in memory); multi-instance deployment needs a shared store (OQ-5).
+- Audit events for sign-in/out are only in the structured log until B-08.
+- No self-service password reset, MFA or user-management UI (not in B-06 scope). Accounts are created with `cmd/user`.
+- Signed-in users have no permissions yet; every future feature route must add its permission check (B-07).
+- The dev database was migrated to version 2. The user's running API on :8081 is an old build and does not know the
+  auth routes; restart `make dev`, then create a first account with `make user ARGS="create ..."` to sign in.
+- JS bundle 599 → 665 kB (B-06 auth UI plus the pre-existing uncommitted dashboard edits); lazy routes still planned.
+- Pre-existing uncommitted UI edits (not B-06) still fail Prettier and include a hardcoded "authorised" brand roster.
+- B-05 and B-06 are both uncommitted on `dev`.
+
+#### Final status
+COMPLETE — B-07 not started.
+
+
+### REVIEW-B01-B06 — Verification of B-01…B-06 before B-07 (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-10-12 · B-07 not started (waiting for explicit approval).
+- **Environment:** isolated stack — throwaway PostgreSQL container `maa-review-pg` (:5447), fresh migrate +
+  seed, two throwaway accounts via `cmd/user`, API :8091, Vite :5174. The user's :5173/:8081 and dev
+  database were not modified (still 0 users, 3 brands). All removed afterwards; passwords deleted.
+- **Browser tool:** the Claude in Chrome window reported `visibilityState: hidden`, so real input did not
+  reach the page. Switched to Playwright (workflow-preferred) with the installed Chrome: added
+  `@playwright/test@1.63.0` (2026-09-04) as a dev dependency, `ui/playwright.config.ts`, `ui/tsconfig.e2e.json`,
+  `ui/e2e/{support,auth.e2e,shell.e2e}.ts`, `npm run test:e2e`; docs in DEVELOPMENT_SETUP "End-to-end browser tests".
+
+#### Bugs found (reproduced first) and fixed
+| # | Task | Bug | Fix |
+| --- | --- | --- | --- |
+| 1 | B-06 | A failed background session re-check (API briefly unreachable) replaced the whole app with "Could not check your session" for a signed-in user (E2E reproduced). | `RequireAuth` keeps a confirmed session usable; error page only when the session was never confirmed. Unit + E2E test. |
+| 2 | B-06 | Sign-in page spun "Checking your session…" forever when the browser was offline (paused query). | Shows the form with an offline notice. Unit test. |
+| 3 | pre-existing UI edits | Dashboard "Multi-Brand Showroom Roster" invented brand specs/taglines ("Modular Lithium Packs", "Dual Battery Options", …), called the brands "authorised" and hardcoded them (E2E reproduced). Violates never-invent-specs and brands-from-API rules. | Card and its data removed (brands arrive via C-01/C-02 API). |
+| 4 | pre-existing UI edits | Sidebar footer hardcoded "3 Brands · Lectrix · Ceeon · Ujagar". | Removed. |
+| 5 | pre-existing UI edits | Dashboard quick-launch cards said "Open module" for unbuilt modules (B-03 requires "Planned" everywhere) and claimed "multi-tier approval rules" (thresholds pending). | "Planned" badge + "View plan"; wording "approval rules pending owner sign-off". E2E test. |
+| 6 | pre-existing UI edits | Prettier failed on 9 files → `make lint` / `make ci` / GitHub CI frontend job would fail. | Formatting only (`prettier --write`), no behaviour change. |
+| 7 | B-01 | Makefile `-include .env` overrode variables set in the shell: `DATABASE_URL=… make db-migrate-down` would silently target the `.env` database. Found when the review's own migrate/seed ran against the dev DB (both no-ops: already v2, seed idempotent — verified unchanged). | Environment and command-line values now win over `.env` (verified, incl. `$` in values). |
+| 8 | B-06 docs | README quick start still said "open :5173 and see the dashboard"; no step to create the first account; `make setup` hint likewise. | README + `make setup` hint include `make user ARGS="create …"`. |
+| 9 | B-05 | During a database outage the status card also said "schema … migrations pending", because `/ready` reports `migrations: down` when the DB is unreachable. | Explanation only when the database is up. Unit test. |
+
+Not bugs (test artefacts, recorded for clarity): Back after sign-out landed on `about:blank` in the first E2E draft
+(no in-app history entry; real browser stays on sign-in, verified in B-06); disabled-account E2E hit the login
+throttle on the third run within 15 min (throttle working; docs say restart the API between runs); Prettier
+scanned Playwright output (added `test-results`, `playwright-report` to `ui/.prettierignore`).
+
+#### Verified flows (E2E, desktop 1366×900 and Pixel 7) — 34 passed, 2 skipped (viewport-specific)
+Deep link → sign-in → back to the same URL (query + hash, username trimmed/case-insensitive); empty submit
+validated without a request; wrong password generic + password cleared/focused; disabled account; reload keeps
+session; cookie HttpOnly + SameSite=Strict + browser-session, not readable by JS, no auth data in web storage;
+/login when signed in → dashboard; sign-out revokes on server (API 401 afterwards) and Back stays on sign-in;
+forged/revoked cookie → "Your session has ended" → sign-in returns to the page; API mutation without session 401,
+without CSRF 403 and session unaffected; API outage keeps the user signed in with "API offline", recovers;
+throttling message with wait time; dashboard live API/database/schema status; no invented catalogue data and
+planned shortcuts; planned module page + 404; no horizontal overflow on three pages; theme persists; desktop
+sidebar navigation, focus on route change, collapse/expand; mobile drawer navigation + account menu.
+Plus a real database outage (container stopped): signed-in user stays in with "Database unavailable", status card
+shows both checks down without the misleading schema text (after fix 9); fresh load retries then offers "Try
+again", which recovers once the database is back. No page errors.
+
+#### Automated checks (final)
+`make lint` ✅ (incl. Prettier, now clean), `make typecheck-frontend` ✅, `make test-integration` ✅,
+`make test-frontend` ✅ (76 tests), `make build` ✅, `npm run test:e2e` ✅ 34/34.
+
+#### Evidence
+`docs/evidence/B-06-review/07-db-down-signed-in.png`, `08-db-down-reload-retrying.png`; E2E specs are the
+repeatable record (`ui/e2e/`).
+
+#### Remaining known issues (not fixed here)
+- JS bundle 662 kB (> 500 kB warning); route-level code splitting still planned.
+- Login throttle is per API instance; production behind a proxy must set `TRUSTED_PROXIES` or all clients share one IP.
+- E2E needs a running stack and accounts, so it is not part of `make ci` yet.
+- B-07 ↔ B-08 dependency cycle in `TASK_REGISTRY.csv` needs a decision before starting B-07.
+- B-05, B-06 and this review are uncommitted on `dev`.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

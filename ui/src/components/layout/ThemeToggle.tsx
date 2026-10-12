@@ -17,7 +17,7 @@ export function ThemeToggle() {
     <div
       role="radiogroup"
       aria-label="Colour theme"
-      className="flex rounded-control border border-border p-0.5"
+      className="flex items-center rounded-control border border-border/80 bg-surface-muted/60 p-0.5 shadow-xs"
     >
       {options.map(({ value, label, Icon }) => (
         <button
@@ -29,11 +29,13 @@ export function ThemeToggle() {
           title={label}
           onClick={() => dispatch(setTheme(value))}
           className={cn(
-            'grid size-7 cursor-pointer place-items-center rounded-[6px] text-muted transition-colors duration-150',
-            theme === value ? 'bg-surface-muted text-ink shadow-xs' : 'hover:text-ink',
+            'grid size-7 cursor-pointer place-items-center rounded-[6px] text-muted transition-[background-color,color,box-shadow,transform] duration-150',
+            theme === value
+              ? 'bg-surface text-ink shadow-xs ring-1 ring-border/60'
+              : 'hover:text-ink hover:bg-surface-muted/50 active:scale-95',
           )}
         >
-          <Icon className="size-4" aria-hidden="true" />
+          <Icon className="size-3.5" aria-hidden="true" />
         </button>
       ))}
     </div>

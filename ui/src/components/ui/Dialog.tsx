@@ -26,9 +26,9 @@ export function Dialog({ open, onClose, title, description, children, footer }: 
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/40 data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in dark:bg-black/60" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-xs data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in dark:bg-black/70" />
         <DialogPrimitive.Content
-          className="fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card border border-border bg-surface text-ink shadow-xl data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in"
+          className="fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card border border-border/80 bg-surface text-ink shadow-2xl data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in"
           {...(description ? {} : { 'aria-describedby': undefined })}
         >
           <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">

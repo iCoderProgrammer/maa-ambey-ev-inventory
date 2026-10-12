@@ -81,12 +81,36 @@ Pagination uses `page`/`limit` with a server-enforced maximum and a stable sort.
 | Endpoint | 200 | Non-200 |
 | --- | --- | --- |
 | `GET /api/v1/health` | `{"data":{"status":"ok","service","version","time"}}` — process is alive; no dependency checks | — |
-| `GET /api/v1/ready` | `{"data":{"status":"ready","checks":{"database":"up"}}}` | 503 with same shape, `status: "not_ready"`, failed check `"down"` |
+| `GET /api/v1/ready` | `{"data":{"status":"ready","checks":{"database":"up","migrations":"up"}}}` | 503 with same shape, `status: "not_ready"`, failed check `"down"` (`migrations` is also `"down"` when the database is unreachable); reasons are only logged |
+
+## Authentication (B-06)
+
+Server-side sessions. The session token lives only in an HttpOnly, `SameSite=Strict`, `Path=/`
+browser-session cookie (`__Host-maa_session` with `Secure` over HTTPS; `maa_session` when
+`SESSION_COOKIE_SECURE=false` in local development). The database stores only its SHA-256 hash.
+
+**Deny by default:** every `/api/v1` route needs a valid session except `GET /health`, `GET /ready`,
+`POST /auth/login` and `GET /auth/session`. `POST`/`PUT`/`PATCH`/`DELETE` also need the session's
+CSRF token in `X-CSRF-Token`. Clients keep that token in memory only (never localStorage) and get it
+again from `GET /auth/session` after a reload. Permissions per route arrive with B-07.
+
+| Endpoint | Success | Errors |
+| --- | --- | --- |
+| `POST /api/v1/auth/login` body `{"username","password"}` (`Content-Type: application/json` required) | 200 `{"data":{"user":{"id","username","displayName"},"csrfToken","expiresAt"}}` + `Set-Cookie` | 400 `VALIDATION_FAILED` (details `username`/`password`) or `BAD_REQUEST`; 401 `INVALID_CREDENTIALS` (unknown user and wrong password look the same); 403 `ACCOUNT_DISABLED` (only when the password was right); 415 `UNSUPPORTED_MEDIA_TYPE`; 429 `RATE_LIMITED` + `Retry-After` seconds |
+| `GET /api/v1/auth/session` | 200, same `data` as login | 401 `UNAUTHENTICATED` (no cookie) or `SESSION_EXPIRED` (ended; cookie cleared); 503 if it cannot be checked |
+| `POST /api/v1/auth/logout` + `X-CSRF-Token` | 200 `{"data":{"signedOut":true}}`, cookie cleared, session revoked | 401 as above; 403 `CSRF_FAILED` |
+| any other protected route | — | 401 `UNAUTHENTICATED` / `SESSION_EXPIRED`; 403 `CSRF_FAILED` on mutations; 503 `SERVICE_UNAVAILABLE` if the session store is down (the session is not ended) |
+
+`expiresAt` is when the session ends if unused: the earlier of last activity + `SESSION_IDLE_TIMEOUT`
+(default 2h) and sign-in + `SESSION_ABSOLUTE_TIMEOUT` (default 12h). Sessions also end on sign-out,
+a new sign-in from the same browser, password change, account disable and admin revoke. Failed
+sign-ins are limited per username+IP (`LOGIN_MAX_FAILURES`, default 5) and per IP
+(`LOGIN_MAX_FAILURES_PER_IP`, default 20) within `LOGIN_FAILURE_WINDOW` (default 15m).
 
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;
-`/api/v1` adds the per-IP rate limiter. The access log sits outside recovery, so a recovered panic
+`/api/v1` adds the per-IP rate limiter, then the session check (deny by default, CSRF on mutations). The access log sits outside recovery, so a recovered panic
 still logs one `http_request` line (status 500, `request_id`, route template, latency).
 
 ## OpenAPI

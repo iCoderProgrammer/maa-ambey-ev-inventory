@@ -6,34 +6,12 @@ import { AppProviders } from '@/app/AppProviders'
 import { createQueryClient } from '@/app/queryClient'
 import { RouteErrorPage } from '@/app/RouteErrorPage'
 import { createStore } from '@/store'
-import { renderApp } from '@/test/render'
+import { renderApp, seedSession, testSession } from '@/test/render'
 import { AppShell } from './AppShell'
 
 beforeEach(() => {
   // The shell polls /health and /ready; these tests do not depend on the result.
   vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
-})
-
-describe('user menu placeholder', () => {
-  it('states that nobody is signed in and offers no fake actions', async () => {
-    const user = userEvent.setup()
-    renderApp('/')
-
-    const button = screen.getByRole('button', { name: 'Account' })
-    expect(button).toHaveAttribute('aria-expanded', 'false')
-    await user.click(button)
-    expect(button).toHaveAttribute('aria-expanded', 'true')
-
-    const panel = screen.getByRole('dialog', { name: 'Account' })
-    expect(within(panel).getByText('Not signed in')).toBeInTheDocument()
-    expect(within(panel).getByText(/B-06/)).toBeInTheDocument()
-    expect(within(panel).queryByRole('button')).not.toBeInTheDocument()
-    expect(within(panel).queryByRole('link')).not.toBeInTheDocument()
-
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Account' })).not.toBeInTheDocument()
-    expect(button).toHaveFocus()
-  })
 })
 
 describe('mobile navigation drawer', () => {
@@ -147,6 +125,7 @@ describe('route errors', () => {
     )
     const queryClient = createQueryClient()
     queryClient.setDefaultOptions({ queries: { retry: false, refetchInterval: false } })
+    seedSession(queryClient, testSession)
     render(
       <AppProviders store={createStore()} queryClient={queryClient}>
         <RouterProvider router={router} />

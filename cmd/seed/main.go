@@ -1,5 +1,6 @@
-// Command seed applies the idempotent SQL seed files in ./seeds (or SEEDS_DIR)
-// in a single transaction. Run migrations first. Safe to re-run.
+// Command seed applies the idempotent SQL seed files embedded from ./seeds in a
+// single transaction. It refuses to run until the database schema matches this
+// build (run migrations first). Safe to re-run.
 package main
 
 import (
@@ -10,6 +11,8 @@ import (
 
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/seeds"
 )
 
 func main() {
@@ -24,11 +27,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	dir := os.Getenv("SEEDS_DIR")
-	if dir == "" {
-		dir = "seeds"
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -38,13 +36,23 @@ func run() error {
 	}
 	defer pool.Close()
 
+	// Seeds target the current schema: refuse to run against a database that
+	// is unmigrated, partially migrated or left dirty by a failed migration.
+	want, err := migrations.Latest()
+	if err != nil {
+		return err
+	}
+	if err := database.CheckSchema(ctx, pool, want); err != nil {
+		return fmt.Errorf("database not ready for seeding: %w", err)
+	}
+
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	applied, err := database.ApplySeeds(ctx, tx, dir)
+	applied, err := database.ApplySeeds(ctx, tx, seeds.FS)
 	if err != nil {
 		return err
 	}

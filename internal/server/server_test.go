@@ -16,11 +16,29 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth/authtest"
 )
 
 type okPinger struct{}
 
 func (okPinger) Ping(context.Context) error { return nil }
+
+// testAuth builds the real auth handler over an in-memory store.
+func testAuth(t *testing.T) *auth.Handler {
+	t.Helper()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc, err := auth.NewService(authtest.NewStore(), auth.Config{IdleTimeout: time.Hour, AbsoluteTimeout: 2 * time.Hour},
+		auth.NewLoginThrottle(5, 20, time.Minute), log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auth.NewHandler(svc, auth.CookieConfig{}, log)
+}
+
+type okSchema struct{}
+
+func (okSchema) CheckSchema(context.Context) error { return nil }
 
 func testConfig() config.Config {
 	return config.Config{
@@ -35,7 +53,7 @@ func testConfig() config.Config {
 
 func newTestRouter(t *testing.T, cfg config.Config) *gin.Engine {
 	t.Helper()
-	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Version: "test"})
+	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +212,7 @@ func TestTimeoutKeepsHandlerResponse(t *testing.T) {
 
 func TestPanicIsAccessLoggedWithRequestID(t *testing.T) {
 	var buf strings.Builder
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,5 +270,44 @@ func TestCORSIgnoresSameHostOrigin(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("same-host origin: status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func TestNewRouterRequiresSchemaCheckerAndAuth(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without a schema checker")
+	}
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without authentication")
+	}
+}
+
+// Only health, readiness and the sign-in routes are reachable without a session.
+func TestAPIRoutesArePrivateByDefault(t *testing.T) {
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	public := map[string]bool{
+		"GET /api/v1/health": true, "GET /api/v1/ready": true,
+		"POST /api/v1/auth/login": true, "GET /api/v1/auth/session": true,
+	}
+	for _, route := range r.Routes() {
+		if !strings.HasPrefix(route.Path, APIPrefix) {
+			continue
+		}
+		key := route.Method + " " + route.Path
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(route.Method, route.Path, strings.NewReader("{}")))
+		if public[key] {
+			if w.Code == http.StatusUnauthorized && key != "GET /api/v1/auth/session" {
+				t.Errorf("%s is public but answered 401", key)
+			}
+			continue
+		}
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s without a session: status %d, want 401", key, w.Code)
+		}
 	}
 }

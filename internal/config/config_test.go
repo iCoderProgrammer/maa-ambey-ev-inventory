@@ -44,6 +44,8 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 	}{
 		{"missing database url", map[string]string{"DATABASE_URL": ""}, "DATABASE_URL is required"},
 		{"non postgres url", map[string]string{"DATABASE_URL": "mysql://x@localhost/db"}, "postgres:// or postgresql://"},
+		{"no database name", map[string]string{"DATABASE_URL": "postgres://u:p@localhost:5432/?sslmode=disable"}, "must name a database"},
+		{"no host", map[string]string{"DATABASE_URL": "postgres:///maa_ambey_inventory"}, "URL with a host"},
 		{"bad env", map[string]string{"APP_ENV": "prod"}, "APP_ENV must be one of"},
 		{"bad port", map[string]string{"APP_PORT": "abc"}, "APP_PORT must be an integer"},
 		{"port out of range", map[string]string{"APP_PORT": "70000"}, "APP_PORT must be between"},
@@ -52,6 +54,10 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"bad log level", map[string]string{"LOG_LEVEL": "verbose"}, "LOG_LEVEL must be one of"},
 		{"bad duration", map[string]string{"REQUEST_TIMEOUT": "15"}, "REQUEST_TIMEOUT must be a duration"},
 		{"min above max conns", map[string]string{"DB_MAX_CONNS": "2", "DB_MIN_CONNS": "5"}, "DB_MIN_CONNS must be between"},
+		{"idle too short", map[string]string{"SESSION_IDLE_TIMEOUT": "10s"}, "SESSION_IDLE_TIMEOUT must be at least 1m"},
+		{"absolute below idle", map[string]string{"SESSION_IDLE_TIMEOUT": "2h", "SESSION_ABSOLUTE_TIMEOUT": "1h"}, "SESSION_ABSOLUTE_TIMEOUT must be between"},
+		{"insecure cookie in staging", map[string]string{"APP_ENV": "staging", "SESSION_COOKIE_SECURE": "false"}, "SESSION_COOKIE_SECURE must be true in staging"},
+		{"zero login failures", map[string]string{"LOGIN_MAX_FAILURES": "0"}, "LOGIN_MAX_FAILURES must be at least 1"},
 		{"insecure prod db", map[string]string{"APP_ENV": "production"}, "sslmode=disable in production"},
 	}
 	for _, tt := range tests {
@@ -91,5 +97,8 @@ func TestProductionDisablesSwaggerByDefault(t *testing.T) {
 	}
 	if cfg.SwaggerEnabled {
 		t.Error("swagger must be opt-in in production")
+	}
+	if !cfg.SessionCookieSecure {
+		t.Error("session cookies must be Secure by default in production")
 	}
 }

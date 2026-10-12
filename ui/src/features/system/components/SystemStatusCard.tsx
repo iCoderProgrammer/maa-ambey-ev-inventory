@@ -1,4 +1,5 @@
 import { RefreshCw, WifiOff } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -6,6 +7,7 @@ import { ErrorState, LoadingState } from '@/components/ui/StateViews'
 import { Table } from '@/components/ui/Table'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useHealth, useReadiness } from '../hooks/useSystemStatus'
+import { checkLabel } from '../readinessChecks'
 
 interface CheckRow {
   name: string
@@ -47,7 +49,10 @@ export function SystemStatusCard() {
           onClick={refresh}
           disabled={!online || health.isFetching || ready.isFetching}
         >
-          <RefreshCw className="size-3.5" aria-hidden="true" />
+          <RefreshCw
+            className={cn('size-3.5', (health.isFetching || ready.isFetching) && 'animate-spin')}
+            aria-hidden="true"
+          />
           Refresh
         </Button>
       }
@@ -55,7 +60,7 @@ export function SystemStatusCard() {
       {!online && (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-control border border-warning/30 bg-warning-subtle p-3 text-sm"
+          className="mb-4 flex items-start gap-2.5 rounded-control border border-warning/30 bg-warning-subtle p-3.5 text-sm"
         >
           <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <p className="text-ink">
@@ -70,7 +75,7 @@ export function SystemStatusCard() {
       {retrying && (
         <p
           role="status"
-          className="mb-4 rounded-control border border-warning/30 bg-warning-subtle p-3 text-sm text-ink"
+          className="mb-4 rounded-control border border-warning/30 bg-warning-subtle p-3.5 text-sm text-ink"
         >
           <span className="font-semibold">The last check failed. Retrying…</span>{' '}
           {health.data ? 'Values below may be out of date.' : ''}
@@ -81,51 +86,75 @@ export function SystemStatusCard() {
       ) : health.isError ? (
         <ErrorState error={health.error} title="API unreachable" onRetry={refresh} />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-xs text-muted">API</dt>
-              <dd className="mt-0.5">
-                <Badge tone="success">
+            <div className="rounded-control border border-border/80 bg-surface-muted/40 p-3 shadow-2xs">
+              <dt className="text-xs font-medium text-muted">API</dt>
+              <dd className="mt-1.5 flex items-center">
+                <Badge tone="success" dot pulse>
                   {health.data.status === 'ok' ? 'Online' : health.data.status}
                 </Badge>
               </dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted">Version</dt>
-              <dd className="mt-0.5 font-mono text-xs">{health.data.version}</dd>
+            <div className="rounded-control border border-border/80 bg-surface-muted/40 p-3 shadow-2xs">
+              <dt className="text-xs font-medium text-muted">Version</dt>
+              <dd className="mt-1.5 font-mono text-xs font-semibold text-ink">
+                {health.data.version}
+              </dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted">Server time</dt>
-              <dd className="mt-0.5">{formatTime(health.data.time)}</dd>
+            <div className="rounded-control border border-border/80 bg-surface-muted/40 p-3 shadow-2xs">
+              <dt className="text-xs font-medium text-muted">Server time</dt>
+              <dd className="mt-1.5 text-xs font-medium text-ink">
+                {formatTime(health.data.time)}
+              </dd>
             </div>
           </dl>
 
           {ready.isPending ? (
             online && <LoadingState label="Checking dependencies…" />
           ) : checks.length > 0 ? (
-            <Table
-              caption="Dependency readiness"
-              columns={[
-                {
-                  key: 'name',
-                  header: 'Dependency',
-                  render: (r) => <span className="capitalize">{r.name}</span>,
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (r) =>
-                    r.up ? (
-                      <Badge tone="success">Ready</Badge>
-                    ) : (
-                      <Badge tone="danger">Unavailable</Badge>
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold tracking-wider text-muted uppercase">
+                Infrastructure Health
+              </h3>
+              <Table
+                caption="Dependency readiness"
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Dependency',
+                    render: (r) => (
+                      <span className="font-medium text-ink">{checkLabel(r.name)}</span>
                     ),
-                },
-              ]}
-              rows={checks}
-              rowKey={(r) => r.name}
-            />
+                  },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (r) =>
+                      r.up ? (
+                        <Badge tone="success" dot>
+                          Ready
+                        </Badge>
+                      ) : (
+                        <Badge tone="danger" dot>
+                          Unavailable
+                        </Badge>
+                      ),
+                  },
+                ]}
+                rows={checks}
+                rowKey={(r) => r.name}
+              />
+              {/* Only when the database answered: an unreachable database also reports the schema down. */}
+              {checks.some((r) => r.name === 'database' && r.up) &&
+                checks.some((r) => r.name === 'migrations' && !r.up) && (
+                  <p className="text-sm text-muted">
+                    The database schema is not at the version this API expects (migrations pending
+                    or a migration failed). An administrator must run the migrations; data is never
+                    reset automatically.
+                  </p>
+                )}
+            </div>
           ) : (
             <ErrorState error={ready.error} title="Readiness check failed" onRetry={refresh} />
           )}

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { env } from '@/lib/config/env'
+import { CSRF_HEADER, getCsrfToken } from './csrf'
 import type { ApiErrorBody, ApiFieldError } from '@/types/api'
 
 /** Client-side error codes in addition to the server's codes. */
@@ -14,14 +15,17 @@ export class ApiError extends Error {
   readonly code: string
   readonly requestId?: string
   readonly details: ApiFieldError[]
+  /** Seconds from the `Retry-After` header (429/503), when the server sent one. */
+  readonly retryAfterSeconds?: number
 
-  constructor(status: number, body: ApiErrorBody) {
+  constructor(status: number, body: ApiErrorBody, retryAfterSeconds?: number) {
     super(body.message)
     this.name = 'ApiError'
     this.status = status
     this.code = body.code
     this.requestId = body.requestId
     this.details = body.details ?? []
+    this.retryAfterSeconds = retryAfterSeconds
   }
 
   get isNetworkError(): boolean {
@@ -55,25 +59,32 @@ const STATUS_FALLBACK: Record<number, Omit<ApiErrorBody, 'requestId'>> = {
   504: { code: 'GATEWAY_TIMEOUT', message: 'The API did not respond in time. Try again shortly.' },
 }
 
-function fallbackError(status: number, requestId?: string): ApiError {
+function fallbackError(status: number, requestId?: string, retryAfter?: number): ApiError {
   const fallback = STATUS_FALLBACK[status] ?? {
     code: 'INTERNAL_ERROR',
     message: 'Something went wrong. Please try again.',
   }
-  return new ApiError(status, { ...fallback, requestId })
+  return new ApiError(status, { ...fallback, requestId }, retryAfter)
+}
+
+/** Parses a delta-seconds `Retry-After` value; HTTP dates and junk are ignored. */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null || !/^\d+$/.test(value.trim())) return undefined
+  return Number(value.trim())
 }
 
 async function toApiError(res: Response): Promise<ApiError> {
   const requestId = res.headers.get('X-Request-ID') ?? undefined
+  const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
   try {
     const parsed = errorEnvelopeSchema.safeParse(await res.json())
     if (parsed.success) {
-      return new ApiError(res.status, { requestId, ...parsed.data.error })
+      return new ApiError(res.status, { requestId, ...parsed.data.error }, retryAfter)
     }
   } catch {
     // Body was not JSON; fall through to the status-based message.
   }
-  return fallbackError(res.status, requestId)
+  return fallbackError(res.status, requestId, retryAfter)
 }
 
 export function buildUrl(path: string, baseUrl: string = env.apiBaseUrl): string {
@@ -102,6 +113,8 @@ export async function apiRequest<S extends z.ZodType>(
   schema: S,
   { method = 'GET', body, signal, headers, acceptStatuses = [] }: RequestOptions = {},
 ): Promise<z.infer<S>> {
+  // Cookie-authenticated mutations must prove they come from this app (CSRF).
+  const csrfToken = method !== 'GET' ? getCsrfToken() : null
   let res: Response
   try {
     res = await fetch(buildUrl(path), {
@@ -111,6 +124,7 @@ export async function apiRequest<S extends z.ZodType>(
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(csrfToken ? { [CSRF_HEADER]: csrfToken } : {}),
         ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,

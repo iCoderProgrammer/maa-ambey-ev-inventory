@@ -4,8 +4,8 @@ Internal staff console for an electric two-wheeler showroom: serialised vehicle 
 catalogue, procurement, stock ledger, reservations, sales and reports. Multi-brand support is a
 P0 requirement: brands are data, never code.
 
-**Status:** foundation only. The Go API, PostgreSQL, migrations, OpenAPI docs and the React
-shell work end to end; business modules are on the backlog (see `documentation/` and `prompt-pack/`).
+**Status:** foundation only. The Go API, PostgreSQL, migrations, OpenAPI docs, sign-in/sessions and
+the React shell work end to end; business modules are on the backlog (see `documentation/` and `prompt-pack/`).
 
 ## Stack
 
@@ -65,11 +65,13 @@ make setup            # creates .env and ui/.env from examples, installs Go + np
 make db-up            # start PostgreSQL, wait until healthy
 make db-migrate-up    # apply migrations
 make db-seed          # initial brands (idempotent)
+make user ARGS="create --username asha.verma --name 'Asha Verma'"   # first account (password prompt)
 make dev              # API on :8080 + UI on :5173
 ```
 
-Open http://localhost:5173 — the header pill and the dashboard "System status" card show live
-results from the Go API's `/health` and `/ready` endpoints.
+Open http://localhost:5173 and sign in with that account. There is no built-in admin user; every
+page except sign-in needs a session (B-06). The header pill and the dashboard "System status"
+card show live results from the Go API's `/health` and `/ready` endpoints.
 
 ## Environment
 

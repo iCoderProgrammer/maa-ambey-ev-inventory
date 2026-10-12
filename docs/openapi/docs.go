@@ -15,6 +15,179 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Verifies username and password and starts a server-side session. The session token is returned only in an HttpOnly, SameSite=Strict cookie (` + "`" + `__Host-maa_session` + "`" + ` over HTTPS, ` + "`" + `maa_session` + "`" + ` in local development); the body carries the CSRF token for later mutations. Failures are generic: unknown user and wrong password both return INVALID_CREDENTIALS. ACCOUNT_DISABLED is only returned when the password was correct. Repeated failures return 429 with Retry-After.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Sign in",
+                "parameters": [
+                    {
+                        "description": "Credentials",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "VALIDATION_FAILED or BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "INVALID_CREDENTIALS",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "ACCOUNT_DISABLED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "RATE_LIMITED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "description": "Revokes the current session on the server and clears the cookie. Requires the session cookie and the X-CSRF-Token header.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Sign out",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/SignOutResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/session": {
+            "get": {
+                "description": "Returns the signed-in user and a CSRF token. 401 UNAUTHENTICATED when no session cookie was sent; 401 SESSION_EXPIRED when the session ended (idle or absolute timeout, sign-out elsewhere, password change, account disabled) — the cookie is then cleared.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Current session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Confirms the API process is running. Does not check dependencies.",
@@ -55,7 +228,7 @@ const docTemplate = `{
         },
         "/ready": {
             "get": {
-                "description": "Reports whether required dependencies (PostgreSQL) are reachable. Returns 503 when not ready.",
+                "description": "Reports whether PostgreSQL is reachable (\"database\") and migrated to the schema version this build expects with no failed migration (\"migrations\"). Returns 503 when not ready. The API never migrates on its own.",
                 "produces": [
                     "application/json"
                 ],
@@ -182,6 +355,19 @@ const docTemplate = `{
                 }
             }
         },
+        "LoginRequest": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "correct horse battery staple"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
         "Readiness": {
             "type": "object",
             "properties": {
@@ -189,6 +375,10 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    },
+                    "example": {
+                        "database": "up",
+                        "migrations": "up"
                     }
                 },
                 "status": {
@@ -198,6 +388,48 @@ const docTemplate = `{
                         "not_ready"
                     ],
                     "example": "ready"
+                }
+            }
+        },
+        "Session": {
+            "type": "object",
+            "properties": {
+                "csrfToken": {
+                    "type": "string",
+                    "example": "q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-10-12T12:00:00Z"
+                },
+                "user": {
+                    "$ref": "#/definitions/SessionUser"
+                }
+            }
+        },
+        "SessionUser": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string",
+                    "example": "Asha Verma"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
+        "SignOutResult": {
+            "type": "object",
+            "properties": {
+                "signedOut": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         }

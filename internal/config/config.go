@@ -42,6 +42,14 @@ type Config struct {
 	RateLimitBurst int
 
 	SwaggerEnabled bool
+
+	// Sessions and sign-in (B-06). Defaults are proposals pending owner sign-off.
+	SessionIdleTimeout     time.Duration
+	SessionAbsoluteTimeout time.Duration
+	SessionCookieSecure    bool
+	LoginMaxFailures       int
+	LoginMaxFailuresPerIP  int
+	LoginFailureWindow     time.Duration
 }
 
 // IsProduction reports whether the API runs with production safeguards.
@@ -77,6 +85,14 @@ func load(getenv func(string) string) (Config, error) {
 	// Swagger UI is on by default outside production; production must opt in.
 	cfg.SwaggerEnabled = p.bool("SWAGGER_ENABLED", cfg.AppEnv != EnvProduction)
 
+	cfg.SessionIdleTimeout = p.duration("SESSION_IDLE_TIMEOUT", 2*time.Hour)
+	cfg.SessionAbsoluteTimeout = p.duration("SESSION_ABSOLUTE_TIMEOUT", 12*time.Hour)
+	// Secure cookies need HTTPS; plain-HTTP local development and tests may turn them off.
+	cfg.SessionCookieSecure = p.bool("SESSION_COOKIE_SECURE", cfg.AppEnv != EnvDevelopment && cfg.AppEnv != EnvTest)
+	cfg.LoginMaxFailures = p.int("LOGIN_MAX_FAILURES", 5)
+	cfg.LoginMaxFailuresPerIP = p.int("LOGIN_MAX_FAILURES_PER_IP", 20)
+	cfg.LoginFailureWindow = p.duration("LOGIN_FAILURE_WINDOW", 15*time.Minute)
+
 	errs := p.errs
 	errs = append(errs, cfg.validate()...)
 	if len(errs) > 0 {
@@ -97,13 +113,8 @@ func (c Config) validate() []error {
 		errs = append(errs, fmt.Errorf("APP_PORT must be between 1 and 65535 (got %d)", c.Port))
 	}
 
-	if c.DatabaseURL == "" {
-		errs = append(errs, errors.New("DATABASE_URL is required, e.g. postgres://user:password@localhost:5432/maa_ambey_inventory?sslmode=disable"))
-	} else if u, err := url.Parse(c.DatabaseURL); err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Host == "" {
-		// Do not echo the value: it contains credentials.
-		errs = append(errs, errors.New("DATABASE_URL must be a postgres:// or postgresql:// URL with a host"))
-	} else if c.IsProduction() && u.Query().Get("sslmode") == "disable" {
-		errs = append(errs, errors.New("DATABASE_URL must not use sslmode=disable in production"))
+	if err := ValidateDatabaseURL(c.DatabaseURL, c.AppEnv); err != nil {
+		errs = append(errs, err)
 	}
 
 	if c.DBMaxConns < 1 {
@@ -138,7 +149,44 @@ func (c Config) validate() []error {
 	if c.RateLimitRPS <= 0 || c.RateLimitBurst < 1 {
 		errs = append(errs, errors.New("RATE_LIMIT_RPS must be positive and RATE_LIMIT_BURST at least 1"))
 	}
+
+	if c.SessionIdleTimeout < time.Minute {
+		errs = append(errs, errors.New("SESSION_IDLE_TIMEOUT must be at least 1m"))
+	}
+	if c.SessionAbsoluteTimeout < c.SessionIdleTimeout || c.SessionAbsoluteTimeout > 7*24*time.Hour {
+		errs = append(errs, errors.New("SESSION_ABSOLUTE_TIMEOUT must be between SESSION_IDLE_TIMEOUT and 168h"))
+	}
+	if (c.AppEnv == EnvStaging || c.AppEnv == EnvProduction) && !c.SessionCookieSecure {
+		errs = append(errs, fmt.Errorf("SESSION_COOKIE_SECURE must be true in %s (HTTPS only)", c.AppEnv))
+	}
+	if c.LoginMaxFailures < 1 || c.LoginMaxFailuresPerIP < c.LoginMaxFailures {
+		errs = append(errs, errors.New("LOGIN_MAX_FAILURES must be at least 1 and LOGIN_MAX_FAILURES_PER_IP at least LOGIN_MAX_FAILURES"))
+	}
+	if c.LoginFailureWindow < time.Minute {
+		errs = append(errs, errors.New("LOGIN_FAILURE_WINDOW must be at least 1m"))
+	}
 	return errs
+}
+
+// ValidateDatabaseURL checks a PostgreSQL connection URL for the given APP_ENV.
+// It is shared by the API, cmd/migrate and cmd/seed so every entry point
+// rejects bad configuration the same way. Errors never echo the value, which
+// contains credentials.
+func ValidateDatabaseURL(raw, appEnv string) error {
+	if raw == "" {
+		return errors.New("DATABASE_URL is required, e.g. postgres://user:password@localhost:5432/maa_ambey_inventory?sslmode=disable")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Host == "" {
+		return errors.New("DATABASE_URL must be a postgres:// or postgresql:// URL with a host")
+	}
+	if strings.Trim(u.Path, "/") == "" {
+		return errors.New("DATABASE_URL must name a database, e.g. .../maa_ambey_inventory")
+	}
+	if appEnv == EnvProduction && u.Query().Get("sslmode") == "disable" {
+		return errors.New("DATABASE_URL must not use sslmode=disable in production")
+	}
+	return nil
 }
 
 // parser collects parse errors so all problems are reported at once.

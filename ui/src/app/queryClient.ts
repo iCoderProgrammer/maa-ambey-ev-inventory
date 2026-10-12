@@ -1,8 +1,40 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, type QueryKey } from '@tanstack/react-query'
+import { AuthErrorCode, type SessionState } from '@/features/auth/api/auth'
+import { sessionQueryKey } from '@/features/auth/hooks/useSession'
 import { ApiError } from '@/lib/api/client'
+import { setCsrfToken } from '@/lib/api/csrf'
+
+function isSessionQuery(key: QueryKey | undefined): boolean {
+  return key?.[0] === sessionQueryKey[0] && key[1] === sessionQueryKey[1]
+}
 
 export function createQueryClient(): QueryClient {
-  return new QueryClient({
+  // Any 401 from a protected endpoint means the server no longer accepts this
+  // session (expired, revoked, user disabled). Mark it ended so route protection
+  // sends the user to sign in, instead of leaving stale screens that look usable.
+  const handleAuthError = (error: Error, key?: QueryKey) => {
+    if (!(error instanceof ApiError) || isSessionQuery(key)) return
+    if (error.status === 401) {
+      setCsrfToken(null)
+      const ended: SessionState = { status: 'anonymous', expired: true }
+      queryClient.setQueryData<SessionState>(sessionQueryKey, ended)
+    } else if (error.code === AuthErrorCode.CsrfFailed) {
+      // The token may be stale (e.g. after signing in from another tab): re-read it.
+      void queryClient.invalidateQueries({ queryKey: sessionQueryKey })
+    }
+  }
+
+  const queryClient: QueryClient = new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        handleAuthError(error, query.queryKey)
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        handleAuthError(error)
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 15_000,
@@ -16,4 +48,5 @@ export function createQueryClient(): QueryClient {
       mutations: { retry: false },
     },
   })
+  return queryClient
 }

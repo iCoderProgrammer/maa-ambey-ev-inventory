@@ -20,30 +20,33 @@ export interface TableProps<T> {
 /** Accessible data table with sticky header; scrolls horizontally on narrow screens. */
 export function Table<T>({ caption, columns, rows, rowKey, empty }: TableProps<T>) {
   return (
-    <div className="overflow-x-auto rounded-card border border-border">
+    <div className="overflow-x-auto rounded-card border border-border/80 bg-surface shadow-xs">
       <table className="w-full border-collapse text-left text-sm">
         <caption className="sr-only">{caption}</caption>
-        <thead className="sticky top-0 bg-surface-muted text-xs font-semibold tracking-wide text-muted uppercase">
+        <thead className="sticky top-0 z-10 border-b border-border bg-surface-muted/90 backdrop-blur-xs text-[11px] font-semibold tracking-wider text-muted uppercase">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} scope="col" className={cn('px-4 py-2.5', c.className)}>
+              <th key={c.key} scope="col" className={cn('px-4 py-3', c.className)}>
                 {c.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border/80">
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-muted">
+              <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-muted">
                 {empty ?? 'No records.'}
               </td>
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={rowKey(row)} className="border-t border-border bg-surface">
+              <tr
+                key={rowKey(row)}
+                className="bg-surface transition-colors duration-150 hover:bg-surface-muted/40"
+              >
                 {columns.map((c) => (
-                  <td key={c.key} className={cn('px-4 py-2.5', c.className)}>
+                  <td key={c.key} className={cn('px-4 py-3 text-ink align-middle', c.className)}>
                     {c.render(row)}
                   </td>
                 ))}

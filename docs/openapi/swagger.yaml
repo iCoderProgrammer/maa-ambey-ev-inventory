@@ -49,11 +49,23 @@ definitions:
         example: dev
         type: string
     type: object
+  LoginRequest:
+    properties:
+      password:
+        example: correct horse battery staple
+        type: string
+      username:
+        example: asha.verma
+        type: string
+    type: object
   Readiness:
     properties:
       checks:
         additionalProperties:
           type: string
+        example:
+          database: up
+          migrations: up
         type: object
       status:
         enum:
@@ -62,6 +74,35 @@ definitions:
         example: ready
         type: string
     type: object
+  Session:
+    properties:
+      csrfToken:
+        example: q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c
+        type: string
+      expiresAt:
+        example: "2026-10-12T12:00:00Z"
+        type: string
+      user:
+        $ref: '#/definitions/SessionUser'
+    type: object
+  SessionUser:
+    properties:
+      displayName:
+        example: Asha Verma
+        type: string
+      id:
+        example: 5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b
+        type: string
+      username:
+        example: asha.verma
+        type: string
+    type: object
+  SignOutResult:
+    properties:
+      signedOut:
+        example: true
+        type: boolean
+    type: object
 info:
   contact: {}
   description: Multi-brand EV inventory management API. All business endpoints live
@@ -69,6 +110,121 @@ info:
   title: Maa Ambey Enterprises Inventory API
   version: 0.1.0
 paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 'Verifies username and password and starts a server-side session.
+        The session token is returned only in an HttpOnly, SameSite=Strict cookie
+        (`__Host-maa_session` over HTTPS, `maa_session` in local development); the
+        body carries the CSRF token for later mutations. Failures are generic: unknown
+        user and wrong password both return INVALID_CREDENTIALS. ACCOUNT_DISABLED
+        is only returned when the password was correct. Repeated failures return 429
+        with Retry-After.'
+      parameters:
+      - description: Credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Session'
+              type: object
+        "400":
+          description: VALIDATION_FAILED or BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: INVALID_CREDENTIALS
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: ACCOUNT_DISABLED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "429":
+          description: RATE_LIMITED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Sign in
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Revokes the current session on the server and clears the cookie.
+        Requires the session cookie and the X-CSRF-Token header.
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SignOutResult'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Sign out
+      tags:
+      - auth
+  /auth/session:
+    get:
+      description: Returns the signed-in user and a CSRF token. 401 UNAUTHENTICATED
+        when no session cookie was sent; 401 SESSION_EXPIRED when the session ended
+        (idle or absolute timeout, sign-out elsewhere, password change, account disabled)
+        — the cookie is then cleared.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Session'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Current session
+      tags:
+      - auth
   /health:
     get:
       description: Confirms the API process is running. Does not check dependencies.
@@ -93,8 +249,9 @@ paths:
       - health
   /ready:
     get:
-      description: Reports whether required dependencies (PostgreSQL) are reachable.
-        Returns 503 when not ready.
+      description: Reports whether PostgreSQL is reachable ("database") and migrated
+        to the schema version this build expects with no failed migration ("migrations").
+        Returns 503 when not ready. The API never migrates on its own.
       produces:
       - application/json
       responses:

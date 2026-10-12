@@ -50,6 +50,13 @@ implementation decisions and open questions.
 - `down` rolls back one step by default (`STEPS=N` to override). Never run `down` against
   production without a verified backup and explicit approval (Architecture §11).
 - Migration files are sequential (`000001_name.up.sql` / `.down.sql`).
+- B-05 (2026-10-12): migrations and seeds are embedded (`migrations.FS`, `seeds.FS`), so
+  `bin/migrate` / `bin/seed` are self-contained and the API knows the schema version it was built
+  for (`migrations.Latest()`, which also enforces the naming/pairing policy). `/ready` reports
+  `migrations: down` (503) when the schema is unmigrated, behind, ahead or dirty; the API still
+  starts (logs a warning) so operators can see the reason, but never migrates. `cmd/seed` refuses a
+  non-current schema. With `APP_ENV=staging|production`, `down` and `force` are refused unless
+  `--confirm` (`make db-migrate-down CONFIRM=1`) is passed. There is no "drop all" command.
 
 ## ADR-004 — Error and success envelopes
 
@@ -119,7 +126,31 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   brand scope, self-approval (LED-006) and state. Repository queries always filter by the
   principal's permitted brand IDs, intersected with any client `brandId`.
 - **UI:** may hide actions using permissions returned by `/me`, but never relies on that.
-- Not implemented now: no users or sessions exist yet, so a guard would have nothing to check.
+- B-06 added users, sessions and the deny-by-default session middleware (ADR-008); permission
+  checks per route are still B-07.
+
+## ADR-008 — Authentication: local accounts and server-side sessions (B-06)
+
+- **Status:** Accepted (OQ-6 approved by the user on 2026-10-12 when starting B-06).
+- **Credentials:** username + password; argon2id (19 MiB, t=2, p=1, PHC string with its own
+  parameters so they can be raised later). Policy: 12–128 characters, not the username. No
+  composition rules, no expiry (NIST SP 800-63B). Concurrent hashing capped at 4.
+- **Sessions:** `user_sessions` rows with SHA-256 of a 256-bit random token, per-session CSRF token,
+  idle + absolute expiry, revocation reason, IP and user agent. Never deleted (history); revoked
+  instead. A user with session history cannot be deleted (FK RESTRICT); disable them instead.
+- **Cookie:** HttpOnly, SameSite=Strict, Path=/, no Max-Age (ends with the browser), `Secure` +
+  `__Host-` prefix outside development/test; staging/production refuse `SESSION_COOKIE_SECURE=false`.
+- **CSRF:** SameSite=Strict plus a synchronizer token header on every mutation; login requires
+  `application/json` (cannot be sent cross-site without a CORS preflight) and CORS rejects unknown origins.
+- **Deny by default:** the session middleware protects every `/api/v1` route not explicitly public.
+- **Throttling:** in-memory failure windows per username+IP and per IP (single instance, like the
+  API rate limiter). A multi-instance deployment needs a shared store — revisit with OQ-5.
+- **Enumeration:** unknown user and wrong password return the same error and take similar time
+  (dummy hash). `ACCOUNT_DISABLED` is only shown after a correct password.
+- **No built-in admin:** accounts are created with `cmd/user` (`make user ARGS=...`) by someone
+  with database access. Passwords are never accepted as command-line flags.
+- **Deferred:** audit events for sign-in/out go to the structured log until B-08 adds the audit table;
+  self-service password reset, MFA and user-management screens are not in B-06.
 
 ---
 
@@ -132,5 +163,5 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-3 | Launch roster confirmed (Lectrix EV, Ceeon India, Ujagar Electric; seeded). Authorisation evidence per brand still outstanding. | C-02, C-05 |
 | OQ-4 | Are motor / battery / charger serials mandatory, and is battery-swap history needed (Architecture §12.3, INV-003/004)? | D-04 |
 | OQ-5 | Deployment provider, API host, DB region, backup RPO/RTO (Architecture §12). | H-06, H-10 |
-| OQ-6 | Session strategy: server-side session with HttpOnly cookie is the documented preference (SEC-006). Confirm before B-06. | B-06 |
+| ~~OQ-6~~ | Session strategy — **resolved 2026-10-12**: local accounts + server-side sessions in an HttpOnly cookie (ADR-008). Session lifetimes (2h idle / 12h absolute) and the password policy are proposals the owner may change via config. | — |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

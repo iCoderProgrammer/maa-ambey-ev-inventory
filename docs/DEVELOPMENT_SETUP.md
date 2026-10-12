@@ -10,6 +10,9 @@ make dev              # Go API + Vite UI together; Ctrl+C stops both
 ```
 
 - UI: http://localhost:5173 — calls the API through the Vite proxy (`/api` → `API_PROXY_TARGET`).
+  The browser never connects to PostgreSQL; the UI needs no database settings, only the API location
+  (`ui/.env`: `API_PROXY_TARGET` for dev, `VITE_API_BASE_URL` for builds). If you change `APP_PORT`,
+  set `API_PROXY_TARGET` to match.
 - API: http://localhost:8080/api/v1/health
 - Swagger UI: http://localhost:8080/swagger/index.html (also via http://localhost:5173/swagger/index.html)
 
@@ -82,19 +85,56 @@ make db-migrate-down STEPS=2                # roll back two
 make db-psql                                # inspect with psql
 ```
 
-Rules:
-- Every `up` has a working `down`. Test both locally (`up → down → up`).
+Policy (enforced in code, ADR-003):
+- Files are `NNNNNN_snake_case.up.sql` + `.down.sql`, starting at `000001`, no gaps, one name per
+  version. They are embedded into the binaries (`migrations/migrations.go`), so `go test ./migrations`
+  and every build fail on a missing `down`, a gap or a bad name.
+- Every `up` has a working `down`. `make test-integration` runs `up → down → up` (plus one-step
+  down/up) in a throwaway database it creates and drops, never in your dev database.
 - Never edit a migration that has run anywhere shared; add a new one.
+- The API never migrates, resets or drops anything. If the schema is not exactly at the version the
+  build expects (unmigrated, pending, newer, or dirty), the API logs a warning and
+  `GET /api/v1/ready` answers 503 with `"migrations": "down"`; the UI header shows
+  "Schema not ready". Run `make db-migrate-up`; readiness recovers without a restart.
+- `down` and `force` with `APP_ENV=staging|production` are refused unless `--confirm` is given
+  (`make db-migrate-down CONFIRM=1`), after a verified backup. There is no "drop everything" command.
 - If a migration fails midway the version is marked dirty: fix the SQL, repair the DB manually,
   then `go run ./cmd/migrate force <last good version>`.
+
+Bad configuration fails before anything runs, with the reason and never the password: missing
+`DATABASE_URL`, non-postgres scheme, no host, no database name, `sslmode=disable` in production,
+unreachable server ("is `make db-up` running?") or wrong credentials.
+
 ## Seeds
 
-- `make db-seed` runs every `seeds/*.sql` in name order inside one transaction (`cmd/seed`).
+- `make db-seed` runs every embedded `seeds/*.sql` in name order inside one transaction (`cmd/seed`).
+  It refuses to run until the schema is current, and an empty seed set is an error.
 - Every seed file **must be idempotent** (`INSERT ... ON CONFLICT DO NOTHING`), so re-running is
   always safe. `make test-integration` checks the real seed files by running them three times.
 - Seed only client-confirmed reference data. Today that is the three brand identities. Catalogue,
   prices, suppliers and stock come from verified sources via C-05 / G-06 / G-07, never from seeds
   with invented values.
+
+## Users and sign-in
+
+There is no built-in admin account. Create the first user from the command line (needs the
+database migrated):
+
+```bash
+make user ARGS="create --username asha.verma --name 'Asha Verma'"   # prompts for the password twice
+make user ARGS="list"
+make user ARGS="disable --username asha.verma"          # also ends all their sessions
+make user ARGS="enable --username asha.verma"
+make user ARGS="set-password --username asha.verma"     # also ends all their sessions
+make user ARGS="revoke-sessions --username asha.verma"
+```
+
+- Passwords: 12–128 characters, not the username. Typed at a hidden prompt; when stdin is not a
+  terminal the first stdin line is used (scripts). Never pass a password as a flag.
+- Then sign in at http://localhost:5173/login. Every other page needs a session; the API answers
+  401 for any `/api/v1` route except health, readiness, login and session.
+- Local development uses `SESSION_COOKIE_SECURE=false` (plain HTTP). Behind HTTPS leave it `true`.
+- Use made-up names for local test accounts, never real staff passwords.
 
 ## Tests
 
@@ -106,6 +146,28 @@ Rules:
 
 New DB integration tests must get their connection through the `testConfig` helper pattern
 (skip normally, `t.Fatal` when `REQUIRE_INTEGRATION_TESTS=1`).
+
+## End-to-end browser tests (Playwright)
+
+`ui/e2e/*.e2e.ts` drive the real stack in headless Google Chrome (installed Chrome, no browser
+download), on a desktop and a phone-sized viewport. They do not start servers or create users:
+
+```bash
+make db-up && make db-migrate-up && make db-seed && make dev        # or any running stack
+make user ARGS="create --username e2e.active --name 'E2E Active'"
+make user ARGS="create --username e2e.disabled --name 'E2E Disabled'"
+make user ARGS="disable --username e2e.disabled"
+cd ui && E2E_BASE_URL=http://localhost:5173 \
+  E2E_USERNAME=e2e.active E2E_PASSWORD=... \
+  E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... npm run test:e2e
+```
+
+- Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
+- The suite makes failed sign-ins on purpose (including one per viewport for the disabled account),
+  and the login throttle is in memory: restart the API before re-running within 15 minutes, and
+  start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
+- Failure screenshots and traces go to `ui/test-results/` (git-ignored).
+- Not part of `make ci` yet: CI has no running UI/API stack.
 
 ## Checks and CI
 
