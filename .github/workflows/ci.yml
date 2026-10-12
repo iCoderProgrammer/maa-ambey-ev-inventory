@@ -1,0 +1,78 @@
+# CI runs the same Makefile targets developers run locally (see docs/DEVELOPMENT_SETUP.md).
+# Every step must pass; integration tests fail instead of skipping when the database is missing.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: maa_ambey_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d maa_ambey_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      # Throwaway CI-only database; not a real credential.
+      DATABASE_URL: postgres://ci_user:ci_password@localhost:5432/maa_ambey_ci?sslmode=disable
+      TEST_DATABASE_URL: postgres://ci_user:ci_password@localhost:5432/maa_ambey_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Lint (gofmt, go vet, go mod tidy)
+        run: make lint-backend
+      - name: Apply migrations
+        run: make db-migrate-up
+      - name: Apply seeds
+        run: make db-seed
+      - name: Test (unit + PostgreSQL integration)
+        run: make test-integration
+      - name: Build
+        run: make build-backend
+
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: ui
+      - name: Lint (ESLint, zero warnings) and Prettier
+        run: make lint-frontend
+      - name: Type check
+        run: make typecheck-frontend
+      - name: Test (Vitest)
+        run: make test-frontend
+      - name: Build
+        run: make build-frontend

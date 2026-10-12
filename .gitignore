@@ -1,0 +1,33 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+ui/.env
+ui/.env.*
+!ui/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Go
+/bin/
+*.test
+*.out
+coverage.*
+
+# UI
+ui/node_modules/
+ui/dist/
+ui/coverage/
+*.tsbuildinfo
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*

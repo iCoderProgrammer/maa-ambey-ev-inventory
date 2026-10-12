@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the `.dark` class on <html>, set from the user's
+   preference or the system colour scheme (see src/hooks/useApplyTheme.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens (04_Design_Specification §8). Tailwind exposes each
+   --color-* as utilities (bg-surface, text-muted, border-border, ...). */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-primary: #175cd3;
+  --color-primary-hover: #1849a9;
+  --color-primary-fg: #ffffff;
+  --color-accent: #12b8a6;
+  --color-ink: #101828;
+  --color-canvas: #f6f8fb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f2f4f7;
+  --color-border: #e4e7ec;
+  --color-muted: #667085;
+  --color-focus: #175cd3;
+  --color-sidebar: #101828;
+
+  --color-success: #067647;
+  --color-success-subtle: #ecfdf3;
+  --color-warning: #b54708;
+  --color-warning-subtle: #fffaeb;
+  --color-danger: #b42318;
+  --color-danger-subtle: #fef3f2;
+  --color-neutral: #475467;
+  --color-neutral-subtle: #f2f4f7;
+  --color-info: #175cd3;
+  --color-info-subtle: #eff8ff;
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --spacing: 4px;
+
+  /* Motion: short, purposeful transitions (150–250 ms). Used with Radix data-state
+     attributes, e.g. data-[state=open]:animate-fade-in. Reduced motion is honoured below. */
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-fade-out: fade-out 120ms ease-in;
+  --animate-pop-in: pop-in 150ms ease-out;
+  --animate-pop-out: pop-out 120ms ease-in;
+  --animate-drawer-in: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-drawer-out: drawer-out 180ms ease-in;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes drawer-out {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+}
+
+.dark {
+  --color-primary: #528bff;
+  --color-primary-hover: #84adff;
+  --color-primary-fg: #0b1220;
+  --color-accent: #2ed3b7;
+  --color-ink: #f2f4f7;
+  --color-canvas: #0b1220;
+  --color-surface: #111a2e;
+  --color-surface-muted: #18233b;
+  --color-border: #26324a;
+  --color-muted: #98a2b3;
+  --color-focus: #84adff;
+  --color-sidebar: #070c17;
+
+  --color-success: #47cd89;
+  --color-success-subtle: #0a2e1f;
+  --color-warning: #fdb022;
+  --color-warning-subtle: #33230a;
+  --color-danger: #f97066;
+  --color-danger-subtle: #3a1513;
+  --color-neutral: #cbd5e1;
+  --color-neutral-subtle: #1e293b;
+  --color-info: #84adff;
+  --color-info-subtle: #10213f;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-canvas font-sans text-[15px] text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* Native scrolling only; smooth scrolling just for in-page anchors (e.g. "Skip to content"). */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Reduced motion: effectively disable animations and transitions. 1 ms (not 0) keeps
+   animationend/transitionend events firing so Radix can still unmount closed layers. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@utility scrollbar-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+}
+
+/* Still scrollable by wheel, touch and keyboard; used where a scrollbar would crowd a narrow rail. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+}

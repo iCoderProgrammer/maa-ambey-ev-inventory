@@ -1,0 +1,126 @@
+basePath: /api/v1
+definitions:
+  DataResponse:
+    properties:
+      data: {}
+    type: object
+  ErrorBody:
+    properties:
+      code:
+        example: NOT_FOUND
+        type: string
+      details:
+        items:
+          $ref: '#/definitions/FieldError'
+        type: array
+      message:
+        example: The requested resource was not found.
+        type: string
+      requestId:
+        example: 7f9d0c1e-5c1a-4c55-9e0f-0b7f1f0f2a11
+        type: string
+    type: object
+  ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/ErrorBody'
+    type: object
+  FieldError:
+    properties:
+      field:
+        example: slug
+        type: string
+      message:
+        example: must be lowercase letters, digits and hyphens
+        type: string
+    type: object
+  HealthStatus:
+    properties:
+      service:
+        example: maa-ambey-inventory-api
+        type: string
+      status:
+        example: ok
+        type: string
+      time:
+        example: "2026-10-12T10:00:00Z"
+        type: string
+      version:
+        example: dev
+        type: string
+    type: object
+  Readiness:
+    properties:
+      checks:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        enum:
+        - ready
+        - not_ready
+        example: ready
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Multi-brand EV inventory management API. All business endpoints live
+    under /api/v1.
+  title: Maa Ambey Enterprises Inventory API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      description: Confirms the API process is running. Does not check dependencies.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/HealthStatus'
+              type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Liveness check
+      tags:
+      - health
+  /ready:
+    get:
+      description: Reports whether required dependencies (PostgreSQL) are reachable.
+        Returns 503 when not ready.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Readiness'
+              type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Readiness'
+              type: object
+      summary: Readiness check
+      tags:
+      - health
+swagger: "2.0"
