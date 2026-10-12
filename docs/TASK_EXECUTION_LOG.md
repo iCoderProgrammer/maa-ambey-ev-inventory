@@ -1243,6 +1243,37 @@ No audit read API/UI (needs an approved permission; no registry task for the Aud
 audit retention policies open; B-07 owner approvals (RB-5 matrix + thresholds, brand scope per user, showroom
 location details) and OQ-8 still pending.
 
+### VERIFY-B07-POSITIVE — Permission-positive browser tests (user-requested pre-work before B-09; not a registry task)
+
+- **Status:** COMPLETE (technical verification) · **Date:** 2026-10-12 · B-09 not started.
+- B-08 follow-up committed as `09a1726` (pushed). `git diff --check` then flagged trailing spaces in the psql output
+  of `docs/evidence/B-08/*.txt`; stripped (content unchanged). Registry correction (B-08 deps) was already
+  committed in `b5267c4`; no registry or prompt Markdown change since.
+
+#### Environment (isolated, temporary)
+Throwaway Postgres container (:5447, migrated + seeded roles/brands), API :8091 built from this tree with
+`APP_ENV=development RBAC_ALLOW_PROPOSED_GRANTS=true`, Vite :5174 proxying to it. Test-only fixtures in that
+database: `e2e.active`, `e2e.disabled` (disabled), `e2e.roles` → role `viewer` + **PROPOSED**
+`access.roles.view` (via `cmd/access`, audited). No APPROVED grant. Random passwords, never printed. Stack and
+container removed after the run. Shared dev DB unchanged (still 1 PROPOSED grant, 0 APPROVED, 15 audit rows).
+
+#### Result — `npx playwright test`: **38 passed, 2 skipped**
+- Both previously skipped permission-positive tests now PASS: "a user with the permission sees the roles pending
+  owner sign-off" on desktop (1366 px) and mobile (Pixel 7) — link/route, pending-sign-off banner, 5 roles, catalogue
+  keys, statuses inside the viewport, no horizontal overflow.
+- The no-grant test also passes in the same run (desktop + mobile): no gated link, Access denied, API 403.
+- 2 skips are the viewport-specific tests by design (desktop-navigation test on mobile, mobile-drawer test on desktop).
+- Audit rows from the run: `access.role_assigned`, `access.grant_proposed` (CLI); sign-in failures/refusals
+  `ANONYMOUS`; 32 signed_in / 2 signed_out `USER`, all with request IDs; 0 rows with a test password or argon2.
+- Evidence: `docs/evidence/B-07/12-e2e-permission-positive.txt`.
+
+#### Technical verification vs owner approvals
+- Technically verified: deny-by-default, permission-gated navigation/route/API, read-only roles page, proposed
+  grants honoured only with the development flag. The browser positive path used a PROPOSED grant; the APPROVED path
+  is covered by unit/UI tests only, because no real approved grant may exist without owner sign-off.
+- Pending owner approvals (business, not technical): RB-5 permission matrix + approval thresholds, brand scope per
+  user, initial showroom location details; OQ-8 (D-08 ↔ E-02 order).
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--

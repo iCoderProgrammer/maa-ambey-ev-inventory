@@ -1,0 +1,76 @@
+# B-07 permission-positive e2e — 2026-10-12T17:55:13Z
+# Isolated throwaway stack: Postgres maa-b08-pg :5447 (migrated + seeded roles/brands), API :8091 APP_ENV=development RBAC_ALLOW_PROPOSED_GRANTS=true, Vite :5174.
+# Test-only fixture in the throwaway DB: e2e.roles → viewer, PROPOSED viewer/access.roles.view (no APPROVED grant). Random passwords, never printed. Stack removed after the run.
+
+== fixture grants (throwaway DB)
+matrix status: PENDING_OWNER_SIGN_OFF (0 approved grant(s))
+accountant         Accountant
+    (no grants — pending owner sign-off)
+inventory_manager  Inventory Manager
+    (no grants — pending owner sign-off)
+owner              Owner
+    (no grants — pending owner sign-off)
+sales_executive    Sales Executive
+    (no grants — pending owner sign-off)
+viewer             Viewer
+    access.roles.view            PROPOSED (does not count outside development)
+
+Running 40 tests using 1 worker
+
+  ✓   1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access (1.7s)
+  ✓   2 [desktop] › e2e/access.e2e.ts:30:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off (1.3s)
+  ✓   3 [desktop] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it (946ms)
+  ✓   4 [desktop] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API (723ms)
+  ✓   5 [desktop] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password (804ms)
+  ✓   6 [desktop] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in (776ms)
+  ✓   7 [desktop] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts (1.5s)
+  ✓   8 [desktop] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app (1.5s)
+  ✓   9 [desktop] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server (2.3s)
+  ✓  10 [desktop] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in (1.6s)
+  ✓  11 [desktop] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token (1.1s)
+  ✓  12 [desktop] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out (1.9s)
+  ✓  13 [desktop] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time (1.3s)
+  ✓  14 [desktop] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status (1.1s)
+  ✓  15 [desktop] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules (1.2s)
+  ✓  16 [desktop] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found (1.8s)
+  ✓  17 [desktop] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways (3.4s)
+  ✓  18 [desktop] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads (2.6s)
+  ✓  19 [desktop] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page (2.3s)
+  -  20 [desktop] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  21 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access (2.1s)
+  ✓  22 [mobile] › e2e/access.e2e.ts:30:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off (2.2s)
+  ✓  23 [mobile] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it (1.2s)
+  ✓  24 [mobile] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API (954ms)
+  ✓  25 [mobile] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password (1.1s)
+  ✓  26 [mobile] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in (1.1s)
+  ✓  27 [mobile] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts (3.1s)
+  ✓  28 [mobile] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app (2.1s)
+  ✓  29 [mobile] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server (3.0s)
+  ✓  30 [mobile] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in (2.0s)
+  ✓  31 [mobile] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token (1.3s)
+  ✓  32 [mobile] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out (2.1s)
+  ✓  33 [mobile] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time (1.6s)
+  ✓  34 [mobile] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status (1.6s)
+  ✓  35 [mobile] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules (1.5s)
+  ✓  36 [mobile] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found (1.9s)
+  ✓  37 [mobile] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways (3.4s)
+  ✓  38 [mobile] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads (2.3s)
+  -  39 [mobile] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  ✓  40 [mobile] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works (2.1s)
+
+  2 skipped
+  38 passed (1.1m)
+== playwright exit 0
+== audit rows by actor/action after the browser run
+ANONYMOUS|auth.sign_in_failed|FAILURE|2|2
+ANONYMOUS|auth.sign_in_refused|DENIED|2|2
+CLI|access.grant_proposed|SUCCESS|1|0
+CLI|access.role_assigned|SUCCESS|1|0
+CLI|user.created|SUCCESS|3|0
+CLI|user.disabled|SUCCESS|1|0
+USER|auth.signed_in|SUCCESS|32|32
+USER|auth.signed_out|SUCCESS|2|2
+== rows containing a test password or argon2
+0
+== grants / role assignments in isolated DB
+viewer|access.roles.view|PROPOSED
