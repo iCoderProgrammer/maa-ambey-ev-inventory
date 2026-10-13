@@ -38,8 +38,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-06 | Authentication and session handling | P0 | B-04, B-05 | COMPLETE |
 | B-07 | RBAC and location scope | P0 | B-06, B-08 | COMPLETE |
 | B-08 | Append-only audit event framework | P0 | B-04, B-05, B-06 (registry fixed 2026-10-12; was B-07 — cycle) | COMPLETE |
-| B-09 | Private attachment service | P0 | B-04, B-05, B-07 | NOT STARTED |
-| C-01 | Brand/model/variant database schema | P0 | B-05 | NOT STARTED |
+| B-09 | Private attachment service | P0 | B-04, B-05, B-07 | COMPLETE |
+| C-01 | Brand/model/variant database schema | P0 | B-05 | COMPLETE |
 | C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | NOT STARTED |
 | C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | NOT STARTED |
 | C-04 | Effective-dated price history | P0 | C-01, C-02 | NOT STARTED |
@@ -1405,6 +1405,87 @@ packages ok) · `make test-frontend` 0 (101 tests) · `make swagger-check` 0 · 
 
 #### Final status
 COMPLETE — B-09 only. Next registry task not started.
+
+### C-01 — Brand/model/variant database schema
+
+- **Status:** COMPLETE (schema; catalogue data and approvals pending — RB-1, RB-2, RB-7, OQ-1, OQ-2, OQ-11)
+- **Started:** 2026-10-13 · **Finished:** 2026-10-13
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_01_brand-model-variant-database-schema.md
+- Git at start: clean, `dev` = `origin/dev` = `77eb78d`.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | migration framework + `TestMigrationsRoundTrip`, `TestEmbeddedMigrationsFollowPolicy`; dev DB was at 6, clean |
+(Also used: B-06 `users` for verifiers, B-09 `attachments` for evidence/source documents — both COMPLETE.)
+
+#### Acceptance criteria
+- [x] AC1 Migrations support multiple brands; brand context kept on every child via composite FKs
+- [x] AC2 Relationship integrity: FKs (RESTRICT), cross-brand mixes refused, codes unique in brand scope
+- [x] AC3 Another brand is added with data only (`TestAnotherBrandNeedsOnlyData`); no brand in code (UI source scan)
+- [x] AC4 Lifecycle, authorisation evidence, provenance/verification fields and timestamps; verified specs immutable
+- [x] AC5 No invented catalogue data seeded; migration tests/checks pass
+- [x] AC6 Frontend: typed domain contracts only, no brand enums, no CRUD UI
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE as a screen — Prompt B limits C-01 to typed contracts ("do not add UI CRUD in this
+schema-only task"). Delivered `ui/src/features/catalogue/api/contracts.ts` (Zod: Brand, VehicleModel, Variant,
+VariantColour, VariantSpec, provenance block, status value sets from the DB CHECKs, `isVerified`) and
+`contracts.test.ts` (5 tests incl. a scan proving no roster brand name appears in UI source).
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000007_create_catalogue` (up/down): brands + `manufacturer_legal_name`, `authorisation_evidence_id`
+  (→ attachments), `verified_by` (→ users), CHECK `AUTHORISED` ⇒ legal name + reference + verifier + date;
+  tables `models`, `variants`, `variant_colours`, `variant_specs` with composite brand FKs, brand/model-scoped
+  unique indexes, code/format/status/confidence CHECKs, provenance CHECK (above UNVERIFIED ⇒ source + date +
+  verifier), `updated_at` triggers, version columns, trigger making verified spec rows immutable (`42501`).
+  Down migration is destructive for catalogue data (documented; `--confirm` needed in staging/production).
+- No endpoints (API and validation are C-02); `internal/modules/catalogue/doc.go` documents the schema.
+- Tests `internal/modules/catalogue/schema_integration_test.go` (8): data-only new brand + nothing seeded;
+  brand-scoped uniqueness (model code/name/manufacturer code, variant code per model, variant manufacturer code
+  per brand, colour name/code); cross-brand mixes and brand moves refused; delete refused (23001) / archive
+  works / `updated_at`; 10 value CHECKs; provenance required for models/variants/colours/specs; verified specs
+  never overwritten, later versions accepted, drafts editable; brand authorisation evidence + seeded roster
+  still pending/unverified.
+- **Regression found and fixed:** the new FKs to `attachments` make plain `TRUNCATE attachments` fail with
+  `0A000` before the B-09 guard trigger; still refused, but the B-09 test asserted the trigger message. The
+  test now checks both plain TRUNCATE and `TRUNCATE … CASCADE` (guard trigger message).
+- First run: 3 assertions expected `23503` for RESTRICT deletes; PostgreSQL raises `23001` — test fixed.
+- Dev DB migrated 6 → 7 (`make db-migrate-up`, additive; 0 catalogue rows). Dev API (:8081) restarted:
+  `/ready` was `not_ready` (schema newer than build) before, `ready` after.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE — no endpoint in C-01. The expected C-02 JSON contract and DB-error mapping are in
+API_CONVENTIONS "Catalogue contracts"; the Zod contracts mirror it.
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE — no screen or endpoint changed. Dev stack health re-checked after the restart.
+
+#### Checks (actual results)
+`make ci` exit 0 (lint incl. swagger-check, typecheck, test-integration — all 13 Go test packages ok —,
+test-frontend 106 tests, build). `git diff --check` clean. First `make ci` run failed on the B-09 truncate
+assertion described above; rerun after the fix passed.
+
+#### Evidence
+`docs/evidence/C-01/schema-dev-db.txt` — `\d` of brands/models/variants/variant_colours/variant_specs on the dev DB,
+version 7, row counts (3 brands, 0 catalogue rows), roster still PENDING_VERIFICATION / UNVERIFIED.
+
+#### Files changed (C-01)
+`migrations/000007_create_catalogue.{up,down}.sql`, `internal/modules/catalogue/{doc.go,schema_integration_test.go}`,
+`internal/modules/attachments/pgstore_integration_test.go` (truncate assertion), `ui/src/features/catalogue/{api/contracts.ts,contracts.test.ts}`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS,REQUIREMENTS_BASELINE}.md` (ADR-011, OQ-11, contract, status line),
+`docs/evidence/C-01/`, this log.
+
+#### Known issues / pending approvals
+- RB-2: no verified models/variants/colours/specs supplied — nothing seeded (C-05).
+- RB-1/RB-7/OQ-1/OQ-2: authorisation evidence, value set and approval owner pending; brands stay pending.
+- OQ-11: vehicle-type value set not confirmed (free upper-case identifier for now).
+- Operational rules (ACTIVE + AUTHORISED only, lifecycle consistency, permissions, audit) belong to C-02.
+- Warranty terms, prices (C-04) and serial/identifier rules (D-04, OQ-4) are not part of this schema.
+
+#### Final status
+COMPLETE — C-01 only. C-02 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

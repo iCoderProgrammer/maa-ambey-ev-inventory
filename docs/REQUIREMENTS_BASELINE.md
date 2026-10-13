@@ -53,8 +53,8 @@ The client approved collecting and maintaining **verified** data per brand:
 | Vehicle identification rules | Chassis/frame (mandatory, globally unique after normalisation), motor, battery and charger serial rules per brand/model (INV-002…INV-004) |
 | Source and verification status for every record | `UNVERIFIED` / `SUPPLIER_CONFIRMED` / `CLIENT_APPROVED` (BR-004) |
 
-**Status:** No catalogue data has been supplied. Nothing is seeded or invented. Schema comes with
-C-01, data with C-05, both from client- or supplier-verified sources only.
+**Status:** No catalogue data has been supplied. Nothing is seeded or invented. The schema exists
+since C-01 (migration 000007, ADR-011); data comes with C-05, from client- or supplier-verified sources only.
 
 ## 4. Opening-stock import
 

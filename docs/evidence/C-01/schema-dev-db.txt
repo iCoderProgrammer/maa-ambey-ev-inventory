@@ -1,0 +1,237 @@
+# C-01 schema evidence — dev database after make db-migrate-up (2026-10-13T05:35:30Z)
+
+## schema_migrations
+ version | dirty
+---------+-------
+       7 | f
+(1 row)
+
+## \d brands
+                                           Table "public.brands"
+          Column           |           Type           | Collation | Nullable |           Default
+---------------------------+--------------------------+-----------+----------+------------------------------
+ id                        | uuid                     |           | not null | gen_random_uuid()
+ name                      | text                     |           | not null |
+ slug                      | text                     |           | not null |
+ lifecycle_status          | text                     |           | not null | 'PENDING_VERIFICATION'::text
+ authorisation_status      | text                     |           | not null | 'UNVERIFIED'::text
+ authorisation_reference   | text                     |           |          |
+ verified_at               | timestamp with time zone |           |          |
+ version                   | integer                  |           | not null | 1
+ created_at                | timestamp with time zone |           | not null | now()
+ updated_at                | timestamp with time zone |           | not null | now()
+ manufacturer_legal_name   | text                     |           |          |
+ authorisation_evidence_id | uuid                     |           |          |
+ verified_by               | uuid                     |           |          |
+Indexes:
+    "brands_pkey" PRIMARY KEY, btree (id)
+    "brands_lifecycle_status_idx" btree (lifecycle_status)
+    "brands_name_lower_key" UNIQUE, btree (lower(name))
+    "brands_slug_key" UNIQUE, btree (slug)
+Check constraints:
+    "brands_authorisation_reference_length" CHECK (authorisation_reference IS NULL OR length(btrim(authorisation_reference)) > 0 AND length(authorisation_reference) <= 200)
+    "brands_authorisation_status_valid" CHECK (authorisation_status = ANY (ARRAY['UNVERIFIED'::text, 'AUTHORISED'::text, 'NOT_AUTHORISED'::text, 'REVOKED'::text]))
+    "brands_authorised_has_evidence" CHECK (authorisation_status <> 'AUTHORISED'::text OR manufacturer_legal_name IS NOT NULL AND authorisation_reference IS NOT NULL AND verified_by IS NOT NULL AND verified_at IS NOT NULL)
+    "brands_lifecycle_status_valid" CHECK (lifecycle_status = ANY (ARRAY['PENDING_VERIFICATION'::text, 'ACTIVE'::text, 'ARCHIVED'::text]))
+    "brands_manufacturer_legal_name_length" CHECK (manufacturer_legal_name IS NULL OR length(btrim(manufacturer_legal_name)) > 0 AND length(manufacturer_legal_name) <= 200)
+    "brands_name_length" CHECK (length(name) <= 120)
+    "brands_name_not_blank" CHECK (length(btrim(name)) > 0)
+    "brands_slug_format" CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text AND length(slug) <= 80)
+    "brands_verified_pair" CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+    "brands_version_positive" CHECK (version > 0)
+Foreign-key constraints:
+    "brands_authorisation_evidence_id_fkey" FOREIGN KEY (authorisation_evidence_id) REFERENCES attachments(id) ON DELETE RESTRICT
+    "brands_verified_by_fkey" FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "models" CONSTRAINT "models_brand_id_fkey" FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT
+Triggers:
+    brands_set_updated_at BEFORE UPDATE ON brands FOR EACH ROW EXECUTE FUNCTION set_updated_at()
+
+## \d models
+                                        Table "public.models"
+       Column       |           Type           | Collation | Nullable |           Default
+--------------------+--------------------------+-----------+----------+------------------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ brand_id           | uuid                     |           | not null |
+ name               | text                     |           | not null |
+ internal_code      | text                     |           | not null |
+ manufacturer_code  | text                     |           |          |
+ vehicle_type       | text                     |           |          |
+ lifecycle_status   | text                     |           | not null | 'PENDING_VERIFICATION'::text
+ confidence         | text                     |           | not null | 'UNVERIFIED'::text
+ source_url         | text                     |           |          |
+ source_document_id | uuid                     |           |          |
+ source_date        | date                     |           |          |
+ verified_by        | uuid                     |           |          |
+ verified_at        | timestamp with time zone |           |          |
+ version            | integer                  |           | not null | 1
+ created_at         | timestamp with time zone |           | not null | now()
+ updated_at         | timestamp with time zone |           | not null | now()
+Indexes:
+    "models_pkey" PRIMARY KEY, btree (id)
+    "models_brand_internal_code_key" UNIQUE, btree (brand_id, internal_code)
+    "models_brand_manufacturer_code_key" UNIQUE, btree (brand_id, upper(manufacturer_code)) WHERE manufacturer_code IS NOT NULL
+    "models_brand_name_key" UNIQUE, btree (brand_id, lower(name))
+    "models_brand_status_idx" btree (brand_id, lifecycle_status)
+    "models_id_brand_key" UNIQUE CONSTRAINT, btree (id, brand_id)
+Check constraints:
+    "models_confidence_valid" CHECK (confidence = ANY (ARRAY['UNVERIFIED'::text, 'SUPPLIER_CONFIRMED'::text, 'CLIENT_APPROVED'::text]))
+    "models_internal_code_format" CHECK (internal_code ~ '^[A-Z0-9][A-Z0-9._-]{0,39}$'::text)
+    "models_lifecycle_status_valid" CHECK (lifecycle_status = ANY (ARRAY['PENDING_VERIFICATION'::text, 'ACTIVE'::text, 'ARCHIVED'::text]))
+    "models_manufacturer_code_length" CHECK (manufacturer_code IS NULL OR length(btrim(manufacturer_code)) > 0 AND length(manufacturer_code) <= 60)
+    "models_name_length" CHECK (length(btrim(name)) > 0 AND length(name) <= 120)
+    "models_source_url_format" CHECK (source_url IS NULL OR source_url ~ '^https?://'::text AND length(source_url) <= 2000)
+    "models_vehicle_type_format" CHECK (vehicle_type IS NULL OR vehicle_type ~ '^[A-Z][A-Z0-9_]{0,39}$'::text)
+    "models_verified_has_provenance" CHECK (confidence = 'UNVERIFIED'::text OR (source_url IS NOT NULL OR source_document_id IS NOT NULL) AND source_date IS NOT NULL AND verified_by IS NOT NULL)
+    "models_verified_pair" CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+    "models_version_positive" CHECK (version > 0)
+Foreign-key constraints:
+    "models_brand_id_fkey" FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT
+    "models_source_document_id_fkey" FOREIGN KEY (source_document_id) REFERENCES attachments(id) ON DELETE RESTRICT
+    "models_verified_by_fkey" FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "variants" CONSTRAINT "variants_model_fk" FOREIGN KEY (model_id, brand_id) REFERENCES models(id, brand_id) ON DELETE RESTRICT
+Triggers:
+    models_set_updated_at BEFORE UPDATE ON models FOR EACH ROW EXECUTE FUNCTION set_updated_at()
+
+## \d variants
+                                       Table "public.variants"
+       Column       |           Type           | Collation | Nullable |           Default
+--------------------+--------------------------+-----------+----------+------------------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ brand_id           | uuid                     |           | not null |
+ model_id           | uuid                     |           | not null |
+ name               | text                     |           | not null |
+ variant_code       | text                     |           | not null |
+ manufacturer_code  | text                     |           |          |
+ lifecycle_status   | text                     |           | not null | 'PENDING_VERIFICATION'::text
+ confidence         | text                     |           | not null | 'UNVERIFIED'::text
+ source_url         | text                     |           |          |
+ source_document_id | uuid                     |           |          |
+ source_date        | date                     |           |          |
+ verified_by        | uuid                     |           |          |
+ verified_at        | timestamp with time zone |           |          |
+ version            | integer                  |           | not null | 1
+ created_at         | timestamp with time zone |           | not null | now()
+ updated_at         | timestamp with time zone |           | not null | now()
+Indexes:
+    "variants_pkey" PRIMARY KEY, btree (id)
+    "variants_brand_manufacturer_code_key" UNIQUE, btree (brand_id, upper(manufacturer_code)) WHERE manufacturer_code IS NOT NULL
+    "variants_brand_status_idx" btree (brand_id, lifecycle_status)
+    "variants_id_brand_key" UNIQUE CONSTRAINT, btree (id, brand_id)
+    "variants_model_code_key" UNIQUE, btree (model_id, variant_code)
+    "variants_model_name_key" UNIQUE, btree (model_id, lower(name))
+Check constraints:
+    "variants_code_format" CHECK (variant_code ~ '^[A-Z0-9][A-Z0-9._-]{0,39}$'::text)
+    "variants_confidence_valid" CHECK (confidence = ANY (ARRAY['UNVERIFIED'::text, 'SUPPLIER_CONFIRMED'::text, 'CLIENT_APPROVED'::text]))
+    "variants_lifecycle_status_valid" CHECK (lifecycle_status = ANY (ARRAY['PENDING_VERIFICATION'::text, 'ACTIVE'::text, 'ARCHIVED'::text]))
+    "variants_manufacturer_code_length" CHECK (manufacturer_code IS NULL OR length(btrim(manufacturer_code)) > 0 AND length(manufacturer_code) <= 60)
+    "variants_name_length" CHECK (length(btrim(name)) > 0 AND length(name) <= 120)
+    "variants_source_url_format" CHECK (source_url IS NULL OR source_url ~ '^https?://'::text AND length(source_url) <= 2000)
+    "variants_verified_has_provenance" CHECK (confidence = 'UNVERIFIED'::text OR (source_url IS NOT NULL OR source_document_id IS NOT NULL) AND source_date IS NOT NULL AND verified_by IS NOT NULL)
+    "variants_verified_pair" CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+    "variants_version_positive" CHECK (version > 0)
+Foreign-key constraints:
+    "variants_model_fk" FOREIGN KEY (model_id, brand_id) REFERENCES models(id, brand_id) ON DELETE RESTRICT
+    "variants_source_document_id_fkey" FOREIGN KEY (source_document_id) REFERENCES attachments(id) ON DELETE RESTRICT
+    "variants_verified_by_fkey" FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "variant_colours" CONSTRAINT "variant_colours_variant_fk" FOREIGN KEY (variant_id, brand_id) REFERENCES variants(id, brand_id) ON DELETE RESTRICT
+    TABLE "variant_specs" CONSTRAINT "variant_specs_variant_fk" FOREIGN KEY (variant_id, brand_id) REFERENCES variants(id, brand_id) ON DELETE RESTRICT
+Triggers:
+    variants_set_updated_at BEFORE UPDATE ON variants FOR EACH ROW EXECUTE FUNCTION set_updated_at()
+
+## \d variant_colours
+                                   Table "public.variant_colours"
+       Column       |           Type           | Collation | Nullable |           Default
+--------------------+--------------------------+-----------+----------+------------------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ brand_id           | uuid                     |           | not null |
+ variant_id         | uuid                     |           | not null |
+ name               | text                     |           | not null |
+ colour_code        | text                     |           |          |
+ lifecycle_status   | text                     |           | not null | 'PENDING_VERIFICATION'::text
+ confidence         | text                     |           | not null | 'UNVERIFIED'::text
+ source_url         | text                     |           |          |
+ source_document_id | uuid                     |           |          |
+ source_date        | date                     |           |          |
+ verified_by        | uuid                     |           |          |
+ verified_at        | timestamp with time zone |           |          |
+ version            | integer                  |           | not null | 1
+ created_at         | timestamp with time zone |           | not null | now()
+ updated_at         | timestamp with time zone |           | not null | now()
+Indexes:
+    "variant_colours_pkey" PRIMARY KEY, btree (id)
+    "variant_colours_brand_idx" btree (brand_id)
+    "variant_colours_variant_code_key" UNIQUE, btree (variant_id, upper(colour_code)) WHERE colour_code IS NOT NULL
+    "variant_colours_variant_name_key" UNIQUE, btree (variant_id, lower(name))
+Check constraints:
+    "variant_colours_code_length" CHECK (colour_code IS NULL OR length(btrim(colour_code)) > 0 AND length(colour_code) <= 40)
+    "variant_colours_confidence_valid" CHECK (confidence = ANY (ARRAY['UNVERIFIED'::text, 'SUPPLIER_CONFIRMED'::text, 'CLIENT_APPROVED'::text]))
+    "variant_colours_lifecycle_status_valid" CHECK (lifecycle_status = ANY (ARRAY['PENDING_VERIFICATION'::text, 'ACTIVE'::text, 'ARCHIVED'::text]))
+    "variant_colours_name_length" CHECK (length(btrim(name)) > 0 AND length(name) <= 80)
+    "variant_colours_source_url_format" CHECK (source_url IS NULL OR source_url ~ '^https?://'::text AND length(source_url) <= 2000)
+    "variant_colours_verified_has_provenance" CHECK (confidence = 'UNVERIFIED'::text OR (source_url IS NOT NULL OR source_document_id IS NOT NULL) AND source_date IS NOT NULL AND verified_by IS NOT NULL)
+    "variant_colours_verified_pair" CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+    "variant_colours_version_positive" CHECK (version > 0)
+Foreign-key constraints:
+    "variant_colours_source_document_id_fkey" FOREIGN KEY (source_document_id) REFERENCES attachments(id) ON DELETE RESTRICT
+    "variant_colours_variant_fk" FOREIGN KEY (variant_id, brand_id) REFERENCES variants(id, brand_id) ON DELETE RESTRICT
+    "variant_colours_verified_by_fkey" FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE RESTRICT
+Triggers:
+    variant_colours_set_updated_at BEFORE UPDATE ON variant_colours FOR EACH ROW EXECUTE FUNCTION set_updated_at()
+
+## \d variant_specs
+                               Table "public.variant_specs"
+       Column       |           Type           | Collation | Nullable |      Default
+--------------------+--------------------------+-----------+----------+--------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ brand_id           | uuid                     |           | not null |
+ variant_id         | uuid                     |           | not null |
+ spec_key           | text                     |           | not null |
+ value_text         | text                     |           |          |
+ value_numeric      | numeric(14,4)            |           |          |
+ unit               | text                     |           |          |
+ effective_from     | date                     |           | not null | CURRENT_DATE
+ confidence         | text                     |           | not null | 'UNVERIFIED'::text
+ source_url         | text                     |           |          |
+ source_document_id | uuid                     |           |          |
+ source_date        | date                     |           |          |
+ verified_by        | uuid                     |           |          |
+ verified_at        | timestamp with time zone |           |          |
+ created_at         | timestamp with time zone |           | not null | now()
+ updated_at         | timestamp with time zone |           | not null | now()
+Indexes:
+    "variant_specs_pkey" PRIMARY KEY, btree (id)
+    "variant_specs_brand_idx" btree (brand_id)
+    "variant_specs_variant_key_effective_key" UNIQUE, btree (variant_id, spec_key, effective_from)
+Check constraints:
+    "variant_specs_confidence_valid" CHECK (confidence = ANY (ARRAY['UNVERIFIED'::text, 'SUPPLIER_CONFIRMED'::text, 'CLIENT_APPROVED'::text]))
+    "variant_specs_key_format" CHECK (spec_key ~ '^[a-z][a-z0-9_]{0,59}$'::text)
+    "variant_specs_one_value" CHECK ((value_text IS NULL) <> (value_numeric IS NULL))
+    "variant_specs_source_url_format" CHECK (source_url IS NULL OR source_url ~ '^https?://'::text AND length(source_url) <= 2000)
+    "variant_specs_unit_length" CHECK (unit IS NULL OR length(btrim(unit)) > 0 AND length(unit) <= 20)
+    "variant_specs_value_text_length" CHECK (value_text IS NULL OR length(btrim(value_text)) > 0 AND length(value_text) <= 500)
+    "variant_specs_verified_has_provenance" CHECK (confidence = 'UNVERIFIED'::text OR (source_url IS NOT NULL OR source_document_id IS NOT NULL) AND source_date IS NOT NULL AND verified_by IS NOT NULL)
+    "variant_specs_verified_pair" CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+Foreign-key constraints:
+    "variant_specs_source_document_id_fkey" FOREIGN KEY (source_document_id) REFERENCES attachments(id) ON DELETE RESTRICT
+    "variant_specs_variant_fk" FOREIGN KEY (variant_id, brand_id) REFERENCES variants(id, brand_id) ON DELETE RESTRICT
+    "variant_specs_verified_by_fkey" FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE RESTRICT
+Triggers:
+    variant_specs_protect_verified BEFORE DELETE OR UPDATE ON variant_specs FOR EACH ROW EXECUTE FUNCTION variant_specs_protect_verified()
+    variant_specs_set_updated_at BEFORE UPDATE ON variant_specs FOR EACH ROW EXECUTE FUNCTION set_updated_at()
+
+## Row counts (nothing seeded beyond the brand roster)
+ brands | models | variants | colours | specs
+--------+--------+----------+---------+-------
+      3 |      0 |        0 |       0 |     0
+(1 row)
+
+      name       |   lifecycle_status   | authorisation_status | verified_by
+-----------------+----------------------+----------------------+-------------
+ Ceeon India     | PENDING_VERIFICATION | UNVERIFIED           |
+ Lectrix EV      | PENDING_VERIFICATION | UNVERIFIED           |
+ Ujagar Electric | PENDING_VERIFICATION | UNVERIFIED           |
+(3 rows)
+

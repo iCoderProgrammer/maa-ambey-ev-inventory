@@ -96,6 +96,7 @@ implementation decisions and open questions.
   so that history and pending setup remain representable.
 - Models, variants, suppliers, `brand_supplier_links`, vehicle units and price lists are deferred
   to backlog tasks C-01, C-04, D-01 and D-04, where their prompts specify fields and constraints.
+  (Models/variants/colours/specs: done in C-01, see ADR-011.)
 
 ### Proposed schema for later tasks (not yet implemented)
 
@@ -214,6 +215,35 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Deferred:** malware scanning (Architecture §8 "if available"), retention/archiving, image re-encoding
   or EXIF stripping, linking to business records (D-03, D-06, F-09 …).
 
+## ADR-011 — Catalogue schema: brand → model → variant (C-01)
+
+- **Status:** Accepted (schema only; API/validation in C-02, verified data in C-05).
+- Migration `000007_create_catalogue`: `models` (brand FK), `variants` (model), `variant_colours`,
+  `variant_specs`; brands gain `manufacturer_legal_name`, `authorisation_evidence_id` (private attachment,
+  B-09) and `verified_by`. Nothing is seeded; the three roster brands stay `PENDING_VERIFICATION` / `UNVERIFIED`.
+- **Brand context by construction:** every child row stores `brand_id`, and composite foreign keys
+  (`variants(model_id, brand_id) → models(id, brand_id)`, colours/specs → `variants(id, brand_id)`) make a
+  cross-brand mix impossible and stop a model with variants from moving to another brand (BR-003, BR-008).
+- **Uniqueness:** model `internal_code` per brand (upper-case format), model/variant `manufacturer_code` per
+  brand (case-insensitive, when present), model name per brand, `variant_code` and variant name per model,
+  colour name/code per variant, spec `(variant, key, effective_from)`. IDs are global UUIDs.
+- **Provenance on every catalogue row (BR-004):** `confidence` UNVERIFIED / SUPPLIER_CONFIRMED /
+  CLIENT_APPROVED, `source_url` (http/https only) and/or `source_document_id`, `source_date`, `verified_by`,
+  `verified_at`. Above UNVERIFIED the source, date and verifier are mandatory (DB CHECK). Brands:
+  `AUTHORISED` requires legal name, reference, verifier and date (BR-002).
+- **Specifications are key/value rows** (`spec_key` lower-case identifier, text *or* numeric value, unit,
+  `effective_from`) rather than typed columns, because the verified attribute list per brand is not yet
+  known (RB-2); battery type/capacity etc. are keys. Verified rows are immutable (trigger, `42501`):
+  changes are new rows with a later date (BR-005). Unverified drafts stay editable.
+- **No hard delete of used catalogue items (BR-006):** all FKs are `ON DELETE RESTRICT` (SQLSTATE 23001);
+  archive via `lifecycle_status`. Vehicle units (D-04) will add their own RESTRICT FK to variants.
+- **Left to the service (C-02):** only ACTIVE + AUTHORISED brands and ACTIVE models/variants may be used for
+  purchase/sales; parent/child lifecycle consistency; who may verify/approve (OQ-2, RB-5); audit events.
+- **Not in C-01:** prices (C-04), warranty terms (C-04/RB-2), serial/identifier rules per brand/model (D-04,
+  OQ-4), supplier links (D-01), vehicle-type value set (OQ-11).
+- **Rollback:** the down migration drops catalogue tables and the new brand columns (data loss; refused in
+  staging/production without `--confirm`); brands are kept.
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -229,4 +259,5 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-8 | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI): which goes first, or should D-08 only link to the timeline once E-02 exists? | D-08, E-02 |
 | OQ-9 | Attachment limits: accepted types (proposal JPEG, PNG, WebP, PDF) and per-file size (proposal 10 MB). Configurable size; type list in code + DB CHECK. | B-09 (defaults only) |
 | OQ-10 | Production attachment storage: S3-compatible provider/bucket, region, encryption, retention. Until then only the local private-directory driver exists. | H-06, deploy |
+| OQ-11 | Value set for `models.vehicle_type` (e.g. scooter / motorcycle classes) — free upper-case identifier until confirmed. | C-02, C-05 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

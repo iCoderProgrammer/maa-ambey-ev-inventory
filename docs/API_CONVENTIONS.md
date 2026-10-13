@@ -185,6 +185,27 @@ location); `403 DOWNLOAD_LINK_INVALID` (tampered, other user's, wrong dispositio
 `credentials: 'include'`, and show the bytes from memory (object URL) — never store or display the link.
 Attachments are immutable: there is no update or delete route.
 
+## Catalogue contracts (C-01; endpoints in C-02)
+
+The schema exists (migration 000007, ADR-011); the API does not yet. Expected JSON shapes, mirrored by the
+Zod contracts in `ui/src/features/catalogue/api/contracts.ts` (C-02 must match or update both):
+
+- `Brand`: `id, name, slug, lifecycleStatus, authorisationStatus, manufacturerLegalName, authorisationReference,
+  authorisationEvidenceId, verifiedBy, verifiedAt, version, createdAt, updatedAt`
+- Provenance block on `VehicleModel`, `Variant`, `VariantColour`, `VariantSpec`: `confidence, sourceUrl,
+  sourceDocumentId, sourceDate, verifiedBy, verifiedAt`
+- `VehicleModel`: `id, brandId, name, internalCode, manufacturerCode, vehicleType, lifecycleStatus, …provenance, version, createdAt, updatedAt`
+- `Variant`: `id, brandId, modelId, name, variantCode, manufacturerCode, lifecycleStatus, …provenance, version, …`
+- `VariantColour`: `id, brandId, variantId, name, colourCode, lifecycleStatus, …provenance, version, …`
+- `VariantSpec`: `id, brandId, variantId, specKey, valueText | valueNumeric (exactly one), unit, effectiveFrom, …provenance, createdAt, updatedAt`
+
+Value sets come from DB CHECKs: lifecycle `PENDING_VERIFICATION|ACTIVE|ARCHIVED`; authorisation
+`UNVERIFIED|AUTHORISED|NOT_AUTHORISED|REVOKED` (OQ-1); confidence `UNVERIFIED|SUPPLIER_CONFIRMED|CLIENT_APPROVED`.
+Brands, models, variants and spec keys are data and never appear in code. `brandId` from a client is never
+trusted on its own (ADR-006). Database errors to map in C-02: `23505` duplicate code/name → `409 CONFLICT`,
+`23503`/`23514` invalid reference or value → `422 VALIDATION_FAILED`, `23001` delete of a used item and `42501`
+edit of a verified spec → `409 CONFLICT` (archive / add a new version instead).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

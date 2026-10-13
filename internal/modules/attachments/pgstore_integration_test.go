@@ -140,8 +140,13 @@ func TestPGAttachmentsAreImmutableAndNeverDeleted(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `TRUNCATE attachments`); err == nil || !strings.Contains(err.Error(), "cannot be deleted") {
-		t.Errorf("truncate: %v", err)
+	// Plain TRUNCATE is already refused by the catalogue FKs (C-01); CASCADE
+	// reaches the guard trigger, which must refuse it too.
+	if _, err := pool.Exec(ctx, `TRUNCATE attachments`); err == nil {
+		t.Error("truncate accepted")
+	}
+	if _, err := pool.Exec(ctx, `TRUNCATE attachments CASCADE`); err == nil || !strings.Contains(err.Error(), "cannot be deleted") {
+		t.Errorf("truncate cascade: %v", err)
 	}
 	// Linking once is the only allowed change; relinking is refused.
 	if _, err := pool.Exec(ctx, `UPDATE attachments SET owner_type = 'goods_receipt', owner_id = 'GRN-1' WHERE id = $1`, a.ID); err != nil {
