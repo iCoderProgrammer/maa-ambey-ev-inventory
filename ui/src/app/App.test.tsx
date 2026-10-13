@@ -42,13 +42,7 @@ describe('application shell', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const label of [
-      'Vehicle Units',
-      'Purchase Orders',
-      'Customers',
-      'Reports',
-      'Catalogue & Brands',
-    ]) {
+    for (const label of ['Vehicle Units', 'Purchase Orders', 'Customers', 'Reports', 'Suppliers']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')

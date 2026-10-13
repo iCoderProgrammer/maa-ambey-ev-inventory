@@ -41,7 +41,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-09 | Private attachment service | P0 | B-04, B-05, B-07 | COMPLETE |
 | C-01 | Brand/model/variant database schema | P0 | B-05 | COMPLETE |
 | C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | COMPLETE |
-| C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | NOT STARTED |
+| C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | COMPLETE |
 | C-04 | Effective-dated price history | P0 | C-01, C-02 | NOT STARTED |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
 | C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | NOT STARTED |
@@ -1616,6 +1616,110 @@ test-only users and PROPOSED grants) removed afterwards; shared dev DB untouched
 
 #### Final status
 COMPLETE — C-02 only. C-03 not started.
+
+### C-03 — Catalogue and brand management UI
+
+- **Status:** COMPLETE (screens over the C-02 API; grants, supplier links, prices and approvals still pending)
+- **Started:** 2026-10-13 · **Finished:** 2026-10-13
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_03_catalogue-and-brand-management-ui.md
+- Git at start: `dev` = `origin/dev` = `20429e0` (C-01 `a7eb952` and C-02 `20429e0` already pushed; nothing to push).
+  Untracked `prompt-pack/.~lock.TASK_REGISTRY.csv#` (LibreOffice lock, not ours) left untouched.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-02 | COMPLETE | commit `20429e0`; catalogue API, typed client and hooks; final verification above (47 Playwright passed, `make ci` 0) |
+| B-03 | COMPLETE | app shell, navigation, PageHeader, Table, Dialog, Field, StateViews in `ui/src/components` |
+
+#### Acceptance criteria
+- [x] AC1 Brand list/editor and model/variant (and colour) screens manage the catalogue through the real C-02 API only
+- [x] AC2 Search, pagination, lifecycle/authorisation/verification badges; supplier relationship shown only from real data (readiness `supplier_link`, pending until D-01)
+- [x] AC3 Create/edit forms (React Hook Form + Zod mirroring server rules); archive confirmation with reason
+- [x] AC4 Choosing a brand filters model/variant options; cross-brand choices impossible in the UI, still rejected server-side
+- [x] AC5 No unverified item appears operationally active; warnings for unverified brand, specifications and prices
+- [x] AC6 Activation requires permission and a confirmation dialog stating the effect
+- [x] AC7 Loading, empty, no-results, validation, network, 401, 403, duplicate, invalid-state, activation-blocked and stale-version states
+- [x] AC8 Responsive (desktop + mobile) and accessible; Playwright on both viewports; `make ci` passes
+
+#### Stage 1 — UI
+Result: COMPLETE — built directly on the real C-02 typed client and hooks (the API already existed), so no mock
+adapter was needed or used.
+- Route `/admin/catalogue` (gated by `catalogue.view`; page header + Access denied otherwise) with tabs **Brands |
+  Models | Variants**; detail pages `/admin/catalogue/brands/:id`, `/models/:id`, `/variants/:id`.
+- Lists: server search (debounced), status/authorisation/verification/brand filters, server pagination, all kept in
+  the URL (refresh/back keep state); loading, empty (with permitted action), no-results, error with reference + retry,
+  403 → Access denied. Table on ≥ sm; stacked labelled list on phones (no sideways scrolling).
+- Badges: lifecycle, authorisation, confidence, and "Enabled / Not enabled for purchase & sales" taken only from the
+  server's `operational` flag — the UI never derives it, so nothing unverified looks operational.
+- Brand detail: authorisation card + **Record authorisation** dialog (status, legal name, reference, private evidence
+  document picked from the user's uploads or uploaded via the B-09 uploader); **activation readiness** straight from
+  the server checklist (met / not met / not available yet); **Supplier relationship** card shows only real data —
+  none exists until D-01, so it says so; **Specifications, prices and warranty** card states they are not recorded.
+- Model/variant detail: details, source & verification card (Unverified warning), brand context with its purchase/
+  sales badge, child lists (variants / colours with per-row actions).
+- Forms (React Hook Form + Zod mirroring server rules): add/edit brand, model, variant, colour; verify (confidence,
+  source link and/or document, date ≤ today); archive with optional reason; confirmations for activation stating the
+  effect. Edit is offered only while pending; actions appear only with their permission. Dialogs mount only while
+  open (fresh state each time), disable submit while pending, and show server errors: field-level VALIDATION_FAILED /
+  DUPLICATE, ACTIVATION_BLOCKED with the server's unmet requirements, VERSION_CONFLICT with "Reload latest version",
+  INVALID_STATE, 403, CSRF, network ("Nothing was saved"). 401 is handled globally (back to sign-in).
+- Brand → model: the Add-variant dialog and the Variants filter offer only the chosen brand's models (and never
+  archived brands/models); the request sends only `modelId`, the server derives the brand and still rejects mismatches.
+- Navigation: "Catalogue & Brands" is no longer "Planned"; the link needs `catalogue.view` like Users & Roles (tests
+  updated). Dashboard shortcut shows "Available / Open module" and no longer promises battery ratings or price history.
+- New shared component `components/ui/Pagination.tsx`; `Permission` gains the 7 catalogue keys. No new dependency.
+- Tests: `pages.test.tsx` (15) — access denied without call, server 403, list badges/operational, search + no
+  results + clear, empty and error states, create (client validation, server duplicate on the field, navigate only
+  after 201), brand→model cascade and archived brands excluded, server cross-brand refusal shown, variants filter
+  cascade, readiness/supplier/price gaps and disabled activation, permission-hidden actions, not found, activation
+  blocked list, stale-version reload, archive with reason, network loss.
+
+#### Stage 2 — Backend
+Result: NOT APPLICABLE — every list/detail/action the screens need exists in C-02 (checked against OpenAPI); no
+endpoint, migration or Go change was made. Not available and therefore not shown: verifier names (only "You" or a
+short user ID — there is no user lookup API), supplier links (D-01), spec values, prices (C-04).
+
+#### Stage 3 — API integration
+Result: COMPLETE — production path uses only `api/catalogue.ts` + `hooks/useCatalogue.ts` (added
+`useRefreshCatalogue` for stale-version reloads). Success is shown only after the server confirms; caches update only
+on success.
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack (details: `docs/evidence/C-03/browser-verification.txt`).
+- New `ui/e2e/catalogue-ui.e2e.ts` (desktop + Pixel 7): no-permission user has no link and gets Access denied; viewer
+  sees the real seeded roster as pending/unverified/not enabled with no edit actions and the readiness list; admin
+  creates a brand (client validation, then server), sees the duplicate on the field, adds a model, is refused
+  activation before verification (server reason shown), verifies, activates (edit disappears), adds a variant through
+  the brand→model cascade (only that brand's model offered), hits a real stale-version conflict from a second session
+  and reloads, archives the model with a reason (history kept, no new variants), cannot confirm brand activation,
+  refresh keeps server state, no sideways scroll, no console errors.
+- Screenshot review found and fixed: duplicated readiness text, stretched cards, mobile tables hiding statuses
+  (now a stacked list). First run 6/6; after fixes the full suite: **53 passed, 0 failed, 5 skipped** (by design).
+- API log: only `context canceled` lines from aborted browser requests (pre-existing behaviour, see C-02 verification).
+
+#### Checks (actual results)
+- `npx tsc -b`, ESLint (`--max-warnings=0`), Prettier: clean. First lint run failed (setState-in-effect resets,
+  `form.watch`, mixed exports, test string conversions) — fixed by mounting dialogs only while open, `useWatch`,
+  moving list helpers to `lib/listParams.ts`, render-time search sync; rerun clean.
+- Vitest: 16 files / **132 tests** passed (2 existing navigation assertions updated for the new permission gate).
+- `make ci`: exit 0 (13 Go packages ok with PostgreSQL, Vitest, lint, typecheck, swagger-check, builds;
+  golangci-lint not installed → skipped). `git diff --check` clean.
+
+#### Evidence
+`docs/evidence/C-03/browser-verification.txt`; screenshots `desktop-brands.png`, `desktop-brand-detail.png`,
+`desktop-add-variant-dialog.png`, `mobile-brands.png`, `mobile-model-detail.png`.
+
+#### Known issues / pending approvals
+- Nobody holds catalogue permissions on real databases until the owner approves grants (RB-5, OQ-2); screens show
+  Access denied until then.
+- Brand activation cannot succeed until supplier links (D-01), prices (C-04), warranty terms (RB-2) and identifier rules
+  (D-04) exist; the UI shows this from the server's readiness list.
+- No user-name lookup API: verifiers show as "You" or "User <id prefix>".
+- Spec values have no API yet; correction of active items / restoring archived ones pending (OQ-12).
+- Option pickers load up to 100 brands/models; enough for the current roster, revisit if catalogues grow.
+
+#### Final status
+COMPLETE — C-03 only. C-04 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

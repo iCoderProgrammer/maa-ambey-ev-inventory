@@ -49,6 +49,13 @@ export const Permission = {
   AccessRolesView: 'access.roles.view',
   AttachmentsUpload: 'attachments.upload',
   AttachmentsView: 'attachments.view',
+  CatalogueView: 'catalogue.view',
+  CatalogueManage: 'catalogue.manage',
+  CatalogueVerify: 'catalogue.verify',
+  CatalogueActivate: 'catalogue.activate',
+  CatalogueArchive: 'catalogue.archive',
+  BrandAuthorise: 'catalogue.brand.authorise',
+  BrandActivate: 'catalogue.brand.activate',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

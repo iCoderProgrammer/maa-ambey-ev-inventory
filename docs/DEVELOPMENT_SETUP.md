@@ -215,7 +215,8 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
 - The catalogue API test (C-02) sends dozens of requests in a few seconds from one IP: start the API with
   a higher `RATE_LIMIT_BURST` (e.g. `RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200`) or it can get `429 RATE_LIMITED`.
-  It creates placeholder brands/models: throwaway database only. C-02 has no catalogue screen, so it is API-level.
+  It creates placeholder brands/models: throwaway database only. `e2e/catalogue-ui.e2e.ts` (C-03) drives the
+  catalogue screens with the same two accounts (plus `e2e.active` for the no-permission case) on desktop and mobile.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

@@ -171,8 +171,9 @@ export const navigation: NavSection[] = [
         label: 'Catalogue & Brands',
         path: '/admin/catalogue',
         icon: Tags,
-        backlog: ['C-01', 'C-02', 'C-03', 'C-04', 'C-05', 'C-06'],
-        summary: 'Brands, models, variants, specifications and price history.',
+        backlog: [],
+        summary: 'Brands, models, variants and colours with verification and authorisation status.',
+        permission: 'catalogue.view',
       },
       {
         label: 'Users & Roles',
