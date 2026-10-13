@@ -4,13 +4,17 @@ import { expect, type Page } from '@playwright/test'
  * Test accounts come from the environment, never from the repository. Create
  * them with `make user ARGS="create ..."` on a non-production database.
  */
-export type AccountKind = 'active' | 'disabled' | 'roles'
+export type AccountKind = 'active' | 'disabled' | 'roles' | 'attachments' | 'attachmentsViewer'
 
 const prefixes: Record<AccountKind, string> = {
   active: 'E2E',
   disabled: 'E2E_DISABLED',
   // Optional: a user holding access.roles.view (see DEVELOPMENT_SETUP "End-to-end browser tests").
   roles: 'E2E_ROLES',
+  // Optional (B-09): a user holding attachments.upload + attachments.view, and a second user
+  // holding attachments.view only (see DEVELOPMENT_SETUP "End-to-end browser tests").
+  attachments: 'E2E_ATTACH',
+  attachmentsViewer: 'E2E_ATTACH_VIEWER',
 }
 
 export function hasAccount(kind: AccountKind): boolean {

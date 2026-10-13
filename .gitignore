@@ -37,3 +37,6 @@ npm-debug.log*
 
 # Local manual-test account passwords (never commit)
 .dev-test-accounts
+
+# Local private attachment storage (B-09, ATTACHMENT_STORAGE_DIR default)
+/var/

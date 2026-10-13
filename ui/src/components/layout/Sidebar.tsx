@@ -83,9 +83,13 @@ function SidebarLink({ item, collapsed, onNavigate }: SidebarLinkProps) {
 
 export function Sidebar({ collapsed, onNavigate }: SidebarProps) {
   const me = useMe()
-  // Links to permission-gated pages appear only once the server has granted the permission.
-  const visible = (item: NavItem) =>
-    !item.permission || (me.data?.permissions.includes(item.permission) ?? false)
+  // Links to permission-gated pages appear only once the server has granted the permission
+  // (any one of them, when an item lists several).
+  const visible = (item: NavItem) => {
+    if (!item.permission) return true
+    const needed = typeof item.permission === 'string' ? [item.permission] : item.permission
+    return needed.some((p) => me.data?.permissions.includes(p) ?? false)
+  }
   const sections = navigation
     .map((section) => ({ ...section, items: section.items.filter(visible) }))
     .filter((section) => section.items.length > 0)

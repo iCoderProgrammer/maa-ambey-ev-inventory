@@ -1274,6 +1274,138 @@ container removed after the run. Shared dev DB unchanged (still 1 PROPOSED grant
 - Pending owner approvals (business, not technical): RB-5 permission matrix + approval thresholds, brand scope per
   user, initial showroom location details; OQ-8 (D-08 ↔ E-02 order).
 
+### B-09 — Private attachment service
+
+- **Status:** COMPLETE (technical; limits and production storage provider pending owner/hosting decisions)
+- **Started:** 2026-10-13 · **Finished:** 2026-10-13
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/01_Foundation_Security/B_09_private-attachment-service.md
+- **Order:** backend first, then frontend, then integration and browser test (user instruction and the prompt's
+  execution note), instead of the workflow's default UI-first order.
+- **Decisions made with the user (2026-10-13):** (1) add catalogue keys `attachments.upload` / `attachments.view`
+  with **no grants**; (2) proposed limits JPEG/PNG/WebP/PDF, 10 MB (configurable, pending confirmation — OQ-9);
+  (3) local private-directory driver now, S3-compatible driver deferred until the hosting decision (OQ-10), and a
+  permission-gated Documents page that hosts the reusable components.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-04 | COMPLETE | B-04 entry; API envelopes/middleware reused |
+| B-05 | COMPLETE | migrations framework; round-trip test incl. 000006 green |
+| B-07 | COMPLETE (technical; owner approvals pending) | VERIFY-B07-POSITIVE; `access.Require`, `Scope` reused |
+Git: working tree clean at start (`dev` = `origin/dev` = `2b27cca`).
+
+#### Acceptance criteria
+- [x] AC1 Unauthorized downloads fail: anonymous 401; no permission 403; other user / out-of-scope 404; other
+  user's, tampered or expired link 403 (`DOWNLOAD_LINK_INVALID` / `_EXPIRED`); revoked permission stops an issued link
+- [x] AC2 Invalid MIME and oversized files rejected server-side (415 / 413 / 422), nothing stored; client checks too
+- [x] AC3 Metadata and file access permission-checked (route guard + object check on every read and download)
+- [x] AC4 UI displays upload errors (client and server), with retry where retrying can help
+- [x] AC5 No permanently public URL: links are short-lived, bound to user + session; bytes shown from memory
+- [x] AC6 Safe generated object keys; no secrets/file names in audit; RBAC fail-closed (no grants added)
+
+#### Stage 2 — Backend (first)
+Result: COMPLETE.
+- Migration `000006_create_attachments` (up/down): catalogue keys (no grants), `attachments` table with CHECKs
+  (key format, driver, content-type allow-list, size, SHA-256 length, name, owner pair), FKs to users/locations
+  (RESTRICT), indexes; triggers refuse DELETE/TRUNCATE and any change except linking an unlinked row once.
+  Dev DB migrated 5 → 6 (`make db-migrate-up`, additive; 0 attachment grants).
+- `internal/modules/attachments`: `ObjectStore` + `LocalStore` (0700/0600, key pattern blocks traversal,
+  temp file + link, no overwrite), `Signer` (HMAC-SHA256 over attachment/user/disposition/expiry), `Service`
+  (sniffed type, declared-type and extension match, streaming size limit, SHA-256, orphan cleanup when metadata
+  fails, `canSee` object policy, link issue, download with re-check + audit), `PGStore`, Gin `Handler` with
+  swag annotations and security headers (nosniff, sandbox CSP, `private, no-store`, CORP same-origin).
+- Routes (all behind session; mutations need CSRF): `GET /attachments/limits`, `POST /attachments`,
+  `GET /attachments`, `GET /attachments/{id}`, `GET /attachments/{id}/link`, `GET /attachments/{id}/content`.
+- Config: `ATTACHMENT_STORAGE_DRIVER`, `ATTACHMENT_STORAGE_DIR`, `ATTACHMENT_MAX_BYTES`, `ATTACHMENT_LINK_TTL`,
+  `ATTACHMENT_SIGNING_KEY` (validated; key + dir required in staging/production). New error codes
+  `FILE_TOO_LARGE`, `DOWNLOAD_LINK_INVALID`, `DOWNLOAD_LINK_EXPIRED`. `.gitignore` `/var/`.
+- Tests: `http_test.go` (16 tests: 4 allowed types, 10 invalid-file cases incl. HTML-as-PDF, SVG, EXE, mismatch,
+  empty, oversized; no storage leak in responses; request shape; orphan cleanup; 401/403/CSRF on every route;
+  download headers + audit; 7 invalid-link cases + expiry; cross-user; revocation; location scope; linked
+  attachments denied; limits; no mutating route; file-name sanitising; unsafe keys), `pgstore_integration_test.go`
+  (5 tests: insert/get/list + audit row, unknown location and invalid audit event roll back, CHECKs, immutability
+  and no delete/truncate, link-once, service round trip with both audit rows and no file name in summaries);
+  config tests for the new settings. 21 PASS in the package, also with `-race`.
+
+#### Stage 1 — UI (after backend)
+Result: COMPLETE — built directly on the real API contract (no mock adapter needed).
+- `lib/api/client.ts`: `apiUpload` (XHR for progress, same envelope/error handling, CSRF header), `apiFetchBlob`,
+  `resolveApiPath`. `features/attachments`: API module + Zod schemas, hooks (TanStack Query/Mutation),
+  `AttachmentUploader` (picker + drop zone, client checks from `/limits`, per-file progress bar, cancel, retry
+  only for transient errors, server message + request ID), `DocumentRow` (type, size, date, Download, Preview),
+  `ImagePreview` (dialog, bytes fetched through a fresh link, object URL), `DocumentsPage` (permission-aware:
+  upload-only / view-only / both / denied; loading, empty, error-with-retry states).
+- Navigation: "Documents" link shown with either attachment permission (`NavItem.permission` now accepts a list,
+  any-of); route `/documents`.
+- Tests: `attachments.test.tsx` (15): client checks, link resolution, hidden link/denied page without calling
+  the API, upload-only view, client rejection without sending, success only after server 201 + CSRF sent, server
+  415 shown without retry, 503 retry then success, 403 explained, empty list, rows + refused download, download
+  via fresh link without rendering it, preview with expired link then retry, list error with retry.
+
+#### Stage 3 — API integration
+Result: COMPLETE. Production path uses the real endpoints only; no mock success anywhere. Upload success is shown
+after the server's 201; the list refreshes from the server; downloads/previews re-authorise each time.
+
+#### Stage 4 — Browser testing
+Result: PASS. Isolated throwaway stack (Postgres :5447, API :8091 this build with `ATTACHMENT_LINK_TTL=30s` and
+the development-only proposed-grants flag, Vite :5174); test-only PROPOSED grants on throwaway roles only
+(see evidence header). Full Playwright suite: **45 passed, 3 skipped** (2 viewport-specific by design; the
+API-level link test runs on desktop only). New `e2e/attachments.e2e.ts` covers: denied user (no link, page
+denied, API 403); upload PDF + PNG through the UI, list, client rejection of `.txt`, image preview (decoded, `blob:`
+src), download with byte-for-byte comparison, reload persistence, no signed link/storage path in the page, no
+horizontal overflow, no console errors; server rejections with the client bypassed (text, HTML-as-PDF,
+PDF-as-PNG, empty, 10 MB+ → 415/415/415/422/413) and no CSRF → 403; link checks (headers, tampered, changed
+disposition, other user 404/403, anonymous 401, PUT/PATCH/DELETE 405, expiry after 30 s → `DOWNLOAD_LINK_EXPIRED`).
+DB after the run: 5 attachment rows = 5 files on disk (mode 600, generated keys), rejected uploads left nothing;
+audit `attachment.uploaded` ×5 / `attachment.downloaded` ×5, all with request IDs; 0 rows with a test password.
+- Console/network: no page/console errors. API log: a few `context canceled` ERROR lines on `/auth/session`,
+  `/access/roles` and one on `/attachments/limits` — requests cancelled by the browser during reloads/navigation
+  (pre-existing logging behaviour in auth/access, not a B-09 failure; noted, not changed).
+- Evidence: `docs/evidence/B-09/e2e-full-suite.txt`, screenshots `01–04` desktop (1366 px) and mobile (Pixel 7):
+  denied, empty Documents, uploads with client errors + list, image preview (captured during the dialog's open
+  animation, hence the slight transparency). Test images are generated, not real documents.
+
+#### Checks (actual results)
+`make lint-backend` 0 · `make lint-frontend` 0 · `make typecheck-frontend` 0 · `make test-integration` 0 (all
+packages ok) · `make test-frontend` 0 (101 tests) · `make swagger-check` 0 · `make build-backend` 0 ·
+`make build-frontend` 0 (bundle-size warning only, as before) · `go test -race ./internal/modules/attachments` ok ·
+`git diff --check` clean.
+
+#### Files changed (B-09)
+`migrations/000006_create_attachments.{up,down}.sql`; `internal/modules/attachments/{service,storage,signer,pgstore,http}.go`
++ `{http_test,pgstore_integration_test}.go`; `internal/modules/access/policy.go` (2 keys); `internal/config/{config,config_test}.go`;
+`internal/httpx/response.go` (3 codes); `internal/server/{server,server_test}.go`; `cmd/api/main.go`; `docs/openapi/*`
+(regenerated); `.env.example`; `.gitignore`; `ui/src/lib/api/client.ts`; `ui/src/features/attachments/**`;
+`ui/src/features/access/api/access.ts`; `ui/src/app/{navigation.ts,routes.tsx}`; `ui/src/components/layout/Sidebar.tsx`;
+`ui/e2e/{attachments.e2e.ts,support.ts}`; `docs/{API_CONVENTIONS,ARCHITECTURE_DECISIONS,DEVELOPMENT_SETUP}.md`
+(Attachments section, ADR-010, OQ-9/OQ-10, e2e setup); `docs/evidence/B-09/`; this log.
+
+#### Known issues / pending approvals
+- No role holds `attachments.upload`/`attachments.view` (RB-5 pending): in dev/staging/production nobody can use
+  attachments until the owner approves grants. Positive paths verified only with PROPOSED grants on a throwaway DB.
+- OQ-9 accepted types and size limit are proposals; OQ-10 production object storage (S3-compatible) not chosen —
+  only the local driver exists; staging/production must set a private `ATTACHMENT_STORAGE_DIR` and signing key.
+- Linking attachments to business records and their owner checks come with D-03/D-06/F-09 etc.; linked
+  attachments are denied until then. Malware scanning, retention, EXIF stripping not implemented.
+- Orphan objects are possible only if the process dies between writing the file and committing metadata (no
+  sweeper yet).
+- Users' running dev API (:8081) must be restarted to pick up B-09 (dev DB is already at version 6).
+
+#### Post-completion check (2026-10-13, user-requested)
+- Dev API on :8081 restarted gracefully (SIGINT, then `make dev-backend`); `/health` ok, `/ready` ready; dev DB at
+  version 6 (not dirty). Private storage dir `var/attachments` created `0700` (default; `.env` sets no attachment
+  variables). `ATTACHMENT_SIGNING_KEY` is not set in `.env`: development uses a random per-start key by design
+  (links stop working after a restart); staging/production refuse to start without one.
+- Smoke tests on the dev stack (no grants changed): anonymous `/attachments`, `/attachments/limits` → 401;
+  signed-in dev tester (only `access.roles.view`) → 403 on list, limits, upload (with and without CSRF) and
+  content; DELETE → 405. 0 attachment rows, 0 files, 0 attachment grants afterwards.
+- `git diff --check` clean, no secrets in the diff, `make ci` exit 0 (101 UI tests). Committed after the checks.
+- Incident: while checking `.dev-test-accounts` a faulty redaction printed the two local dev test-account
+  passwords into the session's tool output (dev DB throwaway accounts only). Rotation recommended.
+
+#### Final status
+COMPLETE — B-09 only. Next registry task not started.
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--

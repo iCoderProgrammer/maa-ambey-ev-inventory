@@ -54,7 +54,22 @@ type Config struct {
 	// RBACAllowProposedGrants makes PROPOSED (not yet owner-approved) role grants
 	// count. Local development only (APP_ENV=development); refused elsewhere (B-07).
 	RBACAllowProposedGrants bool
+
+	// Private attachments (B-09). Limits are proposals pending owner confirmation.
+	AttachmentStorageDriver string
+	AttachmentStorageDir    string
+	AttachmentMaxBytes      int64
+	AttachmentLinkTTL       time.Duration
+	// AttachmentSigningKey signs short-lived download links. Required outside
+	// development/test; there an empty key means a random per-process key.
+	AttachmentSigningKey string
 }
+
+// Attachment limits.
+const (
+	AttachmentMaxBytesLimit = 25 << 20
+	minSigningKeyLength     = 32
+)
 
 // IsProduction reports whether the API runs with production safeguards.
 func (c Config) IsProduction() bool { return c.AppEnv == EnvProduction }
@@ -97,6 +112,16 @@ func load(getenv func(string) string) (Config, error) {
 	cfg.LoginMaxFailuresPerIP = p.int("LOGIN_MAX_FAILURES_PER_IP", 20)
 	cfg.LoginFailureWindow = p.duration("LOGIN_FAILURE_WINDOW", 15*time.Minute)
 	cfg.RBACAllowProposedGrants = p.bool("RBAC_ALLOW_PROPOSED_GRANTS", false)
+
+	cfg.AttachmentStorageDriver = p.str("ATTACHMENT_STORAGE_DRIVER", "local")
+	defaultDir := ""
+	if cfg.AppEnv == EnvDevelopment || cfg.AppEnv == EnvTest {
+		defaultDir = "var/attachments"
+	}
+	cfg.AttachmentStorageDir = p.str("ATTACHMENT_STORAGE_DIR", defaultDir)
+	cfg.AttachmentMaxBytes = int64(p.int("ATTACHMENT_MAX_BYTES", 10<<20))
+	cfg.AttachmentLinkTTL = p.duration("ATTACHMENT_LINK_TTL", 5*time.Minute)
+	cfg.AttachmentSigningKey = strings.TrimSpace(getenv("ATTACHMENT_SIGNING_KEY"))
 
 	errs := p.errs
 	errs = append(errs, cfg.validate()...)
@@ -172,6 +197,28 @@ func (c Config) validate() []error {
 	}
 	if c.LoginFailureWindow < time.Minute {
 		errs = append(errs, errors.New("LOGIN_FAILURE_WINDOW must be at least 1m"))
+	}
+	errs = append(errs, c.validateAttachments()...)
+	return errs
+}
+
+func (c Config) validateAttachments() []error {
+	var errs []error
+	if c.AttachmentStorageDriver != "local" {
+		errs = append(errs, fmt.Errorf("ATTACHMENT_STORAGE_DRIVER must be local (got %q); an object-storage driver is pending the hosting decision", c.AttachmentStorageDriver))
+	}
+	if c.AttachmentStorageDir == "" {
+		errs = append(errs, fmt.Errorf("ATTACHMENT_STORAGE_DIR is required in %s: a private directory outside any web root", c.AppEnv))
+	}
+	if c.AttachmentMaxBytes < 1024 || c.AttachmentMaxBytes > AttachmentMaxBytesLimit {
+		errs = append(errs, fmt.Errorf("ATTACHMENT_MAX_BYTES must be between 1024 and %d", AttachmentMaxBytesLimit))
+	}
+	if c.AttachmentLinkTTL < 30*time.Second || c.AttachmentLinkTTL > 15*time.Minute {
+		errs = append(errs, errors.New("ATTACHMENT_LINK_TTL must be between 30s and 15m (links must be short-lived)"))
+	}
+	needKey := c.AppEnv == EnvStaging || c.AppEnv == EnvProduction
+	if (needKey || c.AttachmentSigningKey != "") && len(c.AttachmentSigningKey) < minSigningKeyLength {
+		errs = append(errs, fmt.Errorf("ATTACHMENT_SIGNING_KEY must be at least %d characters (required in staging/production)", minSigningKeyLength))
 	}
 	return errs
 }

@@ -184,6 +184,36 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   the source of truth. A full-registry check found one other cycle, **D-08 ↔ E-02** (D-08 depends on E-02,
   E-02 on D-08), to be resolved before either starts (OQ-8).
 
+## ADR-010 — Private attachments (B-09)
+
+- **Status:** Accepted (limits and storage provider pending; see OQ-9, OQ-10).
+- **Storage:** an `ObjectStore` interface; the only driver today is `local` — a private directory
+  (`ATTACHMENT_STORAGE_DIR`, created `0700`, files `0600`, outside any web root; dev/test default
+  `var/attachments`, git-ignored; staging/production must set it). Keys are server-generated
+  `yyyy/mm/<uuid>`, never derived from the file name; writes go to a temp file and are linked into place.
+  An S3-compatible driver (Architecture §2 "private object storage") waits for the hosting decision (OQ-5).
+- **Metadata:** `attachments` (migration 000006): object key, driver, detected content type, size, SHA-256,
+  sanitised display name, uploader, optional location, optional owner (`owner_type`/`owner_id`, set once by
+  a later module), created at. Triggers refuse DELETE/TRUNCATE and any change except linking an unlinked
+  row once. No hard delete (product invariant).
+- **Validation (server, fail closed):** content type is sniffed from the bytes (`http.DetectContentType`);
+  allow-list JPEG, PNG, WebP, PDF (also a DB CHECK); the multipart part's declared type and the file-name
+  extension must match the detected type; size limit `ATTACHMENT_MAX_BYTES` (default 10 MB, max 25 MB),
+  enforced while streaming, so an oversized upload never lands. These defaults are proposals (OQ-9).
+- **Authorisation:** catalogue keys `attachments.upload` and `attachments.view` (no grants; RB-5).
+  Object check (`canSee`): view permission + location scope (when set) + an unlinked attachment is visible
+  to its uploader only; linked attachments are denied until the owning module adds its check. Attachments
+  the caller cannot see return 404.
+- **Access:** no public URL ever. `GET /attachments/{id}/link` returns a link signed with HMAC-SHA256
+  (`ATTACHMENT_SIGNING_KEY`, required in staging/production) over attachment, user, disposition and expiry
+  (`ATTACHMENT_LINK_TTL`, default 5 min). `GET …/content` needs the same user's session, re-checks access
+  (revocation is immediate), audits `attachment.downloaded`, and serves with `nosniff`, a sandboxing CSP,
+  `Cache-Control: private, no-store`. Inline display only for images.
+- **Audit:** `attachment.uploaded` (in the metadata transaction; summary: type, size, location — not the
+  file name) and `attachment.downloaded`.
+- **Deferred:** malware scanning (Architecture §8 "if available"), retention/archiving, image re-encoding
+  or EXIF stripping, linking to business records (D-03, D-06, F-09 …).
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -197,4 +227,6 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-5 | Deployment provider, API host, DB region, backup RPO/RTO (Architecture §12). | H-06, H-10 |
 | ~~OQ-6~~ | Session strategy — **resolved 2026-10-12**: local accounts + server-side sessions in an HttpOnly cookie (ADR-008). Session lifetimes (2h idle / 12h absolute) and the password policy are proposals the owner may change via config. | — |
 | OQ-8 | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI): which goes first, or should D-08 only link to the timeline once E-02 exists? | D-08, E-02 |
+| OQ-9 | Attachment limits: accepted types (proposal JPEG, PNG, WebP, PDF) and per-file size (proposal 10 MB). Configurable size; type list in code + DB CHECK. | B-09 (defaults only) |
+| OQ-10 | Production attachment storage: S3-compatible provider/bucket, region, encryption, retention. Until then only the local private-directory driver exists. | H-06, deploy |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

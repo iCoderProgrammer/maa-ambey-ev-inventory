@@ -15,6 +15,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/attachments"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/health"
 )
@@ -24,20 +25,22 @@ const APIPrefix = "/api/v1"
 
 // Deps are the runtime dependencies shared by feature modules.
 type Deps struct {
-	Config  config.Config
-	Log     *slog.Logger
-	DB      health.Pinger
-	Schema  health.SchemaChecker
-	Auth    *auth.Handler
-	Access  *access.Handler
-	Version string
+	Config config.Config
+	Log    *slog.Logger
+	DB     health.Pinger
+	Schema health.SchemaChecker
+	Auth   *auth.Handler
+	Access *access.Handler
+	// Attachments serves private files (B-09).
+	Attachments *attachments.Handler
+	Version     string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
-	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil {
-		return nil, errors.New("server: DB, Schema, Auth and Access dependencies are required")
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access and Attachments dependencies are required")
 	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
@@ -92,6 +95,7 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	health.NewHandler(d.DB, d.Schema, d.Version, d.Log).Register(api)
 	d.Auth.Register(api)
 	d.Access.Register(api)
+	d.Attachments.Register(api)
 
 	return r, nil
 }

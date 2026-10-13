@@ -182,16 +182,29 @@ make user ARGS="disable --username e2e.disabled"
 make user ARGS="create --username e2e.roles --name 'E2E Roles'"
 make access ARGS="assign --username e2e.roles --role viewer"
 make access ARGS="grant --role viewer --permission access.roles.view"
+# optional, for the attachment tests (B-09): an uploader+viewer and a second viewer (same flag)
+make user ARGS="create --username e2e.attach --name 'E2E Attach'"
+make user ARGS="create --username e2e.attachviewer --name 'E2E Attach Viewer'"
+make access ARGS="assign --username e2e.attach --role inventory_manager"
+make access ARGS="assign --username e2e.attachviewer --role sales_executive"
+make access ARGS="grant --role inventory_manager --permission attachments.upload"
+make access ARGS="grant --role inventory_manager --permission attachments.view"
+make access ARGS="grant --role sales_executive --permission attachments.view"
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
-  E2E_ROLES_USERNAME=e2e.roles E2E_ROLES_PASSWORD=... npm run test:e2e
+  E2E_ROLES_USERNAME=e2e.roles E2E_ROLES_PASSWORD=... \
+  E2E_ATTACH_USERNAME=e2e.attach E2E_ATTACH_PASSWORD=... \
+  E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... npm run test:e2e
 ```
 
 - Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
 - The suite makes failed sign-ins on purpose (including one per viewport for the disabled account),
   and the login throttle is in memory: restart the API before re-running within 15 minutes, and
   start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
+- The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
+  Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
+  `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.
 - Failure screenshots and traces go to `ui/test-results/` (git-ignored).
 - Not part of `make ci` yet: CI has no running UI/API stack.
 

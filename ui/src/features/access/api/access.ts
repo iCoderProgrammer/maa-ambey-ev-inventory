@@ -47,6 +47,8 @@ export type RoleMatrix = z.infer<typeof roleMatrixSchema>
 /** Permission keys the UI refers to. Must exist in the server catalogue. */
 export const Permission = {
   AccessRolesView: 'access.roles.view',
+  AttachmentsUpload: 'attachments.upload',
+  AttachmentsView: 'attachments.view',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

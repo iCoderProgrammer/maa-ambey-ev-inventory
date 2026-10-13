@@ -31,6 +31,11 @@ const (
 	CodeSessionExpired       = "SESSION_EXPIRED"
 	CodeCSRFFailed           = "CSRF_FAILED"
 	CodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
+
+	// Attachments (B-09).
+	CodeFileTooLarge        = "FILE_TOO_LARGE"
+	CodeDownloadLinkInvalid = "DOWNLOAD_LINK_INVALID"
+	CodeDownloadLinkExpired = "DOWNLOAD_LINK_EXPIRED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

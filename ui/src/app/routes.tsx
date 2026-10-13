@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { RolesPage } from '@/features/access/RolesPage'
+import { DocumentsPage } from '@/features/attachments/DocumentsPage'
 import { RequireAuth } from '@/features/auth/components/RequireAuth'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
@@ -26,6 +27,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <DashboardPage /> },
               { path: 'admin/users', element: <RolesPage /> },
+              { path: 'documents', element: <DocumentsPage /> },
               ...plannedModules.map(({ section, item }) => ({
                 path: item.path.slice(1),
                 element: <PlannedModulePage section={section} item={item} />,

@@ -159,7 +159,31 @@ Sensitive changes are recorded in `audit_events` through `internal/audit`:
   `cmd/user` actions `user.created`, `user.enabled`, `user.disabled`, `user.password_changed`,
   `user.sessions_revoked`. Also audited (B-07): `access.grant_proposed`, `access.grant_approved`, `access.grant_revoked`,
   `access.role_assigned`, `access.role_unassigned`, `location.created`, `access.location_scope_added`,
-  `access.location_scope_removed`. No read API yet (`audit.events.view` exists, not granted).
+  `access.location_scope_removed`. Also audited (B-09): `attachment.uploaded`, `attachment.downloaded`. No read API yet (`audit.events.view` exists, not granted).
+
+## Attachments (B-09)
+
+Private files (PDI photos, supplier bills). Never a public URL; see ADR-010.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /attachments/limits` | `attachments.upload` | `{maxBytes, allowedTypes:[{contentType, extensions, previewable}]}` — use it for client checks |
+| `POST /attachments` | `attachments.upload` + CSRF | `multipart/form-data`, one part `file`; optional `?locationId=` (must be in scope). `201` → `Attachment` |
+| `GET /attachments` | `attachments.view` | caller's newest 50 unlinked uploads still in scope |
+| `GET /attachments/{id}` | `attachments.view` | metadata; not visible → `404 NOT_FOUND` |
+| `GET /attachments/{id}/link?disposition=attachment\|inline` | `attachments.view` | `{url, expiresAt, disposition}`; `inline` only for images (`422` otherwise) |
+| `GET /attachments/{id}/content?disposition&expires&signature` | `attachments.view` + same user's session | the bytes; audited |
+
+`Attachment`: `id, fileName, contentType, sizeBytes, sha256, locationId|null, linked, uploadedBy, createdAt,
+previewable`. Storage keys/paths are never returned.
+
+Errors: `413 FILE_TOO_LARGE`; `415 UNSUPPORTED_MEDIA_TYPE` (type not allowed, or content ≠ declared type /
+extension; also a non-multipart body); `400 VALIDATION_FAILED` (no `file` part); `422 VALIDATION_FAILED`
+(empty file, unknown/malformed `locationId`, bad disposition); `403 FORBIDDEN` (permission, out-of-scope
+location); `403 DOWNLOAD_LINK_INVALID` (tampered, other user's, wrong disposition or attachment);
+`403 DOWNLOAD_LINK_EXPIRED`; `404 NOT_FOUND`. Clients: fetch the link, then the content with
+`credentials: 'include'`, and show the bytes from memory (object URL) — never store or display the link.
+Attachments are immutable: there is no update or delete route.
 
 ## Middleware chain
 

@@ -62,6 +62,13 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"proposed grants in staging", map[string]string{"APP_ENV": "staging", "SESSION_COOKIE_SECURE": "true", "RBAC_ALLOW_PROPOSED_GRANTS": "true"}, "RBAC_ALLOW_PROPOSED_GRANTS must be false in staging"},
 		{"proposed grants in production", map[string]string{"APP_ENV": "production", "DATABASE_URL": "postgres://u:p@db:5432/app?sslmode=require", "SESSION_COOKIE_SECURE": "true", "CORS_ALLOWED_ORIGINS": "https://x.example", "RBAC_ALLOW_PROPOSED_GRANTS": "true"}, "RBAC_ALLOW_PROPOSED_GRANTS must be false in production"},
 		{"insecure prod db", map[string]string{"APP_ENV": "production"}, "sslmode=disable in production"},
+		{"unknown storage driver", map[string]string{"ATTACHMENT_STORAGE_DRIVER": "s3"}, "ATTACHMENT_STORAGE_DRIVER must be local"},
+		{"no storage dir in staging", map[string]string{"APP_ENV": "staging", "SESSION_COOKIE_SECURE": "true"}, "ATTACHMENT_STORAGE_DIR is required in staging"},
+		{"no signing key in production", map[string]string{"APP_ENV": "production", "DATABASE_URL": "postgres://u:p@db:5432/app?sslmode=require", "ATTACHMENT_STORAGE_DIR": "/srv/a"}, "ATTACHMENT_SIGNING_KEY must be at least 32"},
+		{"short signing key", map[string]string{"ATTACHMENT_SIGNING_KEY": "short"}, "ATTACHMENT_SIGNING_KEY must be at least 32"},
+		{"attachment limit too large", map[string]string{"ATTACHMENT_MAX_BYTES": "104857600"}, "ATTACHMENT_MAX_BYTES must be between"},
+		{"attachment limit too small", map[string]string{"ATTACHMENT_MAX_BYTES": "10"}, "ATTACHMENT_MAX_BYTES must be between"},
+		{"long-lived links", map[string]string{"ATTACHMENT_LINK_TTL": "1h"}, "ATTACHMENT_LINK_TTL must be between"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +101,8 @@ func TestProductionDisablesSwaggerByDefault(t *testing.T) {
 	env["APP_ENV"] = "production"
 	env["DATABASE_URL"] = "postgres://u:p@db.internal:5432/app?sslmode=require"
 	env["CORS_ALLOWED_ORIGINS"] = "https://inventory.example.com"
+	env["ATTACHMENT_STORAGE_DIR"] = "/srv/attachments"
+	env["ATTACHMENT_SIGNING_KEY"] = strings.Repeat("k", 32)
 	cfg, err := load(envFrom(env))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -112,5 +121,16 @@ func TestProposedGrantsAllowedInLocalDevelopment(t *testing.T) {
 	cfg, err := load(envFrom(env))
 	if err != nil || !cfg.RBACAllowProposedGrants {
 		t.Fatalf("development must allow the switch: %v", err)
+	}
+}
+
+func TestAttachmentDefaults(t *testing.T) {
+	cfg, err := load(envFrom(validEnv()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AttachmentStorageDriver != "local" || cfg.AttachmentStorageDir != "var/attachments" ||
+		cfg.AttachmentMaxBytes != 10<<20 || cfg.AttachmentLinkTTL != 5*time.Minute || cfg.AttachmentSigningKey != "" {
+		t.Errorf("attachment defaults = %q %q %d %v", cfg.AttachmentStorageDriver, cfg.AttachmentStorageDir, cfg.AttachmentMaxBytes, cfg.AttachmentLinkTTL)
 	}
 }

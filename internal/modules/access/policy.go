@@ -16,8 +16,8 @@ import (
 	"slices"
 )
 
-// Permission keys. Every key must exist in the permissions table (migration
-// 000004); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// Permission keys. Every key must exist in the permissions table (migrations
+// 000004, 000006); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -34,6 +34,9 @@ const (
 	PermTaxSettings       = "settings.tax.manage"
 	PermReportsExport     = "reports.export"
 	PermCustomersExport   = "customers.export"
+	// Private attachments (B-09, migration 000006).
+	PermAttachmentsUpload = "attachments.upload"
+	PermAttachmentsView   = "attachments.view"
 )
 
 // AllPermissions lists every key the code knows.
@@ -41,7 +44,7 @@ var AllPermissions = []string{
 	PermRolesView, PermRolesManage, PermAuditView, PermAllLocations,
 	PermCostPriceView, PermCostPriceEdit, PermDiscountApprove, PermRefundCreate, PermRefundApprove,
 	PermAdjustmentCreate, PermAdjustmentApprove, PermInvoiceSettings, PermTaxSettings,
-	PermReportsExport, PermCustomersExport,
+	PermReportsExport, PermCustomersExport, PermAttachmentsUpload, PermAttachmentsView,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

@@ -65,6 +65,383 @@ const docTemplate = `{
                 }
             }
         },
+        "/attachments": {
+            "get": {
+                "description": "The caller's newest uploads (up to 50) that are not linked to a business record yet and are still in the caller's location scope. Requires attachments.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "My unlinked uploads",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Attachment"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "multipart/form-data with one part named \"file\". The file is stored privately under a server-generated key; nothing about it is public. Optional locationId must be in the caller's location scope. The new attachment is not linked to a business record yet, so only the uploader can see it. Requires attachments.upload and X-CSRF-Token.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Upload a private attachment",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "JPEG, PNG, WebP or PDF up to maxBytes",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location the file belongs to",
+                        "name": "locationId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Attachment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "VALIDATION_FAILED (no file part)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "FILE_TOO_LARGE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE (type not allowed, or content does not match type/extension)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (empty file, unknown location)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/limits": {
+            "get": {
+                "description": "Maximum file size and accepted types (content is detected server-side; the declared type and the file-name extension must match it). Requires attachments.upload.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Upload limits",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/AttachmentLimits"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}": {
+            "get": {
+                "description": "Requires attachments.view and access to this attachment (location scope; unlinked attachments: uploader only). Attachments the caller cannot see return 404, so their existence is not revealed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Attachment metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Attachment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/content": {
+            "get": {
+                "description": "Streams the file for a link from /attachments/{id}/link. Needs the same user's session; access is checked again, so a revoked permission stops downloads at once. Every download is audited. Served with nosniff, a sandboxing CSP and no caching.",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Download an attachment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "attachment or inline",
+                        "name": "disposition",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "From the link",
+                        "name": "expires",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "From the link",
+                        "name": "signature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN, DOWNLOAD_LINK_INVALID or DOWNLOAD_LINK_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/link": {
+            "get": {
+                "description": "After the same checks as metadata, returns a link that works only for the caller, only with their session, and only until expiresAt (ATTACHMENT_LINK_TTL, default 5 minutes). disposition=inline is allowed for images (preview); everything else downloads.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Short-lived download link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "attachment",
+                            "inline"
+                        ],
+                        "type": "string",
+                        "description": "attachment (default) or inline",
+                        "name": "disposition",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/AttachmentLink"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (disposition)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Verifies username and password and starts a server-side session. The session token is returned only in an HttpOnly, SameSite=Strict cookie (` + "`" + `__Host-maa_session` + "`" + ` over HTTPS, ` + "`" + `maa_session` + "`" + ` in local development); the body carries the CSRF token for later mutations. Failures are generic: unknown user and wrong password both return INVALID_CREDENTIALS. ACCOUNT_DISABLED is only returned when the password was correct. Repeated failures return 429 with Retry-After.",
@@ -474,6 +851,83 @@ const docTemplate = `{
                 }
             }
         },
+        "Attachment": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-10-13T09:30:00Z"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "supplier-bill.pdf"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0b8f5e9a-6d3c-4f21-9a7e-2c4d6e8f0a1b"
+                },
+                "linked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locationId": {
+                    "type": "string",
+                    "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "previewable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "sha256": {
+                    "type": "string",
+                    "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                },
+                "sizeBytes": {
+                    "type": "integer",
+                    "example": 482113
+                },
+                "uploadedBy": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
+                }
+            }
+        },
+        "AttachmentLimits": {
+            "type": "object",
+            "properties": {
+                "allowedTypes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/attachments.FileType"
+                    }
+                },
+                "maxBytes": {
+                    "type": "integer",
+                    "example": 10485760
+                }
+            }
+        },
+        "AttachmentLink": {
+            "type": "object",
+            "properties": {
+                "disposition": {
+                    "type": "string",
+                    "example": "attachment"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-10-13T09:35:00Z"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "/api/v1/attachments/0b8f5e9a-6d3c-4f21-9a7e-2c4d6e8f0a1b/content?disposition=attachment\u0026expires=1792834200\u0026signature=…"
+                }
+            }
+        },
         "DataResponse": {
             "type": "object",
             "properties": {
@@ -711,6 +1165,29 @@ const docTemplate = `{
                 "signedOut": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "attachments.FileType": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "extensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        ".pdf"
+                    ]
+                },
+                "previewable": {
+                    "description": "Image types can be previewed inline; others are always downloaded.",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         }
