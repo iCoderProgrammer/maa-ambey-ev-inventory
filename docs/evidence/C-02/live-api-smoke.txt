@@ -1,0 +1,75 @@
+C-02 live API smoke — 2026-10-13T12:03Z
+
+Environment (isolated, temporary; removed after the run):
+- Throwaway container postgres:17-alpine on 127.0.0.1:5448, migrated to version 8 and seeded (3 roster brands).
+- API built from this working tree on :8092, APP_ENV=development, RBAC_ALLOW_PROPOSED_GRANTS=true.
+- Test-only users smoke.admin (role owner), smoke.viewer (role viewer), smoke.none (no role); random password, not printed.
+- Test-only PROPOSED grants via cmd/access: owner -> 7 catalogue keys (+ attachments.*), viewer -> catalogue.view. No APPROVED grant.
+- Placeholder data only ("Smoke Brand A", SM1, STD, https://example.com/smoke-source). Shared dev DB not touched.
+
+Script: python (urllib, cookie session + X-CSRF-Token), real HTTP against the running API.
+
+PASS  anonymous GET /brands: 401 UNAUTHENTICATED
+PASS  no-grant user GET /brands (deny by default): 403 FORBIDDEN
+PASS  no-grant user POST /brands: 403 FORBIDDEN
+PASS  viewer GET /brands: 200
+      roster: total=3 PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False
+PASS  viewer POST /brands: 403 FORBIDDEN
+PASS  admin create brand: 201
+PASS  admin create second brand: 201
+PASS  duplicate brand name (case-insensitive): 409 DUPLICATE details=name
+PASS  unknown field lifecycleStatus refused: 422 VALIDATION_FAILED details=lifecycleStatus
+PASS  create model: 201
+PASS  same model code in another brand: 201
+PASS  duplicate model code in brand: 409 DUPLICATE details=internalCode
+PASS  variant with other brand's id: 422 VALIDATION_FAILED details=brandId
+PASS  model brand move refused: 422 VALIDATION_FAILED details=brandId
+PASS  create variant (brand derived from model): 201
+      variant.brandId == brand A: True
+PASS  activate unverified model: 409 ACTIVATION_BLOCKED details=verification
+PASS  verify model: 200
+PASS  verify variant: 200
+PASS  activate variant before its model: 409 ACTIVATION_BLOCKED details=parent
+PASS  stale version: 409 VERSION_CONFLICT
+PASS  activate model: 200
+PASS  activate variant: 200
+PASS  edit active variant refused: 409 INVALID_STATE
+PASS  authorise without evidence: 422 VALIDATION_FAILED details=manufacturerLegalName,authorisationReference,authorisationEvidenceId
+PASS  authorise with unknown evidence id: 422 VALIDATION_FAILED details=authorisationEvidenceId
+PASS  readiness: 200
+      readiness: ready=False unmet=['authorisation', 'legal_identity', 'authorisation_evidence', 'supplier_link', 'approved_prices', 'warranty_terms', 'identifier_rules']
+PASS  activate brand (blocked): 409 ACTIVATION_BLOCKED details=authorisation,legal_identity,authorisation_evidence,supplier_link,approved_prices,warranty_terms,identifier_rules
+PASS  create colour: 201
+PASS  archive model: 200
+PASS  variant still readable after model archive: 200
+      variant keeps model/brand: True, status ACTIVE
+PASS  new variant under archived model: 409 INVALID_STATE
+PASS  DELETE model (no hard delete): 405 METHOD_NOT_ALLOWED
+PASS  viewer cannot archive: 403 FORBIDDEN
+PASS  missing CSRF token: 403 CSRF_FAILED
+PASS  list models filtered by brand + search: 200
+      page: total=1 items=1 page=1 limit=1
+PASS  bad list limit: 422 VALIDATION_FAILED details=limit
+
+36 passed, 0 failed
+
+Audit events written by the run (catalogue.*):
+           action            | outcome | actor_type | count
+-----------------------------+---------+------------+-------
+ catalogue.brand.activated   | DENIED  | USER       |     1
+ catalogue.brand.created     | SUCCESS | USER       |     2
+ catalogue.colour.created    | SUCCESS | USER       |     1
+ catalogue.model.activated   | DENIED  | USER       |     1
+ catalogue.model.activated   | SUCCESS | USER       |     1
+ catalogue.model.archived    | SUCCESS | USER       |     1
+ catalogue.model.created     | SUCCESS | USER       |     2
+ catalogue.model.verified    | SUCCESS | USER       |     1
+ catalogue.variant.activated | DENIED  | USER       |     1
+ catalogue.variant.activated | SUCCESS | USER       |     1
+ catalogue.variant.created   | SUCCESS | USER       |     1
+ catalogue.variant.verified  | SUCCESS | USER       |     1
+(12 rows)
+
+Denied brand activation summary: {"unmet": ["authorisation", "legal_identity", "authorisation_evidence", "supplier_link", "approved_prices", "warranty_terms", "identifier_rules"]}
+
+API log: 0 ERROR lines.

@@ -20,6 +20,12 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
+// SchemaChecker reports whether the database schema matches the migration
+// version this build expects. Satisfied by database.SchemaChecker.
+type SchemaChecker interface {
+	CheckSchema(ctx context.Context) error
+}
+
 // Status is the payload of GET /health.
 type Status struct {
 	Status  string    `json:"status" example:"ok"`
@@ -28,24 +34,27 @@ type Status struct {
 	Time    time.Time `json:"time" example:"2026-10-12T10:00:00Z"`
 } //@name HealthStatus
 
-// Readiness is the payload of GET /ready. Check values are "up" or "down";
-// failure reasons are logged server-side, never returned.
+// Readiness is the payload of GET /ready. Checks: "database" (PostgreSQL
+// reachable) and "migrations" (schema at the version this build expects, last
+// migration clean). Values are "up" or "down"; failure reasons are logged
+// server-side, never returned.
 type Readiness struct {
 	Status string            `json:"status" example:"ready" enums:"ready,not_ready"`
-	Checks map[string]string `json:"checks"`
+	Checks map[string]string `json:"checks" example:"database:up,migrations:up"`
 } //@name Readiness
 
 // Handler serves the health endpoints.
 type Handler struct {
 	db      Pinger
+	schema  SchemaChecker
 	version string
 	log     *slog.Logger
 	now     func() time.Time
 }
 
 // NewHandler builds a health handler.
-func NewHandler(db Pinger, version string, log *slog.Logger) *Handler {
-	return &Handler{db: db, version: version, log: log, now: time.Now}
+func NewHandler(db Pinger, schema SchemaChecker, version string, log *slog.Logger) *Handler {
+	return &Handler{db: db, schema: schema, version: version, log: log, now: time.Now}
 }
 
 // Register mounts the routes on the given group (e.g. /api/v1).
@@ -70,7 +79,7 @@ func (h *Handler) Health(c *gin.Context) {
 // Ready godoc
 //
 //	@Summary		Readiness check
-//	@Description	Reports whether required dependencies (PostgreSQL) are reachable. Returns 503 when not ready.
+//	@Description	Reports whether PostgreSQL is reachable ("database") and migrated to the schema version this build expects with no failed migration ("migrations"). Returns 503 when not ready. The API never migrates on its own.
 //	@Tags			health
 //	@Produce		json
 //	@Success		200	{object}	httpx.DataResponse{data=health.Readiness}
@@ -81,15 +90,26 @@ func (h *Handler) Ready(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
 
-	res := Readiness{Status: "ready", Checks: map[string]string{"database": "up"}}
-	status := http.StatusOK
-	if err := h.db.Ping(ctx); err != nil {
+	res := Readiness{Status: "ready", Checks: map[string]string{"database": "up", "migrations": "up"}}
+	fail := func(dependency string, err error) {
 		h.log.WarnContext(ctx, "readiness check failed",
 			slog.String("request_id", c.GetString(httpx.RequestIDKey)),
-			slog.String("dependency", "database"),
+			slog.String("dependency", dependency),
 			slog.Any("error", err))
 		res.Status = "not_ready"
-		res.Checks["database"] = "down"
+		res.Checks[dependency] = "down"
+	}
+
+	if err := h.db.Ping(ctx); err != nil {
+		// The schema cannot be verified without a connection.
+		fail("database", err)
+		res.Checks["migrations"] = "down"
+	} else if err := h.schema.CheckSchema(ctx); err != nil {
+		fail("migrations", err)
+	}
+
+	status := http.StatusOK
+	if res.Status != "ready" {
 		status = http.StatusServiceUnavailable
 	}
 	c.JSON(status, httpx.DataResponse{Data: res})

@@ -1,3 +1,4 @@
+import { AlertCircle } from 'lucide-react'
 import { useId, type ReactElement, type ReactNode } from 'react'
 
 export interface FieldControlProps {
@@ -39,8 +40,13 @@ export function Field({ label, hint, error, required, children }: FieldProps): R
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="text-xs text-danger">
-          {error}
+        <p
+          id={errorId}
+          role="alert"
+          className="flex items-center gap-1.5 text-xs font-medium text-danger"
+        >
+          <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
         </p>
       )}
     </div>

@@ -2,7 +2,13 @@
 # Maa Ambey Enterprises – Inventory Management
 # Go API (repo root) + React UI (ui/)
 # ──────────────────────────────────────────────
+# .env supplies defaults; anything already set in the environment wins, so
+# `DATABASE_URL=... make db-migrate-up` really targets that database.
+ENV_FILE_VARS := $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' .env 2>/dev/null)
+ENV_OVERRIDES := $(foreach v,$(ENV_FILE_VARS),$(if $(filter environment,$(origin $v)),$v))
+$(foreach v,$(ENV_OVERRIDES),$(eval _env_$v := $$(value $v)))
 -include .env
+$(foreach v,$(ENV_OVERRIDES),$(eval $v := $$(_env_$v)))
 export
 
 GO      ?= go
@@ -16,11 +22,17 @@ TEST_DATABASE_URL ?= $(DATABASE_URL)
 SWAG_GEN_FLAGS := -g main.go -d ./cmd/api,./internal --outputTypes go,json,yaml --parseInternal --quiet
 SWAG_FLAGS := $(SWAG_GEN_FLAGS) -o docs/openapi
 
+PUSH_USER   ?= iCoderProgrammer
+PUSH_KEY    ?= $(HOME)/.ssh/id_ed25519_icoder
+PUSH_REMOTE ?= origin
+PUSH_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+PUSH_SSH    := ssh -i $(PUSH_KEY) -o IdentitiesOnly=yes
+
 .PHONY: help setup env-files check-go check-node check-docker \
         dev dev-backend dev-frontend \
-        db-up db-down db-logs db-psql db-migrate-up db-migrate-down db-migrate-version db-migrate-create db-seed \
+        db-up db-down db-logs db-psql db-migrate-up db-migrate-down db-migrate-version db-migrate-create db-seed user access \
         swagger swagger-check test test-backend test-integration test-frontend \
-        lint lint-backend lint-frontend fmt typecheck typecheck-frontend build build-backend build-frontend ci clean
+        lint lint-backend lint-frontend fmt typecheck typecheck-frontend build build-backend build-frontend ci clean push
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -46,6 +58,7 @@ setup: check-go check-node env-files ## Install Go modules and UI packages
 	$(GO) mod download
 	cd $(UI_DIR) && $(NPM) ci
 	@echo "✅ Setup complete. Next: make db-up && make db-migrate-up && make db-seed && make dev"
+	@echo "   First sign-in: make user ARGS=\"create --username <name> --name '<Full Name>'\" (see docs/DEVELOPMENT_SETUP.md)"
 
 ## ── Run ────────────────────────────────────
 
@@ -75,14 +88,20 @@ db-psql: check-docker ## Open psql inside the container
 db-migrate-up: check-go ## Apply all pending migrations
 	$(GO) run ./cmd/migrate up
 
-db-migrate-down: check-go ## Roll back migrations: make db-migrate-down [STEPS=1]
-	$(GO) run ./cmd/migrate down $(or $(STEPS),1)
+db-migrate-down: check-go ## Roll back migrations: make db-migrate-down [STEPS=1] (staging/production also need CONFIRM=1)
+	$(GO) run ./cmd/migrate down $(or $(STEPS),1) $(if $(CONFIRM),--confirm)
 
 db-migrate-version: check-go ## Show the current migration version
 	$(GO) run ./cmd/migrate version
 
 db-seed: check-go ## Apply idempotent seeds from seeds/ (safe to re-run; run migrations first)
 	$(GO) run ./cmd/seed
+
+access: check-go ## Roles, grants, locations: make access ARGS="roles" (also permissions, show, grant, revoke, assign, unassign, location-create, scope-add, scope-remove)
+	$(GO) run ./cmd/access $(ARGS)
+
+user: check-go ## Manage staff accounts: make user ARGS="create --username asha.verma --name 'Asha Verma'" (also list, disable, enable, set-password, revoke-sessions)
+	$(GO) run ./cmd/user $(ARGS)
 
 db-migrate-create: ## Create a migration pair: make db-migrate-create NAME=create_models
 	@test -n "$(NAME)" || { echo "✗ usage: make db-migrate-create NAME=snake_case_name"; exit 1; }
@@ -137,11 +156,13 @@ typecheck-frontend: check-node ## TypeScript type check (tsc -b --noEmit)
 
 build: build-backend build-frontend ## Build API binaries and UI bundle
 
-build-backend: check-go ## Build bin/api, bin/migrate and bin/seed
+build-backend: check-go ## Build bin/api, bin/migrate, bin/seed, bin/user and bin/access
 	@mkdir -p bin
 	$(GO) build -ldflags "-X main.version=$(VERSION)" -o $(API_BIN) ./cmd/api
 	$(GO) build -o $(MIG_BIN) ./cmd/migrate
 	$(GO) build -o bin/seed ./cmd/seed
+	$(GO) build -o bin/user ./cmd/user
+	$(GO) build -o bin/access ./cmd/access
 
 build-frontend: check-node ## Production UI build into ui/dist
 	cd $(UI_DIR) && $(NPM) run build
@@ -152,3 +173,11 @@ ci: lint typecheck test-integration test-frontend build ## Everything CI runs (n
 
 clean: ## Remove build outputs
 	rm -rf bin $(UI_DIR)/dist
+
+## ── Git ────────────────────────────────────
+
+push: ## Push current branch as iCoderProgrammer over SSH: make push [PUSH_BRANCH=main]
+	@test -f "$(PUSH_KEY)" || { echo "✗ SSH key $(PUSH_KEY) not found."; exit 1; }
+	@$(PUSH_SSH) -T git@github.com 2>&1 | grep -q "Hi $(PUSH_USER)!" || { echo "✗ $(PUSH_KEY) does not authenticate as $(PUSH_USER) on GitHub."; exit 1; }
+	@echo "→ Pushing $(PUSH_BRANCH) to $(PUSH_REMOTE) as $(PUSH_USER)"
+	GIT_SSH_COMMAND="$(PUSH_SSH)" git push -u $(PUSH_REMOTE) $(PUSH_BRANCH)

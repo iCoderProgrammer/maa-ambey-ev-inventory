@@ -24,6 +24,23 @@ const (
 	CodeTimeout          = "REQUEST_TIMEOUT"
 	CodeInternal         = "INTERNAL_ERROR"
 	CodeUnavailable      = "SERVICE_UNAVAILABLE"
+
+	// Authentication (B-06).
+	CodeInvalidCredentials   = "INVALID_CREDENTIALS"
+	CodeAccountDisabled      = "ACCOUNT_DISABLED"
+	CodeSessionExpired       = "SESSION_EXPIRED"
+	CodeCSRFFailed           = "CSRF_FAILED"
+	CodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
+
+	// Attachments (B-09).
+	CodeFileTooLarge        = "FILE_TOO_LARGE"
+	CodeDownloadLinkInvalid = "DOWNLOAD_LINK_INVALID"
+	CodeDownloadLinkExpired = "DOWNLOAD_LINK_EXPIRED"
+	// Catalogue (C-02); all 409.
+	CodeDuplicate         = "DUPLICATE"
+	CodeVersionConflict   = "VERSION_CONFLICT"
+	CodeInvalidState      = "INVALID_STATE"
+	CodeActivationBlocked = "ACTIVATION_BLOCKED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

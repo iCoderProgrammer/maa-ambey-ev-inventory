@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   type LucideIcon,
   PackageCheck,
+  Paperclip,
   Receipt,
   Settings,
   ShoppingCart,
@@ -26,6 +27,11 @@ export interface NavItem {
   /** Backlog task IDs (05_Implementation_Tasks) that deliver this module. Empty = implemented. */
   backlog: string[]
   summary: string
+  /**
+   * Permission key the server must grant before the link is shown (with a list: any one of
+   * them). Hiding the link is presentation only: the page and its API check the same permission.
+   */
+  permission?: string | readonly string[]
 }
 
 export interface NavSection {
@@ -43,6 +49,14 @@ export const navigation: NavSection[] = [
         icon: LayoutDashboard,
         backlog: [],
         summary: 'Overview of stock and system status.',
+      },
+      {
+        label: 'Documents',
+        path: '/documents',
+        icon: Paperclip,
+        backlog: [],
+        summary: 'Private attachments: upload files and open your uploads.',
+        permission: ['attachments.upload', 'attachments.view'],
       },
     ],
   },
@@ -164,8 +178,9 @@ export const navigation: NavSection[] = [
         label: 'Users & Roles',
         path: '/admin/users',
         icon: UserCog,
-        backlog: ['B-06', 'B-07'],
-        summary: 'Staff accounts, roles, permissions and location scope.',
+        backlog: [],
+        summary: 'Roles, permission grants and their approval status.',
+        permission: 'access.roles.view',
       },
       {
         label: 'Store Settings',

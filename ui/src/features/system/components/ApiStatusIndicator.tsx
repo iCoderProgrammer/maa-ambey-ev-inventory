@@ -2,8 +2,9 @@ import { CircleAlert, CircleCheck, Loader2, WifiOff } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useHealth, useReadiness } from '../hooks/useSystemStatus'
+import { notReadyReason } from '../readinessChecks'
 
-/** Compact header pill showing live API + database status from the real Go API. */
+/** Compact header pill showing live API, database and schema status from the real Go API. */
 export function ApiStatusIndicator() {
   const health = useHealth()
   const ready = useReadiness()
@@ -51,12 +52,17 @@ export function ApiStatusIndicator() {
   if (ready.data?.status === 'not_ready') {
     return (
       <Badge tone="warning" icon={<CircleAlert className="size-3" aria-hidden="true" />}>
-        Database unavailable
+        {notReadyReason(ready.data.checks)}
       </Badge>
     )
   }
   return (
-    <Badge tone="success" icon={<CircleCheck className="size-3" aria-hidden="true" />}>
+    <Badge
+      tone="success"
+      dot
+      pulse
+      icon={<CircleCheck className="size-3 text-success" aria-hidden="true" />}
+    >
       <span className="hidden sm:inline">API </span>online
     </Badge>
   )

@@ -15,6 +15,1776 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/access/roles": {
+            "get": {
+                "description": "Every role, its grants (PROPOSED or APPROVED with approver and reference) and the permission catalogue. matrixStatus is PENDING_OWNER_SIGN_OFF while no grant is approved. Read-only; grants change only through the audited cmd/access tool. Requires access.roles.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "access"
+                ],
+                "summary": "Role and permission matrix",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/RoleMatrix"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments": {
+            "get": {
+                "description": "The caller's newest uploads (up to 50) that are not linked to a business record yet and are still in the caller's location scope. Requires attachments.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "My unlinked uploads",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Attachment"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "multipart/form-data with one part named \"file\". The file is stored privately under a server-generated key; nothing about it is public. Optional locationId must be in the caller's location scope. The new attachment is not linked to a business record yet, so only the uploader can see it. Requires attachments.upload and X-CSRF-Token.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Upload a private attachment",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "JPEG, PNG, WebP or PDF up to maxBytes",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location the file belongs to",
+                        "name": "locationId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Attachment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "VALIDATION_FAILED (no file part)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "FILE_TOO_LARGE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE (type not allowed, or content does not match type/extension)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (empty file, unknown location)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/limits": {
+            "get": {
+                "description": "Maximum file size and accepted types (content is detected server-side; the declared type and the file-name extension must match it). Requires attachments.upload.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Upload limits",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/AttachmentLimits"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}": {
+            "get": {
+                "description": "Requires attachments.view and access to this attachment (location scope; unlinked attachments: uploader only). Attachments the caller cannot see return 404, so their existence is not revealed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Attachment metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Attachment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/content": {
+            "get": {
+                "description": "Streams the file for a link from /attachments/{id}/link. Needs the same user's session; access is checked again, so a revoked permission stops downloads at once. Every download is audited. Served with nosniff, a sandboxing CSP and no caching.",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Download an attachment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "attachment or inline",
+                        "name": "disposition",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "From the link",
+                        "name": "expires",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "From the link",
+                        "name": "signature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN, DOWNLOAD_LINK_INVALID or DOWNLOAD_LINK_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/link": {
+            "get": {
+                "description": "After the same checks as metadata, returns a link that works only for the caller, only with their session, and only until expiresAt (ATTACHMENT_LINK_TTL, default 5 minutes). disposition=inline is allowed for images (preview); everything else downloads.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Short-lived download link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "attachment",
+                            "inline"
+                        ],
+                        "type": "string",
+                        "description": "attachment (default) or inline",
+                        "name": "disposition",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/AttachmentLink"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (disposition)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Verifies username and password and starts a server-side session. The session token is returned only in an HttpOnly, SameSite=Strict cookie (` + "`" + `__Host-maa_session` + "`" + ` over HTTPS, ` + "`" + `maa_session` + "`" + ` in local development); the body carries the CSRF token for later mutations. Failures are generic: unknown user and wrong password both return INVALID_CREDENTIALS. ACCOUNT_DISABLED is only returned when the password was correct. Repeated failures return 429 with Retry-After.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Sign in",
+                "parameters": [
+                    {
+                        "description": "Credentials",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "VALIDATION_FAILED or BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "INVALID_CREDENTIALS",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "ACCOUNT_DISABLED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "RATE_LIMITED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "description": "Revokes the current session on the server and clears the cookie. Requires the session cookie and the X-CSRF-Token header.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Sign out",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/SignOutResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/session": {
+            "get": {
+                "description": "Returns the signed-in user and a CSRF token. 401 UNAUTHENTICATED when no session cookie was sent; 401 SESSION_EXPIRED when the session ended (idle or absolute timeout, sign-out elsewhere, password change, account disabled) — the cookie is then cleared.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Current session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands": {
+            "get": {
+                "description": "Brands are data. Includes pending and archived brands (BR-008); operational=true only for ACTIVE + AUTHORISED. Sorted by name. Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "List brands",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search name or slug",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PENDING_VERIFICATION",
+                            "ACTIVE",
+                            "ARCHIVED"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "UNVERIFIED",
+                            "AUTHORISED",
+                            "NOT_AUTHORISED",
+                            "REVOKED"
+                        ],
+                        "type": "string",
+                        "description": "Authorisation",
+                        "name": "authorisationStatus",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrandList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds a brand as data. It starts PENDING_VERIFICATION / UNVERIFIED and is not usable for purchase/sales. Slug is derived from the name when omitted. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Create a brand",
+                "parameters": [
+                    {
+                        "description": "Brand",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueBrandCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE (name or slug)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands/{id}": {
+            "get": {
+                "description": "Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Get a brand",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Changes name and/or slug. Send the version you read; archived brands cannot be changed. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Edit a brand",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueBrandUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands/{id}/activate": {
+            "post": {
+                "description": "Allowed only when every readiness check is met; otherwise 409 ACTIVATION_BLOCKED lists the unmet checks in details (field = check key) and the refused attempt is audited (outcome DENIED). Requires catalogue.brand.activate and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Enable a brand for purchase and sales",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueAction"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands/{id}/activation-readiness": {
+            "get": {
+                "description": "Every prerequisite for enabling the brand for purchase/sales (BR-002) and whether it is met. Checks marked pending belong to features not built yet (supplier links, approved prices, warranty terms, identifier rules) and are never met, so no brand can be activated until those exist. Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Brand activation readiness",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/BrandActivationReadiness"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands/{id}/archive": {
+            "post": {
+                "description": "Takes the brand out of use without deleting anything; its models, variants and history keep their references (BR-006, BR-008). Audited with the optional reason. Requires catalogue.archive and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Archive a brand",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueArchive"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/brands/{id}/authorisation": {
+            "put": {
+                "description": "Records the supplier/manufacturer legal identity, authorisation status, reference and evidence document (BR-002). AUTHORISED needs all three; the caller is recorded as verifier with the current time (UNVERIFIED clears both). Changing it on an ACTIVE brand takes it out of operation at once (operational=false). Archived brands cannot be changed. Audited. Requires catalogue.brand.authorise and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Record brand authorisation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Authorisation",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueBrandAuthorisation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueBrand"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (missing evidence, unknown document)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/colours": {
+            "get": {
+                "description": "Sorted by name. Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "List colours",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "variantId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search name or colour code",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PENDING_VERIFICATION",
+                            "ACTIVE",
+                            "ARCHIVED"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "UNVERIFIED",
+                            "SUPPLIER_CONFIRMED",
+                            "CLIENT_APPROVED"
+                        ],
+                        "type": "string",
+                        "description": "Confidence",
+                        "name": "confidence",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColourList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds a pending colour to a variant that is not archived. The brand is taken from the variant; a brandId that differs is refused (422). Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Create a colour",
+                "parameters": [
+                    {
+                        "description": "Colour",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueColourCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE or INVALID_STATE (archived variant)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (incl. unknown variantId, brandId mismatch)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/colours/{id}": {
+            "get": {
+                "description": "Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Get a colour",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Colour ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Only PENDING_VERIFICATION colours can be edited. Editing a verified colour resets it to UNVERIFIED. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Edit a pending colour",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Colour ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueColourUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/colours/{id}/activate": {
+            "post": {
+                "description": "A pending, verified colour of an ACTIVE variant becomes ACTIVE. Otherwise 409 ACTIVATION_BLOCKED, audited as DENIED. Requires catalogue.activate and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Activate a colour",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Colour ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueAction"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/colours/{id}/archive": {
+            "post": {
+                "description": "Never deletes. Audited. Requires catalogue.archive and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Archive a colour",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Colour ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueArchive"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/colours/{id}/verify": {
+            "post": {
+                "description": "Same as model verification. Requires catalogue.verify and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Verify a colour",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Colour ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provenance",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueVerify"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueColour"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Confirms the API process is running. Does not check dependencies.",
@@ -53,9 +1823,596 @@ const docTemplate = `{
                 }
             }
         },
+        "/me": {
+            "get": {
+                "description": "The permissions contract for the signed-in user. Permissions come only from owner-approved grants (plus proposed grants when RBAC_ALLOW_PROPOSED_GRANTS is on in local development). Empty until the permission matrix is approved. The UI uses this to decide what to show; every endpoint checks again.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "access"
+                ],
+                "summary": "Current user's roles, permissions and location scope",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/Me"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/models": {
+            "get": {
+                "description": "Sorted by name. Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "List models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search name, internal or manufacturer code",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PENDING_VERIFICATION",
+                            "ACTIVE",
+                            "ARCHIVED"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "UNVERIFIED",
+                            "SUPPLIER_CONFIRMED",
+                            "CLIENT_APPROVED"
+                        ],
+                        "type": "string",
+                        "description": "Confidence",
+                        "name": "confidence",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModelList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds a PENDING_VERIFICATION / UNVERIFIED model to a brand that is not archived. internalCode is stored upper-case and is unique within the brand. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Create a model",
+                "parameters": [
+                    {
+                        "description": "Model",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueModelCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE or INVALID_STATE (archived brand)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (incl. unknown brandId)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/models/{id}": {
+            "get": {
+                "description": "Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Get a model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Only PENDING_VERIFICATION models can be edited; the brand never changes (brandId is refused). Editing a verified model resets it to UNVERIFIED. Send null to clear manufacturerCode or vehicleType. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Edit a pending model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueModelUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/models/{id}/activate": {
+            "post": {
+                "description": "A pending, verified model of a brand that is not archived becomes ACTIVE. Otherwise 409 ACTIVATION_BLOCKED (details: verification, parent), audited as DENIED. Requires catalogue.activate and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Activate a model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueAction"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/models/{id}/archive": {
+            "post": {
+                "description": "Never deletes; variants and history keep their references. Audited. Requires catalogue.archive and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Archive a model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueArchive"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/models/{id}/verify": {
+            "post": {
+                "description": "Records source (URL and/or private document), source date and confidence for a pending model; the caller is the verifier. Audited. Requires catalogue.verify and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Verify a model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provenance",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueVerify"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueModel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ready": {
             "get": {
-                "description": "Reports whether required dependencies (PostgreSQL) are reachable. Returns 503 when not ready.",
+                "description": "Reports whether PostgreSQL is reachable (\"database\") and migrated to the schema version this build expects with no failed migration (\"migrations\"). Returns 503 when not ready. The API never migrates on its own.",
                 "produces": [
                     "application/json"
                 ],
@@ -108,9 +2465,1368 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/variants": {
+            "get": {
+                "description": "Sorted by name. Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "List variants",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "modelId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search name, variant or manufacturer code",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PENDING_VERIFICATION",
+                            "ACTIVE",
+                            "ARCHIVED"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "UNVERIFIED",
+                            "SUPPLIER_CONFIRMED",
+                            "CLIENT_APPROVED"
+                        ],
+                        "type": "string",
+                        "description": "Confidence",
+                        "name": "confidence",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariantList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds a pending variant to a model that is not archived. The brand is taken from the model; a brandId that differs is refused (422). variantCode is unique within the model. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Create a variant",
+                "parameters": [
+                    {
+                        "description": "Variant",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueVariantCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE or INVALID_STATE (archived model)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (incl. unknown modelId, brandId mismatch)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/variants/{id}": {
+            "get": {
+                "description": "Requires catalogue.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Get a variant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Only PENDING_VERIFICATION variants can be edited; model and brand never change. Editing a verified variant resets it to UNVERIFIED. Audited. Requires catalogue.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Edit a pending variant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueVariantUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/variants/{id}/activate": {
+            "post": {
+                "description": "A pending, verified variant of an ACTIVE model becomes ACTIVE. Otherwise 409 ACTIVATION_BLOCKED, audited as DENIED. Requires catalogue.activate and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Activate a variant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueAction"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/variants/{id}/archive": {
+            "post": {
+                "description": "Never deletes; colours and history keep their references. Audited. Requires catalogue.archive and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Archive a variant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueArchive"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/variants/{id}/verify": {
+            "post": {
+                "description": "Same as model verification. Requires catalogue.verify and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalogue"
+                ],
+                "summary": "Verify a variant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provenance",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CatalogueVerify"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/CatalogueVariant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "AccessGrant": {
+            "type": "object",
+            "properties": {
+                "approvalReference": {
+                    "type": "string"
+                },
+                "approvedAt": {
+                    "type": "string"
+                },
+                "approvedBy": {
+                    "type": "string"
+                },
+                "permission": {
+                    "type": "string",
+                    "example": "access.roles.view"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PROPOSED",
+                        "APPROVED"
+                    ],
+                    "example": "PROPOSED"
+                }
+            }
+        },
+        "AccessLocation": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "SR1"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Main showroom"
+                }
+            }
+        },
+        "AccessMatrixRole": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Client-confirmed role. Permissions pending owner sign-off."
+                },
+                "grants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessGrant"
+                    }
+                },
+                "key": {
+                    "type": "string",
+                    "example": "owner"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Owner"
+                }
+            }
+        },
+        "AccessPermission": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "View cost prices and stock valuation"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "catalogue.cost_price.view"
+                },
+                "sensitive": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "AccessRole": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "viewer"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Viewer"
+                }
+            }
+        },
+        "Attachment": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-10-13T09:30:00Z"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "supplier-bill.pdf"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0b8f5e9a-6d3c-4f21-9a7e-2c4d6e8f0a1b"
+                },
+                "linked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locationId": {
+                    "type": "string",
+                    "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "previewable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "sha256": {
+                    "type": "string",
+                    "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                },
+                "sizeBytes": {
+                    "type": "integer",
+                    "example": 482113
+                },
+                "uploadedBy": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
+                }
+            }
+        },
+        "AttachmentLimits": {
+            "type": "object",
+            "properties": {
+                "allowedTypes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/attachments.FileType"
+                    }
+                },
+                "maxBytes": {
+                    "type": "integer",
+                    "example": 10485760
+                }
+            }
+        },
+        "AttachmentLink": {
+            "type": "object",
+            "properties": {
+                "disposition": {
+                    "type": "string",
+                    "example": "attachment"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-10-13T09:35:00Z"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "/api/v1/attachments/0b8f5e9a-6d3c-4f21-9a7e-2c4d6e8f0a1b/content?disposition=attachment\u0026expires=1792834200\u0026signature=…"
+                }
+            }
+        },
+        "BrandActivationReadiness": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/BrandReadinessCheck"
+                    }
+                },
+                "ready": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "BrandReadinessCheck": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "authorisation"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Record AUTHORISED status with legal name, reference and evidence."
+                },
+                "met": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "pending": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "CatalogueAction": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueArchive": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueBrand": {
+            "type": "object",
+            "properties": {
+                "authorisationEvidenceId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "authorisationReference": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "authorisationStatus": {
+                    "type": "string",
+                    "enum": [
+                        "UNVERIFIED",
+                        "AUTHORISED",
+                        "NOT_AUTHORISED",
+                        "REVOKED"
+                    ],
+                    "example": "UNVERIFIED"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+                },
+                "lifecycleStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ],
+                    "example": "PENDING_VERIFICATION"
+                },
+                "manufacturerLegalName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Brand A"
+                },
+                "operational": {
+                    "description": "Operational is true only for ACTIVE + AUTHORISED brands (derived, read-only).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "brand-a"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "verifiedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "verifiedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueBrandAuthorisation": {
+            "type": "object",
+            "properties": {
+                "authorisationEvidenceId": {
+                    "type": "string"
+                },
+                "authorisationReference": {
+                    "type": "string"
+                },
+                "authorisationStatus": {
+                    "type": "string",
+                    "enum": [
+                        "UNVERIFIED",
+                        "AUTHORISED",
+                        "NOT_AUTHORISED",
+                        "REVOKED"
+                    ]
+                },
+                "manufacturerLegalName": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueBrandCreate": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Brand A"
+                },
+                "slug": {
+                    "description": "Optional; derived from the name when omitted.",
+                    "type": "string",
+                    "example": "brand-a"
+                }
+            }
+        },
+        "CatalogueBrandList": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CatalogueBrand"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "CatalogueBrandUpdate": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueColour": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "colourCode": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": [
+                        "UNVERIFIED",
+                        "SUPPLIER_CONFIRMED",
+                        "CLIENT_APPROVED"
+                    ],
+                    "example": "UNVERIFIED"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lifecycleStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Colour A"
+                },
+                "sourceDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-10-01"
+                },
+                "sourceDocumentId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variantId": {
+                    "type": "string"
+                },
+                "verifiedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "verifiedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "CatalogueColourCreate": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "colourCode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Colour A"
+                },
+                "variantId": {
+                    "type": "string"
+                }
+            }
+        },
+        "CatalogueColourList": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CatalogueColour"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "CatalogueColourUpdate": {
+            "type": "object",
+            "properties": {
+                "colourCode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueModel": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": [
+                        "UNVERIFIED",
+                        "SUPPLIER_CONFIRMED",
+                        "CLIENT_APPROVED"
+                    ],
+                    "example": "UNVERIFIED"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "internalCode": {
+                    "type": "string",
+                    "example": "M1"
+                },
+                "lifecycleStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "manufacturerCode": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Model One"
+                },
+                "sourceDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-10-01"
+                },
+                "sourceDocumentId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "vehicleType": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "verifiedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "verifiedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "CatalogueModelCreate": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "internalCode": {
+                    "type": "string",
+                    "example": "M1"
+                },
+                "manufacturerCode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Model One"
+                },
+                "vehicleType": {
+                    "type": "string"
+                }
+            }
+        },
+        "CatalogueModelList": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CatalogueModel"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "CatalogueModelUpdate": {
+            "type": "object",
+            "properties": {
+                "internalCode": {
+                    "type": "string"
+                },
+                "manufacturerCode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "vehicleType": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueVariant": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": [
+                        "UNVERIFIED",
+                        "SUPPLIER_CONFIRMED",
+                        "CLIENT_APPROVED"
+                    ],
+                    "example": "UNVERIFIED"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lifecycleStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "manufacturerCode": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Standard"
+                },
+                "sourceDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-10-01"
+                },
+                "sourceDocumentId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variantCode": {
+                    "type": "string",
+                    "example": "STD"
+                },
+                "verifiedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "verifiedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "CatalogueVariantCreate": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "manufacturerCode": {
+                    "type": "string"
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Standard"
+                },
+                "variantCode": {
+                    "type": "string",
+                    "example": "STD"
+                }
+            }
+        },
+        "CatalogueVariantList": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CatalogueVariant"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "CatalogueVariantUpdate": {
+            "type": "object",
+            "properties": {
+                "manufacturerCode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "variantCode": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "CatalogueVerify": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "string",
+                    "enum": [
+                        "SUPPLIER_CONFIRMED",
+                        "CLIENT_APPROVED"
+                    ]
+                },
+                "sourceDate": {
+                    "type": "string",
+                    "example": "2026-10-01"
+                },
+                "sourceDocumentId": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "DataResponse": {
             "type": "object",
             "properties": {
@@ -182,6 +3898,82 @@ const docTemplate = `{
                 }
             }
         },
+        "LocationScope": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessLocation"
+                    }
+                }
+            }
+        },
+        "LoginRequest": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "correct horse battery staple"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
+        "Me": {
+            "type": "object",
+            "properties": {
+                "locationScope": {
+                    "$ref": "#/definitions/LocationScope"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "access.roles.view"
+                    ]
+                },
+                "proposedGrantsActive": {
+                    "description": "True only when unapproved (proposed) grants are switched on (local development).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessRole"
+                    }
+                },
+                "user": {
+                    "$ref": "#/definitions/MeUser"
+                }
+            }
+        },
+        "MeUser": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string",
+                    "example": "Asha Verma"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
         "Readiness": {
             "type": "object",
             "properties": {
@@ -189,6 +3981,10 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    },
+                    "example": {
+                        "database": "up",
+                        "migrations": "up"
                     }
                 },
                 "status": {
@@ -198,6 +3994,99 @@ const docTemplate = `{
                         "not_ready"
                     ],
                     "example": "ready"
+                }
+            }
+        },
+        "RoleMatrix": {
+            "type": "object",
+            "properties": {
+                "approvedGrantCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "matrixStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_OWNER_SIGN_OFF",
+                        "PARTIALLY_APPROVED"
+                    ]
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessPermission"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AccessMatrixRole"
+                    }
+                }
+            }
+        },
+        "Session": {
+            "type": "object",
+            "properties": {
+                "csrfToken": {
+                    "type": "string",
+                    "example": "q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-10-12T12:00:00Z"
+                },
+                "user": {
+                    "$ref": "#/definitions/SessionUser"
+                }
+            }
+        },
+        "SessionUser": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string",
+                    "example": "Asha Verma"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5b0f8a52-3c1e-4d6f-9a8b-0c1d2e3f4a5b"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "asha.verma"
+                }
+            }
+        },
+        "SignOutResult": {
+            "type": "object",
+            "properties": {
+                "signedOut": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "attachments.FileType": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "extensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        ".pdf"
+                    ]
+                },
+                "previewable": {
+                    "description": "Image types can be previewed inline; others are always downloaded.",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         }

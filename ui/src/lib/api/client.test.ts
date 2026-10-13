@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest, ApiError, buildUrl } from './client'
+import { setCsrfToken } from './csrf'
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -130,5 +131,36 @@ describe('apiRequest', () => {
     const abort = new DOMException('aborted', 'AbortError')
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(abort)
     await expect(apiRequest('/health', schema)).rejects.toBe(abort)
+  })
+
+  it('sends the in-memory CSRF token on mutations only', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(jsonResponse(200, { data: { status: 'ok' } })))
+    setCsrfToken('csrf-abc')
+    try {
+      await apiRequest('/things', schema, { method: 'POST', body: {} })
+      await apiRequest('/things', schema)
+    } finally {
+      setCsrfToken(null)
+    }
+    const post = fetchMock.mock.calls[0]![1]!.headers as Record<string, string>
+    const get = fetchMock.mock.calls[1]![1]!.headers as Record<string, string>
+    expect(post['X-CSRF-Token']).toBe('csrf-abc')
+    expect(get['X-CSRF-Token']).toBeUndefined()
+  })
+
+  it('exposes Retry-After seconds on rate-limit errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(
+        429,
+        { error: { code: 'RATE_LIMITED', message: 'Too many sign-in attempts.' } },
+        { 'Retry-After': '120' },
+      ),
+    )
+    await expect(apiRequest('/auth/login', schema, { method: 'POST' })).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 120,
+    })
   })
 })

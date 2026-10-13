@@ -10,6 +10,9 @@ make dev              # Go API + Vite UI together; Ctrl+C stops both
 ```
 
 - UI: http://localhost:5173 — calls the API through the Vite proxy (`/api` → `API_PROXY_TARGET`).
+  The browser never connects to PostgreSQL; the UI needs no database settings, only the API location
+  (`ui/.env`: `API_PROXY_TARGET` for dev, `VITE_API_BASE_URL` for builds). If you change `APP_PORT`,
+  set `API_PROXY_TARGET` to match.
 - API: http://localhost:8080/api/v1/health
 - Swagger UI: http://localhost:8080/swagger/index.html (also via http://localhost:5173/swagger/index.html)
 
@@ -82,19 +85,56 @@ make db-migrate-down STEPS=2                # roll back two
 make db-psql                                # inspect with psql
 ```
 
-Rules:
-- Every `up` has a working `down`. Test both locally (`up → down → up`).
+Policy (enforced in code, ADR-003):
+- Files are `NNNNNN_snake_case.up.sql` + `.down.sql`, starting at `000001`, no gaps, one name per
+  version. They are embedded into the binaries (`migrations/migrations.go`), so `go test ./migrations`
+  and every build fail on a missing `down`, a gap or a bad name.
+- Every `up` has a working `down`. `make test-integration` runs `up → down → up` (plus one-step
+  down/up) in a throwaway database it creates and drops, never in your dev database.
 - Never edit a migration that has run anywhere shared; add a new one.
+- The API never migrates, resets or drops anything. If the schema is not exactly at the version the
+  build expects (unmigrated, pending, newer, or dirty), the API logs a warning and
+  `GET /api/v1/ready` answers 503 with `"migrations": "down"`; the UI header shows
+  "Schema not ready". Run `make db-migrate-up`; readiness recovers without a restart.
+- `down` and `force` with `APP_ENV=staging|production` are refused unless `--confirm` is given
+  (`make db-migrate-down CONFIRM=1`), after a verified backup. There is no "drop everything" command.
 - If a migration fails midway the version is marked dirty: fix the SQL, repair the DB manually,
   then `go run ./cmd/migrate force <last good version>`.
+
+Bad configuration fails before anything runs, with the reason and never the password: missing
+`DATABASE_URL`, non-postgres scheme, no host, no database name, `sslmode=disable` in production,
+unreachable server ("is `make db-up` running?") or wrong credentials.
+
 ## Seeds
 
-- `make db-seed` runs every `seeds/*.sql` in name order inside one transaction (`cmd/seed`).
+- `make db-seed` runs every embedded `seeds/*.sql` in name order inside one transaction (`cmd/seed`).
+  It refuses to run until the schema is current, and an empty seed set is an error.
 - Every seed file **must be idempotent** (`INSERT ... ON CONFLICT DO NOTHING`), so re-running is
   always safe. `make test-integration` checks the real seed files by running them three times.
 - Seed only client-confirmed reference data. Today that is the three brand identities. Catalogue,
   prices, suppliers and stock come from verified sources via C-05 / G-06 / G-07, never from seeds
   with invented values.
+
+## Users and sign-in
+
+There is no built-in admin account. Create the first user from the command line (needs the
+database migrated):
+
+```bash
+make user ARGS="create --username asha.verma --name 'Asha Verma'"   # prompts for the password twice
+make user ARGS="list"
+make user ARGS="disable --username asha.verma"          # also ends all their sessions
+make user ARGS="enable --username asha.verma"
+make user ARGS="set-password --username asha.verma"     # also ends all their sessions
+make user ARGS="revoke-sessions --username asha.verma"
+```
+
+- Passwords: 12–128 characters, not the username. Typed at a hidden prompt; when stdin is not a
+  terminal the first stdin line is used (scripts). Never pass a password as a flag.
+- Then sign in at http://localhost:5173/login. Every other page needs a session; the API answers
+  401 for any `/api/v1` route except health, readiness, login and session.
+- Local development uses `SESSION_COOKIE_SECURE=false` (plain HTTP). Behind HTTPS leave it `true`.
+- Use made-up names for local test accounts, never real staff passwords.
 
 ## Tests
 
@@ -106,6 +146,81 @@ Rules:
 
 New DB integration tests must get their connection through the `testConfig` helper pattern
 (skip normally, `t.Fatal` when `REQUIRE_INTEGRATION_TESTS=1`).
+
+## Roles, permissions and locations
+
+Nobody has any permission until the owner approves the permission matrix (RB-5). Grants, role
+assignments and location scope are data, changed only with the audited `cmd/access` tool:
+
+```bash
+make access ARGS="roles"                     # roles, grants and matrix status
+make access ARGS="permissions"               # permission catalogue
+make access ARGS="assign --username asha.verma --role viewer"
+make access ARGS="grant --role viewer --permission access.roles.view"            # PROPOSED
+make access ARGS="grant --role owner --permission reports.export --approved-by 'Name' --approval-ref 'Signed matrix 2026-10-20'"  # APPROVED
+make access ARGS="location-create --code SR1 --name 'Showroom name'"
+make access ARGS="scope-add --username asha.verma --location SR1"
+make access ARGS="show --username asha.verma"
+```
+
+- Record an **APPROVED** grant only with the owner's real sign-off. To try features locally before
+  that, record **PROPOSED** grants and set `RBAC_ALLOW_PROPOSED_GRANTS=true` in `.env` (`APP_ENV=development` only — test, staging and production refuse to start with it;
+  the UI then shows a "Development mode" notice). Restart the API after changing it.
+- Role and grant changes apply to signed-in users on their next request.
+
+## End-to-end browser tests (Playwright)
+
+`ui/e2e/*.e2e.ts` drive the real stack in headless Google Chrome (installed Chrome, no browser
+download), on a desktop and a phone-sized viewport. They do not start servers or create users:
+
+```bash
+make db-up && make db-migrate-up && make db-seed && make dev        # or any running stack
+make user ARGS="create --username e2e.active --name 'E2E Active'"
+make user ARGS="create --username e2e.disabled --name 'E2E Disabled'"
+make user ARGS="disable --username e2e.disabled"
+# optional, for the roles-page test: a user holding access.roles.view (needs RBAC_ALLOW_PROPOSED_GRANTS=true)
+make user ARGS="create --username e2e.roles --name 'E2E Roles'"
+make access ARGS="assign --username e2e.roles --role viewer"
+make access ARGS="grant --role viewer --permission access.roles.view"
+# optional, for the attachment tests (B-09): an uploader+viewer and a second viewer (same flag)
+make user ARGS="create --username e2e.attach --name 'E2E Attach'"
+make user ARGS="create --username e2e.attachviewer --name 'E2E Attach Viewer'"
+make access ARGS="assign --username e2e.attach --role inventory_manager"
+make access ARGS="assign --username e2e.attachviewer --role sales_executive"
+make access ARGS="grant --role inventory_manager --permission attachments.upload"
+make access ARGS="grant --role inventory_manager --permission attachments.view"
+make access ARGS="grant --role sales_executive --permission attachments.view"
+# optional, for the catalogue API tests (C-02): every catalogue key, and view only (same flag)
+make user ARGS="create --username e2e.catalogue --name 'E2E Catalogue'"
+make user ARGS="create --username e2e.catviewer --name 'E2E Catalogue Viewer'"
+make access ARGS="assign --username e2e.catalogue --role owner"
+make access ARGS="assign --username e2e.catviewer --role accountant"
+for p in catalogue.view catalogue.manage catalogue.verify catalogue.activate catalogue.archive \
+         catalogue.brand.authorise catalogue.brand.activate; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission catalogue.view"
+cd ui && E2E_BASE_URL=http://localhost:5173 \
+  E2E_USERNAME=e2e.active E2E_PASSWORD=... \
+  E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
+  E2E_ROLES_USERNAME=e2e.roles E2E_ROLES_PASSWORD=... \
+  E2E_ATTACH_USERNAME=e2e.attach E2E_ATTACH_PASSWORD=... \
+  E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... \
+  E2E_CATALOGUE_USERNAME=e2e.catalogue E2E_CATALOGUE_PASSWORD=... \
+  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... npm run test:e2e
+```
+
+- Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
+- The suite makes failed sign-ins on purpose (including one per viewport for the disabled account),
+  and the login throttle is in memory: restart the API before re-running within 15 minutes, and
+  start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
+- The catalogue API test (C-02) sends dozens of requests in a few seconds from one IP: start the API with
+  a higher `RATE_LIMIT_BURST` (e.g. `RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200`) or it can get `429 RATE_LIMITED`.
+  It creates placeholder brands/models: throwaway database only. C-02 has no catalogue screen, so it is API-level.
+- The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
+  Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
+  `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.
+- Failure screenshots and traces go to `ui/test-results/` (git-ignored).
+- Not part of `make ci` yet: CI has no running UI/API stack.
 
 ## Checks and CI
 
@@ -137,6 +252,8 @@ browser/E2E tests (Playwright, added with the first UI task that needs them).
 5. Add any schema via `make db-migrate-create`.
 6. Brand-aware queries must filter by the caller's permitted brands (server-side), never only by a
    client-supplied `brandId`.
+- Sensitive create/update/approve/cancel/export actions record an audit event with `audit.Record` in the
+  same transaction (see API_CONVENTIONS "Audit events").
 
 ## Adding a frontend feature
 

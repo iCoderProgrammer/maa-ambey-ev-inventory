@@ -21,7 +21,7 @@ export function getHealth(signal?: AbortSignal): Promise<Health> {
 }
 
 /**
- * GET /ready — dependency readiness (PostgreSQL). A 503 carrying a readiness body is an
+ * GET /ready — dependency readiness (PostgreSQL reachable, schema migrated). A 503 carrying a readiness body is an
  * answer (status "not_ready"), returned as data; other failures throw ApiError.
  */
 export function getReadiness(signal?: AbortSignal): Promise<Readiness> {

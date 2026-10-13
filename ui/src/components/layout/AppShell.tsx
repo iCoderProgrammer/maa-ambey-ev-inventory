@@ -19,14 +19,14 @@ function Brand({ compact }: { compact: boolean }) {
       )}
     >
       <span
-        className="grid size-8 shrink-0 place-items-center rounded-control bg-primary text-sm font-bold text-white shadow-sm ring-1 ring-white/15"
+        className="grid size-8 shrink-0 place-items-center rounded-control bg-gradient-to-br from-primary to-accent text-xs font-bold tracking-tight text-white shadow-sm ring-1 ring-white/20 transition-transform duration-150 hover:scale-105"
         aria-hidden="true"
       >
         MA
       </span>
       {!compact && (
         <span className="min-w-0 leading-tight">
-          <span className="block truncate text-sm font-semibold text-white">
+          <span className="block truncate text-sm font-semibold tracking-tight text-white">
             Maa Ambey Enterprises
           </span>
           <span className="block text-[11px] font-medium text-accent">EV Inventory</span>

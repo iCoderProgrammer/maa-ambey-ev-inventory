@@ -4,8 +4,8 @@ Internal staff console for an electric two-wheeler showroom: serialised vehicle 
 catalogue, procurement, stock ledger, reservations, sales and reports. Multi-brand support is a
 P0 requirement: brands are data, never code.
 
-**Status:** foundation only. The Go API, PostgreSQL, migrations, OpenAPI docs and the React
-shell work end to end; business modules are on the backlog (see `documentation/` and `prompt-pack/`).
+**Status:** foundation only. The Go API, PostgreSQL, migrations, OpenAPI docs, sign-in/sessions and
+the React shell work end to end; business modules are on the backlog (see `documentation/` and `prompt-pack/`).
 
 ## Stack
 
@@ -65,11 +65,42 @@ make setup            # creates .env and ui/.env from examples, installs Go + np
 make db-up            # start PostgreSQL, wait until healthy
 make db-migrate-up    # apply migrations
 make db-seed          # initial brands (idempotent)
+make user ARGS="create --username asha.verma --name 'Asha Verma'"   # first account (password prompt)
 make dev              # API on :8080 + UI on :5173
 ```
 
-Open http://localhost:5173 — the header pill and the dashboard "System status" card show live
-results from the Go API's `/health` and `/ready` endpoints.
+Open http://localhost:5173 and sign in with that account. There is no built-in admin user; every
+page except sign-in needs a session (B-06). The header pill and the dashboard "System status"
+card show live results from the Go API's `/health` and `/ready` endpoints.
+
+## Run the backend and frontend
+
+Run from the repository root. PostgreSQL must be running first:
+
+```bash
+make db-up            # start PostgreSQL (skip if already running)
+make db-migrate-up    # apply any pending migrations (no-op when up to date)
+```
+
+Both servers in one terminal (Ctrl+C stops both):
+
+```bash
+make dev
+```
+
+Or each in its own terminal:
+
+```bash
+# Terminal 1 — Go API (port from APP_PORT in .env, default 8080)
+make dev-backend      # = go run ./cmd/api
+
+# Terminal 2 — React UI on http://localhost:5173
+make dev-frontend     # = cd ui && npm run dev
+```
+
+The UI proxies `/api` to `API_PROXY_TARGET` in `ui/.env`; keep it on the same port as `APP_PORT` in
+`.env` (e.g. both 8081). Check the API at `http://localhost:<APP_PORT>/api/v1/health`.
+Restart `make dev-backend` after pulling backend changes; the UI reloads on its own.
 
 ## Environment
 

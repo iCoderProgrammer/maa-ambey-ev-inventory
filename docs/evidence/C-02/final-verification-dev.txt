@@ -1,0 +1,29 @@
+C-02 final verification — shared dev environment — 2026-10-13T12:30Z
+
+Commands: make db-up; make db-migrate-up ("no change", version 8); make dev.
+make dev exited 2: ports 5173 and 8081 were already in use by a Vite + API pair started at 17:40 from this repo
+(go run ./cmd/api, version a7eb952, serving the C-02 routes). That stack was used as-is and left running.
+GET :8081/api/v1/ready -> ready (database up, migrations up); GET :5173/api/v1/health -> ok via the Vite proxy.
+
+Headless Chrome (Playwright, installed Chrome), no sign-in (no test account exists on the dev DB and none was created):
+desktop: GET /catalogue-deep-link-check -> 200, url after redirect /catalogue-deep-link-check
+desktop: sign-in heading visible
+desktop: empty submit alerts: true
+desktop: wrong credentials -> 401 INVALID_CREDENTIALS; message "Incorrect username or passwordCheck both and try again. Usernames are not case-sensitive; passwords are."
+desktop: horizontal overflow px: 0
+desktop: GET /api/v1/brands (no session) -> 401 UNAUTHENTICATED
+mobile: GET /catalogue-deep-link-check -> 200, url after redirect /catalogue-deep-link-check
+mobile: sign-in heading visible
+mobile: empty submit alerts: true
+mobile: wrong credentials -> 401 INVALID_CREDENTIALS; message "Incorrect username or passwordCheck both and try again. Usernames are not case-sensitive; passwords are."
+mobile: horizontal overflow px: 0
+mobile: GET /api/v1/brands (no session) -> 401 UNAUTHENTICATED
+console: no errors / page errors
+
+Dev DB permission state before and after (role_permissions by status, user_roles, catalogue keys/grants, models):
+grants|PROPOSED|1
+user_roles|-|1
+catalogue_perm_keys|-|9
+catalogue_grants|-|0
+models|-|0
+diff before/after: none. The two deliberate wrong sign-ins add ANONYMOUS failed-sign-in audit rows (B-08 behaviour).

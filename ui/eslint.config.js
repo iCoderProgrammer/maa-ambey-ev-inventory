@@ -18,7 +18,7 @@ const noDirectEnv = {
 }
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage']),
+  globalIgnores(['dist', 'coverage', 'test-results', 'playwright-report']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -46,7 +46,13 @@ export default defineConfig([
     rules: { 'no-restricted-syntax': ['error', noDirectFetch] },
   },
   {
-    files: ['src/lib/api/client.ts', '**/*.test.{ts,tsx}', 'src/test/**'],
+    files: [
+      'src/lib/api/client.ts',
+      '**/*.test.{ts,tsx}',
+      'src/test/**',
+      'e2e/**',
+      'playwright.config.ts',
+    ],
     rules: { 'no-restricted-syntax': 'off' },
   },
   {

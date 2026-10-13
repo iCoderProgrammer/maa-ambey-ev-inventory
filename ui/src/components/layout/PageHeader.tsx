@@ -32,20 +32,23 @@ export function PageHeader({
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {breadcrumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="mb-1">
-            <ol className="flex flex-wrap items-center gap-1 text-xs text-muted">
+          <nav aria-label="Breadcrumb" className="mb-1.5">
+            <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
               {breadcrumbs.map((c, i) => (
-                <li key={`${c.label}-${String(i)}`} className="flex items-center gap-1">
-                  {i > 0 && <ChevronRight className="size-3" aria-hidden="true" />}
+                <li key={`${c.label}-${String(i)}`} className="flex items-center gap-1.5">
+                  {i > 0 && <ChevronRight className="size-3 text-muted/60" aria-hidden="true" />}
                   {c.to ? (
                     <Link
                       to={c.to}
-                      className="rounded transition-colors duration-150 hover:text-ink hover:underline"
+                      className="rounded font-medium transition-colors duration-150 hover:text-ink focus-visible:outline-accent"
                     >
                       {c.label}
                     </Link>
                   ) : (
-                    <span aria-current={i === breadcrumbs.length - 1 ? 'page' : undefined}>
+                    <span
+                      aria-current={i === breadcrumbs.length - 1 ? 'page' : undefined}
+                      className="font-medium text-ink/80"
+                    >
                       {c.label}
                     </span>
                   )}
@@ -54,13 +57,15 @@ export function PageHeader({
             </ol>
           </nav>
         )}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">{title}</h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px]">{title}</h1>
           {status}
         </div>
-        {description && <p className="mt-1 max-w-prose text-sm text-muted">{description}</p>}
+        {description && (
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   )
 }

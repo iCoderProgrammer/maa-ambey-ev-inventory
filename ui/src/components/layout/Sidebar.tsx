@@ -1,6 +1,7 @@
 import { NavLink, useMatch, useResolvedPath } from 'react-router'
 import { navigation, type NavItem } from '@/app/navigation'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { useMe } from '@/features/access/hooks/useAccess'
 import { cn } from '@/lib/utils/cn'
 
 export interface SidebarProps {
@@ -48,13 +49,13 @@ function SidebarLink({ item, collapsed, onNavigate }: SidebarLinkProps) {
       >
         {isActive && (
           <span
-            className="absolute top-2 bottom-2 left-0 w-0.5 rounded-full bg-accent"
+            className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-accent shadow-[0_0_8px_rgba(18,184,166,0.5)]"
             aria-hidden="true"
           />
         )}
         <Icon
           className={cn(
-            'size-4 shrink-0',
+            'size-4 shrink-0 transition-colors duration-150',
             isActive ? 'text-accent' : 'text-white/60 group-hover:text-white',
           )}
           aria-hidden="true"
@@ -68,7 +69,7 @@ function SidebarLink({ item, collapsed, onNavigate }: SidebarLinkProps) {
             {!collapsed && (
               <span
                 aria-hidden="true"
-                className="ml-auto rounded-full border border-white/15 px-1.5 py-px text-[10px] leading-4 font-medium text-white/60"
+                className="ml-auto rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[10px] leading-3 font-medium text-white/70"
               >
                 Planned
               </span>
@@ -81,6 +82,18 @@ function SidebarLink({ item, collapsed, onNavigate }: SidebarLinkProps) {
 }
 
 export function Sidebar({ collapsed, onNavigate }: SidebarProps) {
+  const me = useMe()
+  // Links to permission-gated pages appear only once the server has granted the permission
+  // (any one of them, when an item lists several).
+  const visible = (item: NavItem) => {
+    if (!item.permission) return true
+    const needed = typeof item.permission === 'string' ? [item.permission] : item.permission
+    return needed.some((p) => me.data?.permissions.includes(p) ?? false)
+  }
+  const sections = navigation
+    .map((section) => ({ ...section, items: section.items.filter(visible) }))
+    .filter((section) => section.items.length > 0)
+
   return (
     <nav
       aria-label="Main"
@@ -89,25 +102,27 @@ export function Sidebar({ collapsed, onNavigate }: SidebarProps) {
         collapsed ? 'scrollbar-none' : 'scrollbar-sidebar',
       )}
     >
-      {navigation.map((section, si) => (
-        <div key={section.label ?? `section-${String(si)}`} className="mb-2">
-          {section.label &&
-            (collapsed ? (
-              <div className="mx-3 my-2 border-t border-white/10" aria-hidden="true" />
-            ) : (
-              <p className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-white/50 uppercase">
-                {section.label}
-              </p>
-            ))}
-          <ul className="flex flex-col gap-0.5">
-            {section.items.map((item) => (
-              <li key={item.path}>
-                <SidebarLink item={item} collapsed={collapsed} onNavigate={onNavigate} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      <div className="flex-1">
+        {sections.map((section, si) => (
+          <div key={section.label ?? `section-${String(si)}`} className="mb-2">
+            {section.label &&
+              (collapsed ? (
+                <div className="mx-3 my-2 border-t border-white/10" aria-hidden="true" />
+              ) : (
+                <p className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-white/50 uppercase">
+                  {section.label}
+                </p>
+              ))}
+            <ul className="flex flex-col gap-0.5">
+              {section.items.map((item) => (
+                <li key={item.path}>
+                  <SidebarLink item={item} collapsed={collapsed} onNavigate={onNavigate} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </nav>
   )
 }

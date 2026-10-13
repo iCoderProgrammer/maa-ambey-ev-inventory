@@ -21,6 +21,8 @@ coverage.*
 ui/node_modules/
 ui/dist/
 ui/coverage/
+ui/test-results/
+ui/playwright-report/
 *.tsbuildinfo
 
 # Editors / OS
@@ -32,3 +34,9 @@ ui/coverage/
 # Logs
 *.log
 npm-debug.log*
+
+# Local manual-test account passwords (never commit)
+.dev-test-accounts
+
+# Local private attachment storage (B-09, ATTACHMENT_STORAGE_DIR default)
+/var/

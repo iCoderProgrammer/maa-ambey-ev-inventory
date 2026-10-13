@@ -16,11 +16,68 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/attachments"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth/authtest"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/catalogue"
 )
 
 type okPinger struct{}
 
 func (okPinger) Ping(context.Context) error { return nil }
+
+// testAuth builds the real auth handler over an in-memory store.
+func testAuth(t *testing.T) *auth.Handler {
+	t.Helper()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc, err := auth.NewService(authtest.NewStore(), auth.Config{IdleTimeout: time.Hour, AbsoluteTimeout: 2 * time.Hour},
+		auth.NewLoginThrottle(5, 20, time.Minute), log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auth.NewHandler(svc, auth.CookieConfig{}, log)
+}
+
+// noAccess grants nothing, like a fresh database before owner sign-off.
+type noAccess struct{}
+
+func (noAccess) LoadAccess(_ context.Context, userID string, _ bool) (access.Access, error) {
+	return access.NewAccess(userID, nil, nil, nil, false), nil
+}
+
+func (noAccess) RoleMatrix(context.Context) (access.Matrix, error) { return access.Matrix{}, nil }
+
+func testAccess() *access.Handler {
+	return access.NewHandler(noAccess{}, false, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+// testAttachments builds the real attachment routes over a temporary
+// directory; with noAccess every request stops at the permission guard.
+func testAttachments(t *testing.T) *attachments.Handler {
+	t.Helper()
+	store, err := attachments.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := attachments.NewSigner("", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return attachments.NewHandler(attachments.NewService(nil, store, signer, 1<<20, log), testAccess(), APIPrefix, log)
+}
+
+// testCatalogue builds the real catalogue routes without a database; with
+// noAccess every request stops at the permission guard.
+func testCatalogue() *catalogue.Handler {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return catalogue.NewHandler(catalogue.NewService(nil, log), testAccess(), log)
+}
+
+type okSchema struct{}
+
+func (okSchema) CheckSchema(context.Context) error { return nil }
 
 func testConfig() config.Config {
 	return config.Config{
@@ -35,7 +92,7 @@ func testConfig() config.Config {
 
 func newTestRouter(t *testing.T, cfg config.Config) *gin.Engine {
 	t.Helper()
-	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Version: "test"})
+	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +251,7 @@ func TestTimeoutKeepsHandlerResponse(t *testing.T) {
 
 func TestPanicIsAccessLoggedWithRequestID(t *testing.T) {
 	var buf strings.Builder
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,5 +309,68 @@ func TestCORSIgnoresSameHostOrigin(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("same-host origin: status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func TestNewRouterRequiresSchemaCheckerAndAuth(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without a schema checker")
+	}
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without authentication")
+	}
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"}); err == nil {
+		t.Error("NewRouter must refuse to start without access control")
+	}
+}
+
+// Only health, readiness and the sign-in routes are reachable without a session.
+func TestAPIRoutesArePrivateByDefault(t *testing.T) {
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	public := map[string]bool{
+		"GET /api/v1/health": true, "GET /api/v1/ready": true,
+		"POST /api/v1/auth/login": true, "GET /api/v1/auth/session": true,
+	}
+	for _, route := range r.Routes() {
+		if !strings.HasPrefix(route.Path, APIPrefix) {
+			continue
+		}
+		key := route.Method + " " + route.Path
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(route.Method, route.Path, strings.NewReader("{}")))
+		if public[key] {
+			if w.Code == http.StatusUnauthorized && key != "GET /api/v1/auth/session" {
+				t.Errorf("%s is public but answered 401", key)
+			}
+			continue
+		}
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s without a session: status %d, want 401", key, w.Code)
+		}
+	}
+}
+
+// B-08: audit history is append-only. No API route may change or remove audit
+// records; a future audit read API is allowed only with GET.
+func TestNoAPIRouteCanModifyAuditEvents(t *testing.T) {
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range r.Routes() {
+		if strings.Contains(strings.ToLower(route.Path), "audit") && route.Method != http.MethodGet {
+			t.Errorf("%s %s could modify audit events; audit history is append-only", route.Method, route.Path)
+		}
+	}
+	for _, method := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodPost} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(method, APIPrefix+"/audit-events/1", nil))
+		if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed && w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s/audit-events/1: status %d", method, APIPrefix, w.Code)
+		}
 	}
 }

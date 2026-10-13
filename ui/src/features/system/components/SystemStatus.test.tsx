@@ -7,7 +7,14 @@ import { AppProviders } from '@/app/AppProviders'
 import { createQueryClient } from '@/app/queryClient'
 import { routes } from '@/app/routes'
 import { createStore } from '@/store'
-import { renderApp } from '@/test/render'
+import { renderApp, seedSession, testSession } from '@/test/render'
+
+/** Production query defaults, with a signed-in session already confirmed. */
+function signedInClient() {
+  const client = createQueryClient()
+  seedSession(client, testSession)
+  return client
+}
 
 function statusCard() {
   return screen.getByRole('heading', { name: 'System status' }).closest('section') ?? document.body
@@ -108,7 +115,7 @@ describe('readiness with production query defaults', () => {
     // Real defaults (retries enabled for transient errors), unlike renderApp.
     const router = createMemoryRouter(routes, { initialEntries: ['/'] })
     render(
-      <AppProviders store={createStore()} queryClient={createQueryClient()}>
+      <AppProviders store={createStore()} queryClient={signedInClient()}>
         <RouterProvider router={router} />
       </AppProviders>,
     )
@@ -118,6 +125,57 @@ describe('readiness with production query defaults', () => {
     ).toBeInTheDocument()
     const readyCalls = fetchMock.mock.calls.filter(([u]) => (u as string).endsWith('/ready'))
     expect(readyCalls).toHaveLength(1)
+  })
+})
+
+describe('readiness with a pending database schema', () => {
+  it('names the schema as the reason and explains it without blaming the database', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      return Promise.resolve(
+        url.endsWith('/health')
+          ? Response.json({
+              data: { status: 'ok', service: 'api', version: 'v', time: '2026-10-12T10:00:00Z' },
+            })
+          : Response.json(
+              { data: { status: 'not_ready', checks: { database: 'up', migrations: 'down' } } },
+              { status: 503 },
+            ),
+      )
+    })
+    renderApp('/')
+
+    expect(await screen.findByText('Schema not ready')).toBeInTheDocument()
+    expect(screen.queryByText('Database unavailable')).not.toBeInTheDocument()
+    const card = statusCard()
+    const schemaRow = within(card).getByText('Database schema').closest('tr')
+    expect(schemaRow).not.toBeNull()
+    expect(within(schemaRow as HTMLElement).getByText('Unavailable')).toBeInTheDocument()
+    const dbRow = within(card).getByText('Database').closest('tr')
+    expect(within(dbRow as HTMLElement).getByText('Ready')).toBeInTheDocument()
+    expect(within(card).getByText(/migrations pending or a migration failed/)).toBeInTheDocument()
+  })
+})
+
+describe('readiness with the database down', () => {
+  it('does not blame the schema when the database itself is unreachable', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      return Promise.resolve(
+        url.endsWith('/health')
+          ? Response.json({
+              data: { status: 'ok', service: 'api', version: 'v', time: '2026-10-12T10:00:00Z' },
+            })
+          : Response.json(
+              { data: { status: 'not_ready', checks: { database: 'down', migrations: 'down' } } },
+              { status: 503 },
+            ),
+      )
+    })
+    renderApp('/')
+
+    expect(await screen.findByText('Database unavailable')).toBeInTheDocument()
+    expect(screen.queryByText(/migrations pending or/)).not.toBeInTheDocument()
   })
 })
 
@@ -181,7 +239,7 @@ describe('retrying after a failed check', () => {
     // Production defaults: transient failures are retried with backoff.
     const router = createMemoryRouter(routes, { initialEntries: ['/'] })
     render(
-      <AppProviders store={createStore()} queryClient={createQueryClient()}>
+      <AppProviders store={createStore()} queryClient={signedInClient()}>
         <RouterProvider router={router} />
       </AppProviders>,
     )

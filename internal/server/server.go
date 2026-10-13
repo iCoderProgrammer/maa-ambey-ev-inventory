@@ -2,6 +2,7 @@
 package server
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,6 +14,10 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/middleware"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/attachments"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/catalogue"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/health"
 )
 
@@ -21,15 +26,25 @@ const APIPrefix = "/api/v1"
 
 // Deps are the runtime dependencies shared by feature modules.
 type Deps struct {
-	Config  config.Config
-	Log     *slog.Logger
-	DB      health.Pinger
-	Version string
+	Config config.Config
+	Log    *slog.Logger
+	DB     health.Pinger
+	Schema health.SchemaChecker
+	Auth   *auth.Handler
+	Access *access.Handler
+	// Attachments serves private files (B-09).
+	Attachments *attachments.Handler
+	// Catalogue serves brands, models, variants and colours (C-02).
+	Catalogue *catalogue.Handler
+	Version   string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments and Catalogue dependencies are required")
+	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -67,9 +82,24 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	}
 
 	api := r.Group(APIPrefix)
-	api.Use(middleware.NewRateLimiter(d.Config.RateLimitRPS, d.Config.RateLimitBurst).Middleware())
+	// Deny by default (B-06): every /api/v1 route needs a valid session, and
+	// state-changing requests its CSRF token, unless listed as public here.
+	// Feature routes then add access.Require(permission) (B-07): a session
+	// alone grants nothing beyond /me and the auth endpoints.
+	public := append([]string{
+		"GET " + APIPrefix + "/health",
+		"GET " + APIPrefix + "/ready",
+	}, auth.PublicRoutes(APIPrefix)...)
+	api.Use(
+		middleware.NewRateLimiter(d.Config.RateLimitRPS, d.Config.RateLimitBurst).Middleware(),
+		d.Auth.RequireSession(public...),
+	)
 
-	health.NewHandler(d.DB, d.Version, d.Log).Register(api)
+	health.NewHandler(d.DB, d.Schema, d.Version, d.Log).Register(api)
+	d.Auth.Register(api)
+	d.Access.Register(api)
+	d.Attachments.Register(api)
+	d.Catalogue.Register(api)
 
 	return r, nil
 }

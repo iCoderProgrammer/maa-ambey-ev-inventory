@@ -13,7 +13,7 @@ export function Header() {
   const mobileNavOpen = useAppSelector((s) => s.ui.mobileNavOpen)
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/75 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/80 bg-surface/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-surface/75 sm:px-6 lg:px-8">
       <Button
         variant="ghost"
         size="icon"
@@ -41,7 +41,14 @@ export function Header() {
         )}
       </Button>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="hidden md:flex items-center gap-2 pl-2" aria-hidden="true">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-surface-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted">
+          <span className="size-1.5 rounded-full bg-accent" />
+          Multi-Brand EV Operations Console
+        </span>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2.5 sm:gap-3">
         <ApiStatusIndicator />
         <ThemeToggle />
         <UserMenu />

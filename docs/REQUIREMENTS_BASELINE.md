@@ -53,8 +53,10 @@ The client approved collecting and maintaining **verified** data per brand:
 | Vehicle identification rules | Chassis/frame (mandatory, globally unique after normalisation), motor, battery and charger serial rules per brand/model (INV-002…INV-004) |
 | Source and verification status for every record | `UNVERIFIED` / `SUPPLIER_CONFIRMED` / `CLIENT_APPROVED` (BR-004) |
 
-**Status:** No catalogue data has been supplied. Nothing is seeded or invented. Schema comes with
-C-01, data with C-05, both from client- or supplier-verified sources only.
+**Status:** No catalogue data has been supplied. Nothing is seeded or invented. The schema exists
+since C-01 (migration 000007, ADR-011) and the API since C-02 (ADR-012), which keeps every brand out of
+purchase/sales until authorisation evidence, a verified catalogue and the pending price/warranty/identifier/supplier
+checks exist; data comes with C-05, from client- or supplier-verified sources only.
 
 ## 4. Opening-stock import
 
@@ -111,7 +113,8 @@ optional: opening stock is flagged as an opening balance, and no PO/GRN history 
 
 Authorisation is enforced by the backend: deny by default, with route guards plus object-level
 and brand/location-scope checks (SEC-001, SEC-002). Hiding a button in the UI is not
-authorisation. See ADR-007 in `ARCHITECTURE_DECISIONS.md` for the planned design (B-06, B-07).
+authorisation. Built in B-07 (ADR-007): the five roles exist as data with **no permission granted**;
+each cell below becomes a grant only when the owner approves it (recorded with approver and reference).
 
 ### Permission decisions awaiting approval
 
