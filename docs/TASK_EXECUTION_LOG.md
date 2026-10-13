@@ -40,7 +40,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-08 | Append-only audit event framework | P0 | B-04, B-05, B-06 (registry fixed 2026-10-12; was B-07 — cycle) | COMPLETE |
 | B-09 | Private attachment service | P0 | B-04, B-05, B-07 | COMPLETE |
 | C-01 | Brand/model/variant database schema | P0 | B-05 | COMPLETE |
-| C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | NOT STARTED |
+| C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | COMPLETE |
 | C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | NOT STARTED |
 | C-04 | Effective-dated price history | P0 | C-01, C-02 | NOT STARTED |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
@@ -1486,6 +1486,136 @@ version 7, row counts (3 brands, 0 catalogue rows), roster still PENDING_VERIFIC
 
 #### Final status
 COMPLETE — C-01 only. C-02 not started.
+
+### C-02 — Catalogue API and validation
+
+- **Status:** COMPLETE (API + typed client/hooks; grants and approvals pending — RB-5, OQ-1, OQ-2, OQ-12–OQ-14)
+- **Started:** 2026-10-13 · **Finished:** 2026-10-13
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_02_catalogue-api-and-validation.md
+- Git at start: C-01 work was uncommitted; committed separately as `a7eb952` (not pushed) before any C-02 change.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-01 | COMPLETE | migration 000007 + 8 schema integration tests (re-run, pass); log entry above; commit `a7eb952` |
+| B-07 | COMPLETE | `access.Handler.Require`, deny-by-default, `TestPermissionCatalogueMatchesDatabase` (pass with the 7 new keys) |
+| B-08 | COMPLETE | `audit.Record` in the same transaction; audit integration tests pass |
+
+#### Acceptance criteria
+- [x] AC1 API validates brand relationships: child brand derived from the parent; mismatching `brandId` → 422; brand/model of an item cannot change; brand-scoped duplicates → 409 `DUPLICATE`
+- [x] AC2 Permissions: 7 catalogue keys, deny by default (no grants), route guard + service re-check; each route refused without its own key
+- [x] AC3 Archive avoids breaking history: no DELETE route (405), archive never deletes or cascades, children keep references, nothing new under archived parents
+- [x] AC4 Invalid activation denied: unverified items, inactive parents, and every brand (pending prerequisites, fail closed) → 409 `ACTIVATION_BLOCKED`, audited as DENIED
+- [x] AC5 Sensitive create/update/authorise/verify/activate/archive actions audited in the same transaction
+- [x] AC6 CRUD/list/search with pagination and filters; optimistic concurrency (`version`)
+- [x] AC7 OpenAPI regenerated (`make swagger`, `swagger-check` passes) and API conventions updated
+- [x] AC8 Frontend: typed services + TanStack Query hooks matching OpenAPI; no screens (C-03); no hardcoded brands/statuses beyond DB value sets
+- [x] AC9 Backend and frontend tests for valid requests, invalid relationships, permissions, archive, activation
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE as a screen — Prompt B limits C-02 to service functions and hooks; screens are C-03. The user
+asked for the backend-first order, so no mock adapter was built: the client and hooks were written against the real
+contract in Stage 3.
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000008_catalogue_permissions` (up/down): permission keys `catalogue.view`, `.manage`, `.verify`,
+  `.activate`, `.archive`, `catalogue.brand.authorise`, `catalogue.brand.activate`; no grants. Down fails if a grant exists.
+- `internal/modules/catalogue`: `types.go`, `validate.go` (normalise/validate; unknown fields refused), `rules.go`
+  (pure lifecycle/activation rules), `service.go` (permission re-check, audit events, DENIED audit of refused
+  activations), `pgstore.go` (one transaction per mutation, `FOR UPDATE` item / `FOR SHARE` parent, version check,
+  constraint → domain error mapping), `http.go` (29 routes with swag annotations). ADR-012 records the rules.
+- New error codes (409): `DUPLICATE`, `VERSION_CONFLICT`, `INVALID_STATE`, `ACTIVATION_BLOCKED`.
+- Router/main wiring; server tests updated (`testCatalogue`).
+- Tests: `http_test.go` (no DB; nil repository proves checks run before data access): 401 without session, 403 deny
+  by default on all 29 routes, each route 403 without its own key, no DELETE, 25 validation cases, no leaked DB detail.
+  `rules_test.go`: activation/readiness/edit/archive rules, slug, PATCH null vs absent, normalisation, IST date edge.
+  `api_integration_test.go` (real PostgreSQL via `dbtest`, real auth sessions + CSRF): happy path + paging/search/
+  literal wildcards, brand-scoped uniqueness and cross-brand refusals, activation order and DENIED audit, brand
+  authorisation evidence and the fail-closed gate, archive keeps history, edits reset verification, stale version,
+  8 concurrent edits → exactly 1 succeeds, 6 concurrent creates of one code → exactly 1 created, read-only user.
+- Dev DB migrated 7 → 8 (`make db-migrate-up`; adds 7 permission rows only, no grants, no catalogue data).
+- Fixed during review: `sourceDate` "future" check compared a UTC date with server time, refusing "today" just after
+  midnight IST; now a date is future only if it has not begun in any timezone (test added).
+
+#### Stage 3 — API integration
+Result: COMPLETE (client layer; no screen consumes it yet).
+- `ui/src/features/catalogue/api/catalogue.ts`: typed functions for all 29 routes through `apiRequest` (session
+  cookie, CSRF, Zod-validated responses); `activationBlockers`, `isVersionConflict` helpers.
+- `ui/src/features/catalogue/hooks/useCatalogue.ts`: query keys, list/detail/readiness queries (`enabled` for
+  permission gating), mutations that update the cache only after the server confirms, then invalidate the catalogue.
+- `contracts.ts`: `Brand.operational`, `pageSchema`, readiness schemas.
+- Tests `catalogue.test.tsx` (10): URLs/methods/bodies, 409 ACTIVATION_BLOCKED details, VERSION_CONFLICT, 403, 422
+  relationship error, contract mismatch rejected, loading/empty list, disabled query makes no request, 403 surfaced,
+  failed mutation leaves cache unchanged, confirmed create invalidates lists.
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE as a browser test — C-02 adds no screen or route in the UI (C-03 will). Instead the real API
+binary was exercised over HTTP on an isolated stack: **36/36 checks passed** (401/403 deny-by-default, CSRF,
+duplicates, cross-brand refusals, activation order, stale version, authorisation evidence, blocked brand activation,
+archive keeps history, 405 on DELETE, paging, validation), 12 kinds of catalogue audit rows incl. 3 DENIED, 0 API
+ERROR log lines. Stack (throwaway postgres:17-alpine :5448, API :8092 with `RBAC_ALLOW_PROPOSED_GRANTS=true`,
+test-only users and PROPOSED grants) removed afterwards; shared dev DB untouched apart from migration 8.
+
+#### Checks (actual results)
+- `make ci`: exit 0 — gofmt, go vet, tidy, swagger-check, ESLint, Prettier, `tsc`, `go test` with PostgreSQL
+  (`REQUIRE_INTEGRATION_TESTS=1`; 13 packages ok), Vitest 15 files / 116 tests, Go + Vite builds. golangci-lint not
+  installed (skipped by the Makefile, as before). First `make ci` failed on gofmt (`cmd/api/main.go`, `pgstore.go`);
+  formatted and rerun. Catalogue package re-run after the date fix: ok. `git diff --check` clean.
+
+#### Evidence
+`docs/evidence/C-02/live-api-smoke.txt` — live API run, results and audit rows.
+
+#### Files changed (C-02)
+`migrations/000008_catalogue_permissions.{up,down}.sql`; `internal/modules/catalogue/{types,validate,rules,service,pgstore,http}.go`
++ tests `{harness,http,rules,api_integration}_test.go`, `doc.go`; `internal/modules/access/policy.go`; `internal/httpx/response.go`;
+`internal/server/{server,server_test}.go`; `cmd/api/main.go`; `docs/openapi/*` (generated);
+`ui/src/features/catalogue/{api/catalogue.ts,api/contracts.ts,hooks/useCatalogue.ts,catalogue.test.tsx,contracts.test.ts}`;
+`docs/{API_CONVENTIONS,ARCHITECTURE_DECISIONS,REQUIREMENTS_BASELINE}.md`; `docs/evidence/C-02/`; this log.
+
+#### Known issues / pending approvals
+- No brand can be activated: pending checks `supplier_link` (D-01), `approved_prices` (C-04), `warranty_terms`
+  (RB-2), `identifier_rules` (D-04, OQ-4) are never met by design until those tasks add them.
+- Nobody holds any catalogue permission until the owner approves the matrix (RB-5); approval owner OQ-2.
+- OQ-12 correcting ACTIVE items / restoring archived ones; OQ-13 separation of duties; OQ-14 who may record CLIENT_APPROVED.
+- Spec value (`variant_specs`) endpoints are not part of C-02's listed scope (brand/model/variant/colour); not built.
+- Archive does not cascade: later purchase/sales tasks must require operational brand + ACTIVE model + ACTIVE variant.
+- Brand scope per user (RB-5) still not modelled; lists show all brands to holders of `catalogue.view`.
+
+#### Final verification before commit (user-requested, 2026-10-13)
+- **Scope honesty:** C-02 has no catalogue screen, so no catalogue *UI* browser test exists or is claimed. The catalogue
+  API was exercised from real signed-in browser sessions (Playwright) and over plain HTTP.
+- **Isolated stack** (throwaway postgres:18-alpine :5449, API :8093 from this tree, Vite :5175; test-only users and
+  PROPOSED grants; removed afterwards): `npx playwright test` desktop + Pixel 7.
+  - Run 1: 46 passed, **1 failed**, 5 skipped. The new `e2e/catalogue.e2e.ts` hit `429 RATE_LIMITED` (per-IP limiter,
+    20 rps / burst 40) because it fetched the CSRF token before every mutation. A test-harness issue, not a C-02
+    defect: the spec now reads the token once, and the isolated API ran with `RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200`
+    (documented in DEVELOPMENT_SETUP like the existing `LOGIN_MAX_FAILURES_PER_IP` note).
+  - Run 2: **47 passed, 0 failed, 5 skipped** (by design: 2 viewport-specific shell tests, 3 API-level tests run on
+    desktop only). Includes all existing B-03…B-09 regression tests (auth, session, CSRF, roles, attachments, shell)
+    and the 2 new C-02 tests: deny by default (401 no session, 403 no grant, 403 `CSRF_FAILED`), and duplicates,
+    unknown fields, cross-brand `brandId`, model brand move, activation order, `VERSION_CONFLICT`, edit of ACTIVE item,
+    authorisation without evidence, readiness, blocked brand activation, archive keeps history, no child under an
+    archived model, DELETE 405, paging/limit validation, read-only viewer — with no console errors.
+  - Live API smoke script re-run on the same stack: **36/36 passed**.
+  - API log: 8 ERROR lines, all `context canceled` on `/attachments`, `/access/roles`, `/auth/session` (browser aborted
+    the request during navigation/teardown). Pre-existing logging behaviour from B-06/B-07/B-09, not on catalogue
+    routes, not a C-02 regression — left unchanged (out of scope); worth a later look (log client aborts below ERROR).
+- **Shared dev environment:** `make db-up`, `make db-migrate-up` (no change, v8), `make dev` → exit 2 because a Vite +
+  API pair (started 17:40 from this repo, serving the C-02 routes) already held :5173/:8081; that stack was used as-is
+  and left running. Headless Chrome, desktop + mobile: UI loads, sign-in renders on a deep link, empty submit validated
+  client-side, wrong credentials → 401 `INVALID_CREDENTIALS` generic message, no horizontal overflow,
+  `/api/v1/brands` via proxy → 401, **0 console/page errors**. No sign-in on dev (no test account exists; none created).
+- **Dev DB permissions unchanged** (snapshot before/after identical): 1 PROPOSED grant (pre-existing), 1 user role,
+  0 catalogue grants, 0 models. Only side effect: ANONYMOUS failed-sign-in audit rows from the 2 deliberate wrong logins.
+- **`make ci`** on the final tree: exit 0 (13 Go packages ok with PostgreSQL, Vitest 15 files / 116 tests, lint,
+  typecheck, swagger-check, builds; golangci-lint not installed → skipped). `git diff --check` clean.
+- **C-02 bugs found in this pass:** none in the API. Test/docs changes only: `ui/e2e/catalogue.e2e.ts` (new),
+  `ui/e2e/support.ts` (2 optional accounts), `docs/DEVELOPMENT_SETUP.md` (catalogue e2e accounts, rate-limit note).
+- Evidence: `docs/evidence/C-02/final-verification-isolated.txt`, `docs/evidence/C-02/final-verification-dev.txt`.
+
+#### Final status
+COMPLETE — C-02 only. C-03 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

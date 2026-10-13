@@ -36,6 +36,7 @@ describe('catalogue contracts', () => {
         authorisationEvidenceId: null,
         verifiedBy: null,
         verifiedAt: null,
+        operational: false,
         ...stamps,
       })
       expect(parsed.name).toBe(name)

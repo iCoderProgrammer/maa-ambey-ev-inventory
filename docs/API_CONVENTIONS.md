@@ -50,7 +50,7 @@ Pagination uses `page`/`limit` with a server-enforced maximum and a stable sort.
 | 403 | `FORBIDDEN` | Authenticated but not permitted (incl. brand/location scope) |
 | 404 | `NOT_FOUND` | Unknown route or resource (also used to avoid leaking existence across scopes) |
 | 405 | `METHOD_NOT_ALLOWED` | Wrong method for a route |
-| 409 | `CONFLICT` | Duplicate (e.g. chassis), stale `version`, state-machine violation |
+| 409 | `CONFLICT` | Duplicate (e.g. chassis), stale `version`, state-machine violation (catalogue uses the specific codes below) |
 | 429 | `RATE_LIMITED` | Rate limit hit; `Retry-After` header set |
 | 500 | `INTERNAL_ERROR` | Unexpected failure |
 | 503 | `SERVICE_UNAVAILABLE` | Dependency down |
@@ -185,26 +185,46 @@ location); `403 DOWNLOAD_LINK_INVALID` (tampered, other user's, wrong dispositio
 `credentials: 'include'`, and show the bytes from memory (object URL) — never store or display the link.
 Attachments are immutable: there is no update or delete route.
 
-## Catalogue contracts (C-01; endpoints in C-02)
+## Catalogue API (C-02)
 
-The schema exists (migration 000007, ADR-011); the API does not yet. Expected JSON shapes, mirrored by the
-Zod contracts in `ui/src/features/catalogue/api/contracts.ts` (C-02 must match or update both):
+Schema: migration 000007 (ADR-011). Rules: ADR-012. Permission keys: migration 000008 (no grants — RB-5, OQ-2).
+Brands, models, variants, colours and spec keys are data and never appear in code. Zod mirrors:
+`ui/src/features/catalogue/api/contracts.ts`; client: `api/catalogue.ts`; hooks: `hooks/useCatalogue.ts`.
 
-- `Brand`: `id, name, slug, lifecycleStatus, authorisationStatus, manufacturerLegalName, authorisationReference,
-  authorisationEvidenceId, verifiedBy, verifiedAt, version, createdAt, updatedAt`
-- Provenance block on `VehicleModel`, `Variant`, `VariantColour`, `VariantSpec`: `confidence, sourceUrl,
-  sourceDocumentId, sourceDate, verifiedBy, verifiedAt`
-- `VehicleModel`: `id, brandId, name, internalCode, manufacturerCode, vehicleType, lifecycleStatus, …provenance, version, createdAt, updatedAt`
-- `Variant`: `id, brandId, modelId, name, variantCode, manufacturerCode, lifecycleStatus, …provenance, version, …`
-- `VariantColour`: `id, brandId, variantId, name, colourCode, lifecycleStatus, …provenance, version, …`
-- `VariantSpec`: `id, brandId, variantId, specKey, valueText | valueNumeric (exactly one), unit, effectiveFrom, …provenance, createdAt, updatedAt`
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /brands` · `GET /brands/{id}` | `catalogue.view` | filters `q`, `status`, `authorisationStatus`, `page`, `limit` |
+| `POST /brands` · `PATCH /brands/{id}` | `catalogue.manage` | name, slug (derived when omitted); archived brands are not edited |
+| `PUT /brands/{id}/authorisation` | `catalogue.brand.authorise` | status + legal name + reference + evidence attachment; caller = verifier |
+| `GET /brands/{id}/activation-readiness` | `catalogue.view` | every BR-002 prerequisite, met / pending |
+| `POST /brands/{id}/activate` | `catalogue.brand.activate` | only when every check is met (currently never: pending checks) |
+| `POST /brands/{id}/archive` | `catalogue.archive` | optional `reason` (audited) |
+| `GET /models\|variants\|colours` · `GET /…/{id}` | `catalogue.view` | filters `brandId`, `modelId` (variants), `variantId` (colours), `q`, `status`, `confidence`, paging |
+| `POST /models\|variants\|colours` · `PATCH /…/{id}` | `catalogue.manage` | child brand derived from the parent; a differing `brandId` → 422 |
+| `POST /…/{id}/verify` | `catalogue.verify` | confidence, sourceUrl and/or sourceDocumentId, sourceDate; caller = verifier |
+| `POST /…/{id}/activate` | `catalogue.activate` | needs verification and an ACTIVE parent (model: brand not archived) |
+| `POST /…/{id}/archive` | `catalogue.archive` | never deletes; children untouched |
 
-Value sets come from DB CHECKs: lifecycle `PENDING_VERIFICATION|ACTIVE|ARCHIVED`; authorisation
-`UNVERIFIED|AUTHORISED|NOT_AUTHORISED|REVOKED` (OQ-1); confidence `UNVERIFIED|SUPPLIER_CONFIRMED|CLIENT_APPROVED`.
-Brands, models, variants and spec keys are data and never appear in code. `brandId` from a client is never
-trusted on its own (ADR-006). Database errors to map in C-02: `23505` duplicate code/name → `409 CONFLICT`,
-`23503`/`23514` invalid reference or value → `422 VALIDATION_FAILED`, `23001` delete of a used item and `42501`
-edit of a verified spec → `409 CONFLICT` (archive / add a new version instead).
+- There is no `DELETE` route (405). Every mutation needs `X-CSRF-Token`, `application/json`, and the
+  `version` last read; it is audited in the same transaction (`catalogue.<kind>.<created|updated|verified|activated|archived>`,
+  `catalogue.brand.authorisation_recorded`). Refused activations are audited with outcome `DENIED` and the unmet checks.
+- Lists return `{"data":{"items":[…],"page":1,"limit":25,"total":N}}`; `limit` 1–100 (default 25), sorted by name then ID.
+- Unknown body fields are refused (422 with the field), so `brandId`/`modelId` of an existing item, statuses,
+  verifier and dates cannot be set by the client. `null` clears an optional PATCH field.
+- `Brand.operational` is server-derived (ACTIVE and AUTHORISED). `Brand` also carries `manufacturerLegalName`,
+  `authorisationReference`, `authorisationEvidenceId`, `verifiedBy`, `verifiedAt`. Models/variants/colours carry the
+  provenance block `confidence, sourceUrl, sourceDocumentId, sourceDate, verifiedBy, verifiedAt` and `version`.
+- Value sets come from DB CHECKs: lifecycle `PENDING_VERIFICATION|ACTIVE|ARCHIVED`; authorisation
+  `UNVERIFIED|AUTHORISED|NOT_AUTHORISED|REVOKED` (OQ-1); confidence `UNVERIFIED|SUPPLIER_CONFIRMED|CLIENT_APPROVED`.
+- Spec values (`variant_specs`) have no endpoint yet (ADR-012).
+
+| HTTP | `code` | When |
+| --- | --- | --- |
+| 409 | `DUPLICATE` | name/code already used in its scope; `details[0].field` names it |
+| 409 | `VERSION_CONFLICT` | stale `version`: reload and retry |
+| 409 | `INVALID_STATE` | action not allowed in the current lifecycle state (e.g. editing an ACTIVE item, adding under an archived parent) |
+| 409 | `ACTIVATION_BLOCKED` | prerequisites unmet; `details[].field` = check key (`verification`, `parent`, `authorisation`, `approved_prices`, …) |
+| 422 | `VALIDATION_FAILED` | invalid field, unknown parent or document, cross-brand `brandId` |
 
 ## Middleware chain
 

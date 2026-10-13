@@ -244,6 +244,38 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Rollback:** the down migration drops catalogue tables and the new brand columns (data loss; refused in
   staging/production without `--confirm`); brands are kept.
 
+## ADR-012 — Catalogue API, lifecycle and activation gate (C-02)
+
+- **Status:** Accepted (technical design; business approvals still pending — RB-5, OQ-1, OQ-2, OQ-12–OQ-14).
+- **Layout:** `internal/modules/catalogue` — `http.go` (Gin, swag) → `service.go` (permission re-check, validation)
+  → `pgstore.go` (pgx; each mutation is one transaction that locks the item `FOR UPDATE` and the parent it depends
+  on `FOR SHARE`, checks `version`, applies the pure rules in `rules.go`, writes and records the audit event).
+- **Permissions** (migration 000008, catalogue keys only, no grants): `catalogue.view`, `.manage`, `.verify`,
+  `.activate`, `.archive`, `catalogue.brand.authorise`, `catalogue.brand.activate`. Separate keys so the owner can
+  split data entry, verification and commercial activation when the matrix is approved. Brand scope per user is
+  still not modelled (RB-5).
+- **Brand context:** a child's brand is always taken from its parent inside the transaction; a client `brandId`
+  is only compared (422 on mismatch). Unknown body fields are refused, so items never move between brands/models.
+- **Lifecycle:** create → `PENDING_VERIFICATION`/`UNVERIFIED`. Verify (pending items only) records confidence,
+  source URL/document, source date; the caller is the verifier. Activate needs verification and an ACTIVE parent
+  (model: brand not archived — brand activation comes last because it needs an active catalogue). Edits only while
+  pending; editing a verified item resets it to `UNVERIFIED` (the verification covered the old values). ACTIVE items
+  are not edited (BR-005: approved data is not overwritten) — they can only be archived. Archive never deletes and
+  never cascades: children keep status and references (BR-006, BR-008); nothing new is added under an archived parent.
+- **Brand activation gate (BR-002, fail closed):** readiness checks `lifecycle`, `authorisation` (AUTHORISED),
+  `legal_identity`, `authorisation_evidence` (reference + private evidence attachment + verifier + date),
+  `verified_catalogue` (≥1 ACTIVE variant under an ACTIVE model) plus **pending** checks `supplier_link` (D-01),
+  `approved_prices` (C-04), `warranty_terms` (RB-2), `identifier_rules` (D-04, OQ-4). Pending checks are never met,
+  so **no brand can be activated until those tasks add their checks**. This is deliberate: activation without that
+  evidence would contradict BR-002.
+- **Operational use (for later tasks):** `Brand.operational` = ACTIVE + AUTHORISED. Purchase/sales (D-02, D-03, F-*)
+  must require the whole chain — operational brand, ACTIVE model, ACTIVE variant (and colour when chosen) — since
+  archive does not cascade.
+- **Audit:** create/update/authorisation/verify/activate/archive in the same transaction; refused activations as
+  `DENIED` with the unmet check keys; archive reason kept in the summary.
+- **Not in C-02:** spec value endpoints (`variant_specs`; to be scheduled with C-03/C-05), un-archive or
+  correction of ACTIVE items (OQ-12), screens (C-03), prices (C-04).
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -260,4 +292,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-9 | Attachment limits: accepted types (proposal JPEG, PNG, WebP, PDF) and per-file size (proposal 10 MB). Configurable size; type list in code + DB CHECK. | B-09 (defaults only) |
 | OQ-10 | Production attachment storage: S3-compatible provider/bucket, region, encryption, retention. Until then only the local private-directory driver exists. | H-06, deploy |
 | OQ-11 | Value set for `models.vehicle_type` (e.g. scooter / motorcycle classes) — free upper-case identifier until confirmed. | C-02, C-05 |
+| OQ-12 | How are ACTIVE catalogue items corrected (typo in an approved name/code) and may archived items be restored? C-02 allows neither: active items can only be archived (BR-005). | C-03, C-05 |
+| OQ-13 | Separation of duties in the catalogue: may the same person create, verify and activate an item, or record and use a brand's authorisation? C-02 has separate permissions but no maker-checker rule. | C-02, RB-5 |
+| OQ-14 | Who may record `CLIENT_APPROVED` confidence (owner only?) versus `SUPPLIER_CONFIRMED`? C-02 lets any holder of `catalogue.verify` record either. | C-02, OQ-2 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

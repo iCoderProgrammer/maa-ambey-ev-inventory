@@ -4,7 +4,14 @@ import { expect, type Page } from '@playwright/test'
  * Test accounts come from the environment, never from the repository. Create
  * them with `make user ARGS="create ..."` on a non-production database.
  */
-export type AccountKind = 'active' | 'disabled' | 'roles' | 'attachments' | 'attachmentsViewer'
+export type AccountKind =
+  | 'active'
+  | 'disabled'
+  | 'roles'
+  | 'attachments'
+  | 'attachmentsViewer'
+  | 'catalogue'
+  | 'catalogueViewer'
 
 const prefixes: Record<AccountKind, string> = {
   active: 'E2E',
@@ -15,6 +22,9 @@ const prefixes: Record<AccountKind, string> = {
   // holding attachments.view only (see DEVELOPMENT_SETUP "End-to-end browser tests").
   attachments: 'E2E_ATTACH',
   attachmentsViewer: 'E2E_ATTACH_VIEWER',
+  // Optional (C-02): a user holding every catalogue.* key, and one holding catalogue.view only.
+  catalogue: 'E2E_CATALOGUE',
+  catalogueViewer: 'E2E_CATALOGUE_VIEWER',
 }
 
 export function hasAccount(kind: AccountKind): boolean {

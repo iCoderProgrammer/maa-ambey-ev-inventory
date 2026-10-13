@@ -190,18 +190,32 @@ make access ARGS="assign --username e2e.attachviewer --role sales_executive"
 make access ARGS="grant --role inventory_manager --permission attachments.upload"
 make access ARGS="grant --role inventory_manager --permission attachments.view"
 make access ARGS="grant --role sales_executive --permission attachments.view"
+# optional, for the catalogue API tests (C-02): every catalogue key, and view only (same flag)
+make user ARGS="create --username e2e.catalogue --name 'E2E Catalogue'"
+make user ARGS="create --username e2e.catviewer --name 'E2E Catalogue Viewer'"
+make access ARGS="assign --username e2e.catalogue --role owner"
+make access ARGS="assign --username e2e.catviewer --role accountant"
+for p in catalogue.view catalogue.manage catalogue.verify catalogue.activate catalogue.archive \
+         catalogue.brand.authorise catalogue.brand.activate; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission catalogue.view"
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
   E2E_ROLES_USERNAME=e2e.roles E2E_ROLES_PASSWORD=... \
   E2E_ATTACH_USERNAME=e2e.attach E2E_ATTACH_PASSWORD=... \
-  E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... npm run test:e2e
+  E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... \
+  E2E_CATALOGUE_USERNAME=e2e.catalogue E2E_CATALOGUE_PASSWORD=... \
+  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... npm run test:e2e
 ```
 
 - Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
 - The suite makes failed sign-ins on purpose (including one per viewport for the disabled account),
   and the login throttle is in memory: restart the API before re-running within 15 minutes, and
   start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
+- The catalogue API test (C-02) sends dozens of requests in a few seconds from one IP: start the API with
+  a higher `RATE_LIMIT_BURST` (e.g. `RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200`) or it can get `429 RATE_LIMITED`.
+  It creates placeholder brands/models: throwaway database only. C-02 has no catalogue screen, so it is API-level.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

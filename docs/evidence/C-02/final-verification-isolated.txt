@@ -1,0 +1,135 @@
+C-02 final verification — isolated stack — 2026-10-13T12:29Z
+
+Environment (throwaway; removed after the run):
+- postgres:18-alpine on 127.0.0.1:5449, migrated to version 8, seeded (3 roster brands).
+- API built from this working tree on :8093: APP_ENV=development RBAC_ALLOW_PROPOSED_GRANTS=true LOGIN_MAX_FAILURES_PER_IP=1000
+  ATTACHMENT_LINK_TTL=30s RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200 (second run; see note). Vite on :5175 proxying to it.
+- Test-only users e2e.active (no role), e2e.disabled, e2e.roles, e2e.attach, e2e.attachviewer, e2e.catalogue (owner),
+  e2e.catviewer (accountant). Random password, not printed. PROPOSED grants only (no APPROVED):
+  viewer: access.roles.view; inventory_manager: attachments.upload/view; sales_executive: attachments.view;
+  owner: 7 catalogue.* keys; accountant: catalogue.view. Shared dev DB permissions untouched.
+
+== Playwright (npx playwright test, desktop 1366px + Pixel 7) ==
+Run 1 (default RATE_LIMIT 20/40): 46 passed, 1 failed, 5 skipped — new catalogue spec hit 429 RATE_LIMITED
+(spec fetched the CSRF token before every mutation). Spec now reads the token once; API restarted with a higher burst.
+Run 2:
+  ✓   1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓   2 [desktop] › e2e/access.e2e.ts:30:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓   3 [desktop] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓   4 [desktop] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓   5 [desktop] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  ✓   6 [desktop] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓   7 [desktop] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓   8 [desktop] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓   9 [desktop] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  10 [desktop] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  11 [desktop] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  12 [desktop] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  13 [desktop] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  14 [desktop] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  15 [desktop] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  16 [desktop] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  17 [desktop] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  18 [desktop] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  ✓  19 [desktop] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  20 [desktop] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  21 [desktop] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  22 [desktop] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  23 [desktop] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  24 [desktop] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  ✓  25 [desktop] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  -  26 [desktop] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  27 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓  28 [mobile] › e2e/access.e2e.ts:30:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓  29 [mobile] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓  30 [mobile] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓  31 [mobile] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  -  32 [mobile] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓  33 [mobile] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓  34 [mobile] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓  35 [mobile] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  36 [mobile] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  37 [mobile] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  38 [mobile] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  39 [mobile] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  40 [mobile] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  41 [mobile] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  42 [mobile] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  43 [mobile] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  -  44 [mobile] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  -  45 [mobile] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  46 [mobile] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  47 [mobile] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  48 [mobile] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  49 [mobile] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  50 [mobile] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  -  51 [mobile] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  ✓  52 [mobile] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  5 skipped
+  47 passed (2.1m)
+
+== Live API smoke (python, real HTTP; users e2e.catalogue / e2e.catviewer / e2e.active) ==
+PASS  anonymous GET /brands: 401 UNAUTHENTICATED
+PASS  no-grant user GET /brands (deny by default): 403 FORBIDDEN
+PASS  no-grant user POST /brands: 403 FORBIDDEN
+PASS  viewer GET /brands: 200
+      roster: total=7 PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False; PENDING_VERIFICATION/UNVERIFIED/operational=False
+PASS  viewer POST /brands: 403 FORBIDDEN
+PASS  admin create brand: 201
+PASS  admin create second brand: 201
+PASS  duplicate brand name (case-insensitive): 409 DUPLICATE details=name
+PASS  unknown field lifecycleStatus refused: 422 VALIDATION_FAILED details=lifecycleStatus
+PASS  create model: 201
+PASS  same model code in another brand: 201
+PASS  duplicate model code in brand: 409 DUPLICATE details=internalCode
+PASS  variant with other brand's id: 422 VALIDATION_FAILED details=brandId
+PASS  model brand move refused: 422 VALIDATION_FAILED details=brandId
+PASS  create variant (brand derived from model): 201
+      variant.brandId == brand A: True
+PASS  activate unverified model: 409 ACTIVATION_BLOCKED details=verification
+PASS  verify model: 200
+PASS  verify variant: 200
+PASS  activate variant before its model: 409 ACTIVATION_BLOCKED details=parent
+PASS  stale version: 409 VERSION_CONFLICT
+PASS  activate model: 200
+PASS  activate variant: 200
+PASS  edit active variant refused: 409 INVALID_STATE
+PASS  authorise without evidence: 422 VALIDATION_FAILED details=manufacturerLegalName,authorisationReference,authorisationEvidenceId
+PASS  authorise with unknown evidence id: 422 VALIDATION_FAILED details=authorisationEvidenceId
+PASS  readiness: 200
+      readiness: ready=False unmet=['authorisation', 'legal_identity', 'authorisation_evidence', 'supplier_link', 'approved_prices', 'warranty_terms', 'identifier_rules']
+PASS  activate brand (blocked): 409 ACTIVATION_BLOCKED details=authorisation,legal_identity,authorisation_evidence,supplier_link,approved_prices,warranty_terms,identifier_rules
+PASS  create colour: 201
+PASS  archive model: 200
+PASS  variant still readable after model archive: 200
+      variant keeps model/brand: True, status ACTIVE
+PASS  new variant under archived model: 409 INVALID_STATE
+PASS  DELETE model (no hard delete): 405 METHOD_NOT_ALLOWED
+PASS  viewer cannot archive: 403 FORBIDDEN
+PASS  missing CSRF token: 403 CSRF_FAILED
+PASS  list models filtered by brand + search: 200
+      page: total=1 items=1 page=1 limit=1
+PASS  bad list limit: 422 VALIDATION_FAILED details=limit
+
+36 passed, 0 failed
+
+Audit events (catalogue.*) after both Playwright runs and the smoke:
+           action            | outcome | count
+-----------------------------+---------+-------
+ catalogue.brand.activated   | DENIED  |     3
+ catalogue.brand.created     | SUCCESS |     6
+ catalogue.colour.created    | SUCCESS |     1
+ catalogue.model.activated   | DENIED  |     3
+ catalogue.model.activated   | SUCCESS |     3
+ catalogue.model.archived    | SUCCESS |     3
+ catalogue.model.created     | SUCCESS |     6
+ catalogue.model.verified    | SUCCESS |     3
+ catalogue.variant.activated | DENIED  |     3
+ catalogue.variant.activated | SUCCESS |     3
+ catalogue.variant.created   | SUCCESS |     3
+ catalogue.variant.verified  | SUCCESS |     3
+(12 rows)
+
+
+API log ERROR lines: 8, all 'context canceled' on /attachments, /access/roles, /auth/session (client aborted the
+request; pre-existing logging from B-06/B-07/B-09, not catalogue routes). 0 errors on catalogue routes.

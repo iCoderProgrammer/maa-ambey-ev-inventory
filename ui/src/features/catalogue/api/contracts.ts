@@ -1,10 +1,9 @@
 import { z } from 'zod'
 
 /**
- * Catalogue domain contracts (C-01). They mirror the database schema
- * (migration 000007) and the response shapes the catalogue API will return in
- * C-02 (docs/API_CONVENTIONS.md "Catalogue contracts"). No endpoint exists yet,
- * so nothing here fetches data.
+ * Catalogue domain contracts (C-01, C-02). They mirror the database schema
+ * (migration 000007) and the catalogue API responses (docs/openapi,
+ * docs/API_CONVENTIONS.md "Catalogue API"). Fetching lives in ./catalogue.ts.
  *
  * Brands, models, variants, colours and specification keys are data from the
  * API: there is no brand list, model list or spec key in the UI code. Only the
@@ -58,6 +57,8 @@ export const brandSchema = z.object({
   authorisationEvidenceId: z.string().nullable(),
   verifiedBy: z.string().nullable(),
   verifiedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Server-derived: ACTIVE and AUTHORISED, i.e. usable for purchase/sales. Never computed in the UI. */
+  operational: z.boolean(),
   ...timestamps,
 })
 export type Brand = z.infer<typeof brandSchema>
@@ -128,3 +129,38 @@ export type VariantSpec = z.infer<typeof variantSpecSchema>
 export function isVerified(p: Pick<Provenance, 'confidence'>): boolean {
   return p.confidence !== 'UNVERIFIED'
 }
+
+/** One page of a catalogue list. */
+export function pageSchema<T extends z.ZodType>(item: T) {
+  return z.object({
+    items: z.array(item),
+    page: z.number().int().positive(),
+    limit: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  })
+}
+export interface Page<T> {
+  items: T[]
+  page: number
+  limit: number
+  total: number
+}
+
+/**
+ * One prerequisite for enabling a brand for purchase/sales (BR-002). `pending`
+ * checks belong to features not built yet and are never met (fail closed).
+ */
+export const readinessCheckSchema = z.object({
+  key: z.string(),
+  met: z.boolean(),
+  pending: z.boolean(),
+  message: z.string(),
+})
+export type ReadinessCheck = z.infer<typeof readinessCheckSchema>
+
+export const brandReadinessSchema = z.object({
+  brandId: z.string(),
+  ready: z.boolean(),
+  checks: z.array(readinessCheckSchema),
+})
+export type BrandReadiness = z.infer<typeof brandReadinessSchema>

@@ -122,6 +122,457 @@ definitions:
         example: /api/v1/attachments/0b8f5e9a-6d3c-4f21-9a7e-2c4d6e8f0a1b/content?disposition=attachment&expires=1792834200&signature=…
         type: string
     type: object
+  BrandActivationReadiness:
+    properties:
+      brandId:
+        type: string
+      checks:
+        items:
+          $ref: '#/definitions/BrandReadinessCheck'
+        type: array
+      ready:
+        example: false
+        type: boolean
+    type: object
+  BrandReadinessCheck:
+    properties:
+      key:
+        example: authorisation
+        type: string
+      message:
+        example: Record AUTHORISED status with legal name, reference and evidence.
+        type: string
+      met:
+        example: false
+        type: boolean
+      pending:
+        example: false
+        type: boolean
+    type: object
+  CatalogueAction:
+    properties:
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueArchive:
+    properties:
+      reason:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueBrand:
+    properties:
+      authorisationEvidenceId:
+        type: string
+        x-nullable: true
+      authorisationReference:
+        type: string
+        x-nullable: true
+      authorisationStatus:
+        enum:
+        - UNVERIFIED
+        - AUTHORISED
+        - NOT_AUTHORISED
+        - REVOKED
+        example: UNVERIFIED
+        type: string
+      createdAt:
+        type: string
+      id:
+        example: 3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b
+        type: string
+      lifecycleStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        example: PENDING_VERIFICATION
+        type: string
+      manufacturerLegalName:
+        type: string
+        x-nullable: true
+      name:
+        example: Brand A
+        type: string
+      operational:
+        description: Operational is true only for ACTIVE + AUTHORISED brands (derived,
+          read-only).
+        example: false
+        type: boolean
+      slug:
+        example: brand-a
+        type: string
+      updatedAt:
+        type: string
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueBrandAuthorisation:
+    properties:
+      authorisationEvidenceId:
+        type: string
+      authorisationReference:
+        type: string
+      authorisationStatus:
+        enum:
+        - UNVERIFIED
+        - AUTHORISED
+        - NOT_AUTHORISED
+        - REVOKED
+        type: string
+      manufacturerLegalName:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueBrandCreate:
+    properties:
+      name:
+        example: Brand A
+        type: string
+      slug:
+        description: Optional; derived from the name when omitted.
+        example: brand-a
+        type: string
+    type: object
+  CatalogueBrandList:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/CatalogueBrand'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 3
+        type: integer
+    type: object
+  CatalogueBrandUpdate:
+    properties:
+      name:
+        type: string
+      slug:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueColour:
+    properties:
+      brandId:
+        type: string
+      colourCode:
+        type: string
+        x-nullable: true
+      confidence:
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        example: UNVERIFIED
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      lifecycleStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      name:
+        example: Colour A
+        type: string
+      sourceDate:
+        example: "2026-10-01"
+        type: string
+        x-nullable: true
+      sourceDocumentId:
+        type: string
+        x-nullable: true
+      sourceUrl:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      variantId:
+        type: string
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        type: integer
+    type: object
+  CatalogueColourCreate:
+    properties:
+      brandId:
+        type: string
+      colourCode:
+        type: string
+      name:
+        example: Colour A
+        type: string
+      variantId:
+        type: string
+    type: object
+  CatalogueColourList:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/CatalogueColour'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  CatalogueColourUpdate:
+    properties:
+      colourCode:
+        type: string
+      name:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueModel:
+    properties:
+      brandId:
+        type: string
+      confidence:
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        example: UNVERIFIED
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      internalCode:
+        example: M1
+        type: string
+      lifecycleStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      manufacturerCode:
+        type: string
+        x-nullable: true
+      name:
+        example: Model One
+        type: string
+      sourceDate:
+        example: "2026-10-01"
+        type: string
+        x-nullable: true
+      sourceDocumentId:
+        type: string
+        x-nullable: true
+      sourceUrl:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      vehicleType:
+        type: string
+        x-nullable: true
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        type: integer
+    type: object
+  CatalogueModelCreate:
+    properties:
+      brandId:
+        type: string
+      internalCode:
+        example: M1
+        type: string
+      manufacturerCode:
+        type: string
+      name:
+        example: Model One
+        type: string
+      vehicleType:
+        type: string
+    type: object
+  CatalogueModelList:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/CatalogueModel'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  CatalogueModelUpdate:
+    properties:
+      internalCode:
+        type: string
+      manufacturerCode:
+        type: string
+      name:
+        type: string
+      vehicleType:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueVariant:
+    properties:
+      brandId:
+        type: string
+      confidence:
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        example: UNVERIFIED
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      lifecycleStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      manufacturerCode:
+        type: string
+        x-nullable: true
+      modelId:
+        type: string
+      name:
+        example: Standard
+        type: string
+      sourceDate:
+        example: "2026-10-01"
+        type: string
+        x-nullable: true
+      sourceDocumentId:
+        type: string
+        x-nullable: true
+      sourceUrl:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      variantCode:
+        example: STD
+        type: string
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        type: integer
+    type: object
+  CatalogueVariantCreate:
+    properties:
+      brandId:
+        type: string
+      manufacturerCode:
+        type: string
+      modelId:
+        type: string
+      name:
+        example: Standard
+        type: string
+      variantCode:
+        example: STD
+        type: string
+    type: object
+  CatalogueVariantList:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/CatalogueVariant'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  CatalogueVariantUpdate:
+    properties:
+      manufacturerCode:
+        type: string
+      name:
+        type: string
+      variantCode:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  CatalogueVerify:
+    properties:
+      confidence:
+        enum:
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        type: string
+      sourceDate:
+        example: "2026-10-01"
+        type: string
+      sourceDocumentId:
+        type: string
+      sourceUrl:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
   DataResponse:
     properties:
       data: {}
@@ -711,6 +1162,760 @@ paths:
       summary: Current session
       tags:
       - auth
+  /brands:
+    get:
+      description: Brands are data. Includes pending and archived brands (BR-008);
+        operational=true only for ACTIVE + AUTHORISED. Sorted by name. Requires catalogue.view.
+      parameters:
+      - description: Search name or slug
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        in: query
+        name: status
+        type: string
+      - description: Authorisation
+        enum:
+        - UNVERIFIED
+        - AUTHORISED
+        - NOT_AUTHORISED
+        - REVOKED
+        in: query
+        name: authorisationStatus
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrandList'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List brands
+      tags:
+      - catalogue
+    post:
+      consumes:
+      - application/json
+      description: Adds a brand as data. It starts PENDING_VERIFICATION / UNVERIFIED
+        and is not usable for purchase/sales. Slug is derived from the name when omitted.
+        Audited. Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Brand
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueBrandCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE (name or slug)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a brand
+      tags:
+      - catalogue
+  /brands/{id}:
+    get:
+      description: Requires catalogue.view.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a brand
+      tags:
+      - catalogue
+    patch:
+      consumes:
+      - application/json
+      description: Changes name and/or slug. Send the version you read; archived brands
+        cannot be changed. Audited. Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueBrandUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a brand
+      tags:
+      - catalogue
+  /brands/{id}/activate:
+    post:
+      consumes:
+      - application/json
+      description: Allowed only when every readiness check is met; otherwise 409 ACTIVATION_BLOCKED
+        lists the unmet checks in details (field = check key) and the refused attempt
+        is audited (outcome DENIED). Requires catalogue.brand.activate and X-CSRF-Token.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueAction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Enable a brand for purchase and sales
+      tags:
+      - catalogue
+  /brands/{id}/activation-readiness:
+    get:
+      description: Every prerequisite for enabling the brand for purchase/sales (BR-002)
+        and whether it is met. Checks marked pending belong to features not built
+        yet (supplier links, approved prices, warranty terms, identifier rules) and
+        are never met, so no brand can be activated until those exist. Requires catalogue.view.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/BrandActivationReadiness'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Brand activation readiness
+      tags:
+      - catalogue
+  /brands/{id}/archive:
+    post:
+      consumes:
+      - application/json
+      description: Takes the brand out of use without deleting anything; its models,
+        variants and history keep their references (BR-006, BR-008). Audited with
+        the optional reason. Requires catalogue.archive and X-CSRF-Token.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueArchive'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Archive a brand
+      tags:
+      - catalogue
+  /brands/{id}/authorisation:
+    put:
+      consumes:
+      - application/json
+      description: Records the supplier/manufacturer legal identity, authorisation
+        status, reference and evidence document (BR-002). AUTHORISED needs all three;
+        the caller is recorded as verifier with the current time (UNVERIFIED clears
+        both). Changing it on an ACTIVE brand takes it out of operation at once (operational=false).
+        Archived brands cannot be changed. Audited. Requires catalogue.brand.authorise
+        and X-CSRF-Token.
+      parameters:
+      - description: Brand ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Authorisation
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueBrandAuthorisation'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueBrand'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (missing evidence, unknown document)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Record brand authorisation
+      tags:
+      - catalogue
+  /colours:
+    get:
+      description: Sorted by name. Requires catalogue.view.
+      parameters:
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Variant ID
+        in: query
+        name: variantId
+        type: string
+      - description: Search name or colour code
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        in: query
+        name: status
+        type: string
+      - description: Confidence
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        in: query
+        name: confidence
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColourList'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List colours
+      tags:
+      - catalogue
+    post:
+      consumes:
+      - application/json
+      description: Adds a pending colour to a variant that is not archived. The brand
+        is taken from the variant; a brandId that differs is refused (422). Audited.
+        Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Colour
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueColourCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE or INVALID_STATE (archived variant)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (incl. unknown variantId, brandId mismatch)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a colour
+      tags:
+      - catalogue
+  /colours/{id}:
+    get:
+      description: Requires catalogue.view.
+      parameters:
+      - description: Colour ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a colour
+      tags:
+      - catalogue
+    patch:
+      consumes:
+      - application/json
+      description: Only PENDING_VERIFICATION colours can be edited. Editing a verified
+        colour resets it to UNVERIFIED. Audited. Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Colour ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueColourUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a pending colour
+      tags:
+      - catalogue
+  /colours/{id}/activate:
+    post:
+      consumes:
+      - application/json
+      description: A pending, verified colour of an ACTIVE variant becomes ACTIVE.
+        Otherwise 409 ACTIVATION_BLOCKED, audited as DENIED. Requires catalogue.activate
+        and X-CSRF-Token.
+      parameters:
+      - description: Colour ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueAction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Activate a colour
+      tags:
+      - catalogue
+  /colours/{id}/archive:
+    post:
+      consumes:
+      - application/json
+      description: Never deletes. Audited. Requires catalogue.archive and X-CSRF-Token.
+      parameters:
+      - description: Colour ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueArchive'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Archive a colour
+      tags:
+      - catalogue
+  /colours/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Same as model verification. Requires catalogue.verify and X-CSRF-Token.
+      parameters:
+      - description: Colour ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Provenance
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueVerify'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueColour'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Verify a colour
+      tags:
+      - catalogue
   /health:
     get:
       description: Confirms the API process is running. Does not check dependencies.
@@ -762,6 +1967,356 @@ paths:
       summary: Current user's roles, permissions and location scope
       tags:
       - access
+  /models:
+    get:
+      description: Sorted by name. Requires catalogue.view.
+      parameters:
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Search name, internal or manufacturer code
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        in: query
+        name: status
+        type: string
+      - description: Confidence
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        in: query
+        name: confidence
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModelList'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List models
+      tags:
+      - catalogue
+    post:
+      consumes:
+      - application/json
+      description: Adds a PENDING_VERIFICATION / UNVERIFIED model to a brand that
+        is not archived. internalCode is stored upper-case and is unique within the
+        brand. Audited. Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Model
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueModelCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE or INVALID_STATE (archived brand)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (incl. unknown brandId)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a model
+      tags:
+      - catalogue
+  /models/{id}:
+    get:
+      description: Requires catalogue.view.
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a model
+      tags:
+      - catalogue
+    patch:
+      consumes:
+      - application/json
+      description: Only PENDING_VERIFICATION models can be edited; the brand never
+        changes (brandId is refused). Editing a verified model resets it to UNVERIFIED.
+        Send null to clear manufacturerCode or vehicleType. Audited. Requires catalogue.manage
+        and X-CSRF-Token.
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueModelUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a pending model
+      tags:
+      - catalogue
+  /models/{id}/activate:
+    post:
+      consumes:
+      - application/json
+      description: 'A pending, verified model of a brand that is not archived becomes
+        ACTIVE. Otherwise 409 ACTIVATION_BLOCKED (details: verification, parent),
+        audited as DENIED. Requires catalogue.activate and X-CSRF-Token.'
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueAction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Activate a model
+      tags:
+      - catalogue
+  /models/{id}/archive:
+    post:
+      consumes:
+      - application/json
+      description: Never deletes; variants and history keep their references. Audited.
+        Requires catalogue.archive and X-CSRF-Token.
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueArchive'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Archive a model
+      tags:
+      - catalogue
+  /models/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Records source (URL and/or private document), source date and confidence
+        for a pending model; the caller is the verifier. Audited. Requires catalogue.verify
+        and X-CSRF-Token.
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Provenance
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueVerify'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueModel'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Verify a model
+      tags:
+      - catalogue
   /ready:
     get:
       description: Reports whether PostgreSQL is reachable ("database") and migrated
@@ -795,4 +2350,355 @@ paths:
       summary: Readiness check
       tags:
       - health
+  /variants:
+    get:
+      description: Sorted by name. Requires catalogue.view.
+      parameters:
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Model ID
+        in: query
+        name: modelId
+        type: string
+      - description: Search name, variant or manufacturer code
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        in: query
+        name: status
+        type: string
+      - description: Confidence
+        enum:
+        - UNVERIFIED
+        - SUPPLIER_CONFIRMED
+        - CLIENT_APPROVED
+        in: query
+        name: confidence
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariantList'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List variants
+      tags:
+      - catalogue
+    post:
+      consumes:
+      - application/json
+      description: Adds a pending variant to a model that is not archived. The brand
+        is taken from the model; a brandId that differs is refused (422). variantCode
+        is unique within the model. Audited. Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Variant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueVariantCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE or INVALID_STATE (archived model)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (incl. unknown modelId, brandId mismatch)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a variant
+      tags:
+      - catalogue
+  /variants/{id}:
+    get:
+      description: Requires catalogue.view.
+      parameters:
+      - description: Variant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a variant
+      tags:
+      - catalogue
+    patch:
+      consumes:
+      - application/json
+      description: Only PENDING_VERIFICATION variants can be edited; model and brand
+        never change. Editing a verified variant resets it to UNVERIFIED. Audited.
+        Requires catalogue.manage and X-CSRF-Token.
+      parameters:
+      - description: Variant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueVariantUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a pending variant
+      tags:
+      - catalogue
+  /variants/{id}/activate:
+    post:
+      consumes:
+      - application/json
+      description: A pending, verified variant of an ACTIVE model becomes ACTIVE.
+        Otherwise 409 ACTIVATION_BLOCKED, audited as DENIED. Requires catalogue.activate
+        and X-CSRF-Token.
+      parameters:
+      - description: Variant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueAction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: ACTIVATION_BLOCKED, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Activate a variant
+      tags:
+      - catalogue
+  /variants/{id}/archive:
+    post:
+      consumes:
+      - application/json
+      description: Never deletes; colours and history keep their references. Audited.
+        Requires catalogue.archive and X-CSRF-Token.
+      parameters:
+      - description: Variant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueArchive'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Archive a variant
+      tags:
+      - catalogue
+  /variants/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Same as model verification. Requires catalogue.verify and X-CSRF-Token.
+      parameters:
+      - description: Variant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Provenance
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CatalogueVerify'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/CatalogueVariant'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Verify a variant
+      tags:
+      - catalogue
 swagger: "2.0"

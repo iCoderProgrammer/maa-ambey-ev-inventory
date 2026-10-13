@@ -54,7 +54,9 @@ The client approved collecting and maintaining **verified** data per brand:
 | Source and verification status for every record | `UNVERIFIED` / `SUPPLIER_CONFIRMED` / `CLIENT_APPROVED` (BR-004) |
 
 **Status:** No catalogue data has been supplied. Nothing is seeded or invented. The schema exists
-since C-01 (migration 000007, ADR-011); data comes with C-05, from client- or supplier-verified sources only.
+since C-01 (migration 000007, ADR-011) and the API since C-02 (ADR-012), which keeps every brand out of
+purchase/sales until authorisation evidence, a verified catalogue and the pending price/warranty/identifier/supplier
+checks exist; data comes with C-05, from client- or supplier-verified sources only.
 
 ## 4. Opening-stock import
 

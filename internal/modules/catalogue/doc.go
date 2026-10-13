@@ -1,5 +1,8 @@
-// Package catalogue will hold the brand → model → variant catalogue service
-// (C-02). C-01 delivers only the schema (migration 000007) and its tests:
+// Package catalogue is the brand → model → variant → colour catalogue API
+// (C-02; rules in ADR-012, routes in docs/API_CONVENTIONS.md "Catalogue API").
+// It enforces permissions (deny by default), brand relationships, lifecycle
+// transitions, the brand activation gate and audit on top of the C-01 schema
+// (migration 000007):
 //
 //   - brands: lifecycle (PENDING_VERIFICATION / ACTIVE / ARCHIVED) separate from
 //     authorisation (UNVERIFIED / AUTHORISED / NOT_AUTHORISED / REVOKED);
