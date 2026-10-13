@@ -73,6 +73,35 @@ Open http://localhost:5173 and sign in with that account. There is no built-in a
 page except sign-in needs a session (B-06). The header pill and the dashboard "System status"
 card show live results from the Go API's `/health` and `/ready` endpoints.
 
+## Run the backend and frontend
+
+Run from the repository root. PostgreSQL must be running first:
+
+```bash
+make db-up            # start PostgreSQL (skip if already running)
+make db-migrate-up    # apply any pending migrations (no-op when up to date)
+```
+
+Both servers in one terminal (Ctrl+C stops both):
+
+```bash
+make dev
+```
+
+Or each in its own terminal:
+
+```bash
+# Terminal 1 — Go API (port from APP_PORT in .env, default 8080)
+make dev-backend      # = go run ./cmd/api
+
+# Terminal 2 — React UI on http://localhost:5173
+make dev-frontend     # = cd ui && npm run dev
+```
+
+The UI proxies `/api` to `API_PROXY_TARGET` in `ui/.env`; keep it on the same port as `APP_PORT` in
+`.env` (e.g. both 8081). Check the API at `http://localhost:<APP_PORT>/api/v1/health`.
+Restart `make dev-backend` after pulling backend changes; the UI reloads on its own.
+
 ## Environment
 
 Backend + Compose: `.env` (template `.env.example`).
