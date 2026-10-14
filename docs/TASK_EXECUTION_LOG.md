@@ -1834,6 +1834,19 @@ suite: **55 passed, 0 failed, 5 skipped** (by design). API errors only client `c
 - Quotations that snapshot prices are F-02; lookup is the contract they will use.
 - Brand activation still blocked by supplier/warranty/identifier checks.
 
+#### Final browser/regression verification (user-requested, 2026-10-14; verification only)
+- Commit `2594848`, clean tree; no code changed.
+- **Dev environment finding (not a C-04 defect):** the running dev API (:8081, started 10:09, build `9609244` = C-03) is
+  stale — `/ready` not_ready (DB at 9, build expects 8) and price routes 404. Left untouched; restart `make dev-backend`
+  to pick up C-04. The current build `2594848` was run on side ports against the dev DB: `/ready` ready; headless Chrome
+  desktop + mobile: catalogue deep link → sign-in, client validation, wrong credentials → 401 generic message,
+  `/price-lists`, `/price-items`, `/prices/lookup`, `/brands` without session → 401, no overflow, **0 console errors**.
+  Dev DB identical before/after (0 catalogue/price grants, 0 price lists/items).
+- Isolated stack, full `npx playwright test` (desktop + Pixel 7): **55 passed, 0 failed, 5 skipped** (by design).
+  API errors (14 requests) all `context canceled` client aborts.
+- `make ci` exit 0; Go 14 packages / 330 tests pass; Vitest 142/142. No bugs found; no fixes.
+- Evidence: `docs/evidence/C-04/final-verification.txt`.
+
 #### Final status
 COMPLETE — C-04 only. C-05 not started.
 
