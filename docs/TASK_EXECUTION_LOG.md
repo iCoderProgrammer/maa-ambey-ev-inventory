@@ -1974,6 +1974,18 @@ behaviour — updated to the intended 422.
   owner's decision on whether staff are limited to brands.
 - C-05 still blocked (A-01 INCOMPLETE; verified catalogue data A-03/RB-2 not supplied).
 
+#### Final browser/regression verification (user-requested, 2026-10-14; verification only)
+- Commit `43be033`, clean tree; no code changed.
+- Dev environment: running dev API (:8081) is the C-04 build `2594848`, ready on DB v9; it needs a `make dev-backend`
+  restart to serve C-06's 422 behaviour. Left untouched. Current build `43be033` on side ports against the dev DB:
+  `/ready` ready; headless Chrome desktop + mobile: catalogue deep link → sign-in, client validation, wrong credentials
+  → 401 generic message, price/catalogue routes (incl. a brand+model filter) without session → 401, no overflow,
+  **0 console errors**. Dev DB identical before/after.
+- Isolated stack, full `npx playwright test` (desktop + Pixel 7): **57 passed, 0 failed, 5 skipped** (by design).
+  API errors (7 requests) all `context canceled` client aborts.
+- `make ci` exit 0; Go 15 packages / 336 tests pass; Vitest 147/147. No bugs found; no fixes.
+- Evidence: `docs/evidence/C-06/final-verification.txt`.
+
 #### Final status
 COMPLETE — C-06 only. No other task started.
 
