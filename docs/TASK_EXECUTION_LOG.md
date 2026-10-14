@@ -42,7 +42,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | C-01 | Brand/model/variant database schema | P0 | B-05 | COMPLETE |
 | C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | COMPLETE |
 | C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | COMPLETE |
-| C-04 | Effective-dated price history | P0 | C-01, C-02 | NOT STARTED |
+| C-04 | Effective-dated price history | P0 | C-01, C-02 | COMPLETE |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
 | C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | NOT STARTED |
 | D-01 | Supplier master | P0 | B-05, B-07, B-08 | NOT STARTED |
@@ -1743,6 +1743,99 @@ Result: COMPLETE on an isolated throwaway stack (details: `docs/evidence/C-03/br
 
 #### Final status
 COMPLETE — C-03 only. C-04 not started.
+
+### C-04 — Effective-dated price history
+
+- **Status:** COMPLETE (mechanism; no price data, tax configuration or grants — OQ-15…OQ-18, RB-5)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_04_effective-dated-price-history.md
+- Git at start: `dev` = `origin/dev` = `f652169`; C-01 `a7eb952`, C-02 `20429e0`, C-03 `9609244` committed and pushed.
+  Untracked LibreOffice lock file left untouched.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-01 | COMPLETE | migration 000007, schema tests; commit `a7eb952` |
+| C-02 | COMPLETE | catalogue API, readiness check `approved_prices` pending for C-04; commit `20429e0` |
+(Also used: C-03 screens `9609244` for the price UI; B-07 permissions; B-08 audit.)
+
+#### Acceptance criteria
+- [x] AC1 Price lists and price items linked to brand, model and variant (brand context enforced by the database)
+- [x] AC2 Price type, amount, effective from/to, approval status/actor/time/reference, tax configuration reference
+- [x] AC3 Date ranges validated; overlapping approved periods refused (database exclusion + service check, concurrency-safe)
+- [x] AC4 Approved prices immutable except controlled supersession; no silent retroactive change
+- [x] AC5 Lookup of the price valid at a given time, test-covered including after supersession (old quotations stay stable)
+- [x] AC6 Permissions deny by default; cost prices only with cost permissions; no invented prices, tax rates or grants
+- [x] AC7 OpenAPI, typed client, hooks and UI (history with current/future/past, approval status, snapshot warning) with all states
+- [x] AC8 Backend, API, date-range, approval, concurrency and lookup tests; browser tests; `make ci`
+
+#### Stage 1 — UI
+Result: built after the backend (backend-first order requested), directly on the real API — no mock adapter.
+- Variant page **Price history** card (only with a price view permission): price list and type selectors (type switch
+  only for cost viewers), history table/phone list with Current / Future / Past / Draft / Cancelled badges computed
+  from server dates, amount in ₹, effective window, approver/time/reference, "Superseded"; snapshot warning ("never
+  changes existing quotations"). Actions by permission: Draft price, Edit/Cancel draft, Approve (hidden for one's own
+  draft), Change price (supersession draft). "Price valid at" lookup tool. Warning on drafts that start in the past.
+- Brand page **Price lists** card: list, Add price list, Archive (confirmation).
+- Dialogs (React Hook Form + Zod): draft/edit/supersede (amount string, local date-time → RFC 3339, end after start,
+  source note; tax treatment explained as not available), approve (reference, rules, snapshot notice), cancel draft,
+  create/archive list. Errors: PRICE_OVERLAP, APPROVAL_BLOCKED (server's unmet list), SELF_APPROVAL_NOT_ALLOWED,
+  retroactive start, DUPLICATE, VERSION_CONFLICT (reload), 403, network.
+- C-03 wording updated: prices now come only from approved history; phone lists hide empty fields.
+- Tests `features/pricing/pricing.test.tsx` (10): formatting/periods, hidden without permission (no request),
+  history badges + snapshot warning + selling-only requests, approve only others' drafts + overlap message,
+  approval blockers, draft validation + payload (decimal string, RFC 3339, supersedesId), lookup found/none,
+  cost behind type switch, no price list, price list duplicate.
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000009_create_price_history` (up/down): `price_lists`, `price_items`, `btree_gist`, `variants (id, model_id)`
+  unique, 3 permission keys (no grants), immutability trigger, exclusion constraint, CHECKs (see ADR-013).
+- `internal/modules/pricing` (types, validate, rules, service, pgstore, http; 12 routes). `access.Handler.RequireAny`.
+  Catalogue readiness `approved_prices` is now a real check. New error codes: PRICE_OVERLAP, APPROVAL_BLOCKED,
+  SELF_APPROVAL_NOT_ALLOWED, PRICE_NOT_FOUND.
+- Tests: `http_test.go` (deny by default on all routes, cost permissions, 16 validation cases, approval rules, amount
+  normalisation) and `api_integration_test.go` on PostgreSQL: draft → self-approval refused (audited DENIED) →
+  approve; lookup before/at start; supersession ends the old period, historical lookup unchanged (old quotations
+  stable), boundary instants; overlap refused; no retroactive approval (and allowed under a simulated earlier clock);
+  unverified variant blocked; cross-brand refused by service and database; archived list keeps lookups; cost prices
+  hidden from selling-only users; approved rows immutable in SQL (42501), self-approval and tax reference refused by
+  CHECK (23514); **6 concurrent overlapping approvals → exactly 1 succeeds**; brand readiness counts only a current
+  approved price. Catalogue tests updated for the real `approved_prices` check.
+- Dev DB migrated 8 → 9 (`make db-migrate-up`; additive, no data, no grants).
+
+#### Stage 3 — API integration
+Result: COMPLETE — `features/pricing/api/pricing.ts` (Zod, decimal strings) + `hooks/usePricing.ts`; caches refresh
+only after the server confirms (prices and catalogue readiness).
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack (`docs/evidence/C-04/verification.txt`). New `e2e/prices.e2e.ts`
+(desktop + Pixel 7) with two people: price list, draft, drafter cannot approve, other person approves with
+reference, overlap refused, draft cancelled, controlled supersession, lookups (old instant ₹1,000 unchanged, later
+₹1,200, before any price "none"), retroactive approval refused, cost type switch only for cost viewers, no
+overflow, no console errors. Screenshot review fixes (button wrap, past-start hint, empty phone labels). Final full
+suite: **55 passed, 0 failed, 5 skipped** (by design). API errors only client `context canceled`.
+
+#### Checks (actual results)
+- `make ci` exit 0 (gofmt, vet, tidy, swagger-check, ESLint, Prettier, tsc, Go tests with PostgreSQL, Vitest, builds;
+  golangci-lint not installed → skipped). `go test -json ./...`: 14 packages pass, **330 tests** pass, 0 fail.
+  Vitest 17 files / **142 tests**. `git diff --check` clean.
+- Lint fixes during the task: hook exported from a component file moved to `hooks/usePricePermissions.ts`; two
+  always-true conditions removed; test string conversions.
+
+#### Evidence
+`docs/evidence/C-04/verification.txt`, `desktop-variant-prices.png`, `mobile-draft-dialog.png`.
+
+#### Known issues / pending approvals
+- No price data exists or is seeded; prices must come from the owner's approved source (RB-2).
+- OQ-15 price types and what the selling amount includes; OQ-16 backdating; OQ-17 maker-checker/approver/threshold;
+  OQ-18 tax treatment — `taxConfigurationId` stays empty until the accountant-approved configuration (F-10).
+- Nobody holds price permissions until the owner approves grants (RB-5).
+- Quotations that snapshot prices are F-02; lookup is the contract they will use.
+- Brand activation still blocked by supplier/warranty/identifier checks.
+
+#### Final status
+COMPLETE — C-04 only. C-05 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

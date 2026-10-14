@@ -97,13 +97,14 @@ type brandFacts struct {
 	Brand Brand
 	// HasActiveVariant: at least one ACTIVE variant under an ACTIVE model of this brand.
 	HasActiveVariant bool
+	// HasApprovedPrice: an approved SELLING price valid now for such a variant (C-04).
+	HasApprovedPrice bool
 }
 
 // pendingChecks are prerequisites from BR-002 whose data the system cannot
 // record yet. They stay unmet until their task adds the check (fail closed).
 var pendingChecks = []ReadinessCheck{
 	{Key: "supplier_link", Pending: true, Message: "Verified supplier relationship for this brand (supplier master, D-01) is not available yet."},
-	{Key: "approved_prices", Pending: true, Message: "Approved, effective-dated prices (C-04) are not available yet."},
 	{Key: "warranty_terms", Pending: true, Message: "Approved warranty terms (RB-2) are not recorded yet."},
 	{Key: "identifier_rules", Pending: true, Message: "Approved vehicle identifier rules (D-04, OQ-4) are not recorded yet."},
 }
@@ -122,6 +123,8 @@ func brandReadiness(f brandFacts) Readiness {
 			Message: "Record the authorisation reference, evidence document, verifier and date."},
 		{Key: "verified_catalogue", Met: f.HasActiveVariant,
 			Message: "Activate at least one verified model and variant of this brand."},
+		{Key: "approved_prices", Met: f.HasApprovedPrice,
+			Message: "Approve a selling price, valid now, for at least one active variant of this brand."},
 	}
 	checks = append(checks, pendingChecks...)
 	ready := true

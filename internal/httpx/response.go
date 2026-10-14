@@ -41,6 +41,11 @@ const (
 	CodeVersionConflict   = "VERSION_CONFLICT"
 	CodeInvalidState      = "INVALID_STATE"
 	CodeActivationBlocked = "ACTIVATION_BLOCKED"
+	// Price history (C-04).
+	CodePriceOverlap    = "PRICE_OVERLAP"    // 409
+	CodeApprovalBlocked = "APPROVAL_BLOCKED" // 409
+	CodeSelfApproval    = "SELF_APPROVAL_NOT_ALLOWED"
+	CodePriceNotFound   = "PRICE_NOT_FOUND" // 404
 )
 
 // DataResponse is the success envelope. In swag annotations use

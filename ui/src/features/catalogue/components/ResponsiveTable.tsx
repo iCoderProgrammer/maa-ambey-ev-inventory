@@ -30,15 +30,20 @@ export function ResponsiveTable<T>({
           >
             {title && <div className="mb-3 text-sm">{title.render(row)}</div>}
             <dl className="flex flex-col gap-2 text-sm">
-              {rest.map((c) => (
-                <div
-                  key={c.key}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
-                >
-                  <dt className="text-xs font-medium text-muted">{c.header}</dt>
-                  <dd className="text-ink">{c.render(row)}</dd>
-                </div>
-              ))}
+              {rest.map((c) => {
+                const value = c.render(row)
+                // Nothing to show (e.g. no permitted action): no empty label either.
+                if (value === null || value === undefined || value === false) return null
+                return (
+                  <div
+                    key={c.key}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
+                  >
+                    <dt className="text-xs font-medium text-muted">{c.header}</dt>
+                    <dd className="text-ink">{value}</dd>
+                  </div>
+                )
+              })}
             </dl>
           </li>
         ))}

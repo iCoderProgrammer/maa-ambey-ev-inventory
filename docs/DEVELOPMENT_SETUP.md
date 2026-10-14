@@ -199,6 +199,13 @@ for p in catalogue.view catalogue.manage catalogue.verify catalogue.activate cat
          catalogue.brand.authorise catalogue.brand.activate; do
   make access ARGS="grant --role owner --permission $p"; done
 make access ARGS="grant --role accountant --permission catalogue.view"
+# optional, for the price tests (C-04): the catalogue user drafts, a different user approves
+for p in catalogue.price.view catalogue.price.manage catalogue.cost_price.view catalogue.cost_price.edit; do
+  make access ARGS="grant --role owner --permission $p"; done
+make user ARGS="create --username e2e.priceapprover --name 'E2E Price Approver'"
+make access ARGS="assign --username e2e.priceapprover --role sales_executive"
+for p in catalogue.view catalogue.price.view catalogue.price.approve; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
@@ -206,7 +213,8 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_ATTACH_USERNAME=e2e.attach E2E_ATTACH_PASSWORD=... \
   E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... \
   E2E_CATALOGUE_USERNAME=e2e.catalogue E2E_CATALOGUE_PASSWORD=... \
-  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... npm run test:e2e
+  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... \
+  E2E_PRICE_APPROVER_USERNAME=e2e.priceapprover E2E_PRICE_APPROVER_PASSWORD=... npm run test:e2e
 ```
 
 - Use a non-production database and throwaway accounts; never put the passwords in files in the repo.

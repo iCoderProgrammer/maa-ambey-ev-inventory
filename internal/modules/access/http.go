@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -61,18 +62,30 @@ func (h *Handler) Current(c *gin.Context) (Access, bool) {
 // It panics at start-up for a key missing from the catalogue, so a typo can
 // never turn into a check that silently passes or always fails.
 func (h *Handler) Require(permission string) gin.HandlerFunc {
-	if !slices.Contains(AllPermissions, permission) {
-		panic(fmt.Sprintf("access: unknown permission %q", permission))
+	return h.RequireAny(permission)
+}
+
+// RequireAny denies the request with 403 unless the caller holds at least one
+// of the permissions (e.g. selling-price or cost-price view). Services still
+// check which one applies to the object. Unknown keys panic at start-up.
+func (h *Handler) RequireAny(permissions ...string) gin.HandlerFunc {
+	if len(permissions) == 0 {
+		panic("access: RequireAny needs at least one permission")
+	}
+	for _, p := range permissions {
+		if !slices.Contains(AllPermissions, p) {
+			panic(fmt.Sprintf("access: unknown permission %q", p))
+		}
 	}
 	return func(c *gin.Context) {
 		a, ok := h.Current(c)
 		if !ok {
 			return
 		}
-		if !a.Has(permission) {
+		if !slices.ContainsFunc(permissions, a.Has) {
 			h.log.WarnContext(c.Request.Context(), "permission denied",
 				slog.String("request_id", c.GetString(httpx.RequestIDKey)),
-				slog.String("user_id", a.UserID), slog.String("permission", permission),
+				slog.String("user_id", a.UserID), slog.String("permission", strings.Join(permissions, "|")),
 				slog.String("route", c.Request.Method+" "+c.FullPath()))
 			Forbidden(c)
 			return

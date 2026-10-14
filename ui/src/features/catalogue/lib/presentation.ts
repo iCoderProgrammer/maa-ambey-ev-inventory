@@ -44,6 +44,11 @@ const checkLabels: Record<string, string> = {
   identifier_rules: 'Approved vehicle identifier rules',
   verification: 'Source and verification recorded',
   parent: 'Parent is active',
+  // Price approval (C-04)
+  price_list: 'Price list is active',
+  brand: 'Brand is not archived',
+  variant: 'Model and variant are not archived',
+  variant_verification: 'Variant is verified',
 }
 
 export function checkLabel(key: string): string {
@@ -151,6 +156,23 @@ export function describeError<T extends FieldValues>(
         ...base,
         message: 'Activation is not allowed yet. The server reported these unmet requirements:',
         blockers: error.details.map((d) => ({ key: d.field, message: d.message })),
+      }
+    case 'APPROVAL_BLOCKED':
+      return {
+        ...base,
+        message: 'This price cannot be approved yet. The server reported these unmet requirements:',
+        blockers: error.details.map((d) => ({ key: d.field, message: d.message })),
+      }
+    case 'PRICE_OVERLAP':
+      return {
+        ...base,
+        message:
+          'An approved price already covers part of this period. Supersede that price instead, or change the dates. Nothing was approved.',
+      }
+    case 'SELF_APPROVAL_NOT_ALLOWED':
+      return {
+        ...base,
+        message: 'You drafted this price, so another authorised person must approve it.',
       }
     case CatalogueErrorCode.Duplicate:
       return { ...base, message: placed.size > 0 ? 'That value is already used.' : error.message }

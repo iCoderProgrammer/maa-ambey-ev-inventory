@@ -17,7 +17,7 @@ import (
 )
 
 // Permission keys. Every key must exist in the permissions table (migrations
-// 000004, 000006, 000008); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// 000004, 000006, 000008, 000009); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -45,6 +45,10 @@ const (
 	PermCatalogueArchive  = "catalogue.archive"
 	PermBrandAuthorise    = "catalogue.brand.authorise"
 	PermBrandActivate     = "catalogue.brand.activate"
+	// Price history (C-04, migration 000009). Cost prices use PermCostPrice*.
+	PermPriceView    = "catalogue.price.view"
+	PermPriceManage  = "catalogue.price.manage"
+	PermPriceApprove = "catalogue.price.approve"
 )
 
 // AllPermissions lists every key the code knows.
@@ -54,7 +58,7 @@ var AllPermissions = []string{
 	PermAdjustmentCreate, PermAdjustmentApprove, PermInvoiceSettings, PermTaxSettings,
 	PermReportsExport, PermCustomersExport, PermAttachmentsUpload, PermAttachmentsView,
 	PermCatalogueView, PermCatalogueManage, PermCatalogueVerify, PermCatalogueActivate, PermCatalogueArchive,
-	PermBrandAuthorise, PermBrandActivate,
+	PermBrandAuthorise, PermBrandActivate, PermPriceView, PermPriceManage, PermPriceApprove,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

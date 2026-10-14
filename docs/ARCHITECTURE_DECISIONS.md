@@ -265,7 +265,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Brand activation gate (BR-002, fail closed):** readiness checks `lifecycle`, `authorisation` (AUTHORISED),
   `legal_identity`, `authorisation_evidence` (reference + private evidence attachment + verifier + date),
   `verified_catalogue` (≥1 ACTIVE variant under an ACTIVE model) plus **pending** checks `supplier_link` (D-01),
-  `approved_prices` (C-04), `warranty_terms` (RB-2), `identifier_rules` (D-04, OQ-4). Pending checks are never met,
+  `warranty_terms` (RB-2), `identifier_rules` (D-04, OQ-4) — `approved_prices` became a real check in C-04 (ADR-013). Pending checks are never met,
   so **no brand can be activated until those tasks add their checks**. This is deliberate: activation without that
   evidence would contradict BR-002.
 - **Operational use (for later tasks):** `Brand.operational` = ACTIVE + AUTHORISED. Purchase/sales (D-02, D-03, F-*)
@@ -275,6 +275,40 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   `DENIED` with the unmet check keys; archive reason kept in the summary.
 - **Not in C-02:** spec value endpoints (`variant_specs`; to be scheduled with C-03/C-05), un-archive or
   correction of ACTIVE items (OQ-12), screens (C-03), prices (C-04).
+
+## ADR-013 — Effective-dated price history (C-04)
+
+- **Status:** Accepted (technical design; price types, backdating, maker-checker and tax treatment pending — OQ-15…OQ-18).
+- **Schema (migration 000009):** `price_lists` (one brand, name unique per brand, currency fixed to INR, ACTIVE/ARCHIVED)
+  and `price_items` (list, brand, model, variant via composite FKs so brand/model/variant cannot be mixed; `price_type`
+  SELLING/COST; `amount numeric(12,2) > 0`; `effective_from`, exclusive `effective_to`; status DRAFT/APPROVED/CANCELLED;
+  `created_by`, `approved_by`, `approved_at`, `approval_reference`, `source_note`, `supersedes_id`, `superseded_by_id`,
+  `version`). `variants` gains `UNIQUE (id, model_id)` for the variant↔model FK. Extension `btree_gist` (trusted).
+- **Immutability:** trigger `price_items_protect_history` refuses DELETE always, any change to CANCELLED rows, and any
+  change to APPROVED rows except **controlled supersession**: `superseded_by_id` set once and `effective_to` moved earlier
+  (42501). CHECKs: approved ⇔ approver + time; approver ≠ drafter; tax reference must be NULL.
+- **No overlap:** exclusion constraint `price_items_no_overlap` (list, variant, type, `tstzrange(from, to)`) for APPROVED
+  rows, so exactly one price is valid at any instant and concurrent approvals cannot both succeed (23P01 → 409
+  `PRICE_OVERLAP`); the service also checks first to name the conflicting price.
+- **Approval rules (service, in one transaction with row locks):** draft only; never the drafter (403
+  `SELF_APPROVAL_NOT_ALLOWED`); list active, brand/model/variant not archived, variant verified (409
+  `APPROVAL_BLOCKED`); **no retroactive start** — `effective_from` ≥ approval time minus 5 minutes clock grace (422);
+  supersession only of an approved, not yet superseded price of the same list/variant/type that the new start overlaps;
+  the predecessor's `effective_to` becomes the new start. Refusals are audited as DENIED.
+- **Lookup:** `GET /prices/lookup?priceListId&variantId&priceType&at` returns the approved price whose `[from, to)`
+  contains `at` (404 `PRICE_NOT_FOUND` otherwise). Approved rows never change, so the answer for a past instant never
+  changes: quotations (F-02) snapshot it (SAL-003). Archived lists still answer for past instants.
+- **Permissions (deny by default, no grants):** new `catalogue.price.view`, `catalogue.price.manage`,
+  `catalogue.price.approve`; COST uses the existing `catalogue.cost_price.view` / `catalogue.cost_price.edit` (SEC-003).
+  Lists show only types the caller may see; a cost price is 404 to selling-only users. `access.Handler.RequireAny`
+  added for routes open to either permission family.
+- **Tax configuration:** `tax_configuration_id` is part of the contract but must be NULL until an accountant-approved
+  tax configuration exists (F-10, DOC-003); a later migration adds the FK and drops the CHECK. No rate is stored.
+- **Catalogue readiness:** `approved_prices` is now a real check (approved SELLING price valid now for an ACTIVE variant
+  under an ACTIVE model); brand activation stays blocked by the remaining pending checks (supplier, warranty, identifiers).
+- **Not in C-04:** quotations and their snapshots (F-02), discounts (F-03), tax configuration (F-10), price imports.
+- **Rollback:** down migration drops price tables (destructive; `--confirm` in staging/production) and refuses while a
+  role holds a `catalogue.price.*` grant.
 
 ---
 
@@ -295,4 +329,8 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-12 | How are ACTIVE catalogue items corrected (typo in an approved name/code) and may archived items be restored? C-02 allows neither: active items can only be archived (BR-005). | C-03, C-05 |
 | OQ-13 | Separation of duties in the catalogue: may the same person create, verify and activate an item, or record and use a brand's authorisation? C-02 has separate permissions but no maker-checker rule. | C-02, RB-5 |
 | OQ-14 | Who may record `CLIENT_APPROVED` confidence (owner only?) versus `SUPPLIER_CONFIRMED`? C-02 lets any holder of `catalogue.verify` record either. | C-02, OQ-2 |
+| OQ-15 | Price types: is `SELLING` (customer price, e.g. ex-showroom) + `COST` (supplier cost) enough, or are on-road, scheme or offer prices separate types? What does the selling amount include (GST, registration, insurance)? | C-04, F-02, accountant |
+| OQ-16 | May an approved price ever be backdated (e.g. correcting yesterday's price)? C-04 refuses retroactive starts (5-minute clock grace). | C-04, owner |
+| OQ-17 | Maker-checker for prices: C-04 never lets the drafter approve their own price. Is that the rule for a small team, or may the owner self-approve? Who approves (owner only?) and is there an amount threshold? | C-04, RB-5 |
+| OQ-18 | Tax treatment of price amounts and the tax configuration a price must reference (HSN, rate set, inclusive/exclusive) — needs the accountant's configuration (F-10, DOC-003). Until then the reference must stay empty. | C-04, F-10 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

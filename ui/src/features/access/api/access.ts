@@ -56,6 +56,11 @@ export const Permission = {
   CatalogueArchive: 'catalogue.archive',
   BrandAuthorise: 'catalogue.brand.authorise',
   BrandActivate: 'catalogue.brand.activate',
+  PriceView: 'catalogue.price.view',
+  PriceManage: 'catalogue.price.manage',
+  PriceApprove: 'catalogue.price.approve',
+  CostPriceView: 'catalogue.cost_price.view',
+  CostPriceEdit: 'catalogue.cost_price.edit',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

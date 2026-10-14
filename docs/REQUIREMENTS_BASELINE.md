@@ -49,7 +49,7 @@ The client approved collecting and maintaining **verified** data per brand:
 | Models, variants, colours | Model belongs to one brand; variant to one model (BR-003) |
 | Battery and motor details | Where applicable; battery may be swappable (INV-004) |
 | Warranty terms | Versioned per brand/model/variant (BR-005) |
-| Approved prices | Effective-dated, approver recorded, never overwritten (BR-005, C-04) |
+| Approved prices | Effective-dated, approver recorded, never overwritten (BR-005). Mechanism built in C-04 (ADR-013); no price data supplied or seeded |
 | Vehicle identification rules | Chassis/frame (mandatory, globally unique after normalisation), motor, battery and charger serial rules per brand/model (INV-002…INV-004) |
 | Source and verification status for every record | `UNVERIFIED` / `SUPPLIER_CONFIRMED` / `CLIENT_APPROVED` (BR-004) |
 

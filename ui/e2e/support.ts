@@ -12,6 +12,7 @@ export type AccountKind =
   | 'attachmentsViewer'
   | 'catalogue'
   | 'catalogueViewer'
+  | 'priceApprover'
 
 const prefixes: Record<AccountKind, string> = {
   active: 'E2E',
@@ -25,6 +26,9 @@ const prefixes: Record<AccountKind, string> = {
   // Optional (C-02): a user holding every catalogue.* key, and one holding catalogue.view only.
   catalogue: 'E2E_CATALOGUE',
   catalogueViewer: 'E2E_CATALOGUE_VIEWER',
+  // Optional (C-04): approves prices (catalogue.view, catalogue.price.view, catalogue.price.approve).
+  // E2E_CATALOGUE must then also hold catalogue.price.view/manage and the cost-price keys.
+  priceApprover: 'E2E_PRICE_APPROVER',
 }
 
 export function hasAccount(kind: AccountKind): boolean {

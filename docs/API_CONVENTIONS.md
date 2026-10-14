@@ -226,6 +226,29 @@ Brands, models, variants, colours and spec keys are data and never appear in cod
 | 409 | `ACTIVATION_BLOCKED` | prerequisites unmet; `details[].field` = check key (`verification`, `parent`, `authorisation`, `approved_prices`, …) |
 | 422 | `VALIDATION_FAILED` | invalid field, unknown parent or document, cross-brand `brandId` |
 
+## Price history (C-04)
+
+Rules: ADR-013. Schema: migration 000009. Client: `ui/src/features/pricing/api/pricing.ts`; hooks `hooks/usePricing.ts`.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /price-lists` · `GET /price-lists/{id}` | `catalogue.price.view` or `catalogue.cost_price.view` | filters `brandId`, `status`, `q`, paging |
+| `POST /price-lists` · `PATCH /price-lists/{id}` · `POST /price-lists/{id}/archive` | `catalogue.price.manage` or `catalogue.cost_price.edit` | one brand per list; INR |
+| `GET /price-items` · `GET /price-items/{id}` | view permission of the type | filters `priceListId`, `brandId`, `variantId`, `priceType`, `status`; newest `effectiveFrom` first |
+| `POST /price-items` · `PATCH /price-items/{id}` · `POST /price-items/{id}/cancel` | SELLING: `catalogue.price.manage`; COST: `catalogue.cost_price.edit` | drafts only; brand and model come from the variant |
+| `POST /price-items/{id}/approve` | `catalogue.price.approve` (+ view of the type) | never the drafter; no retroactive start; supersession |
+| `GET /prices/lookup?priceListId&variantId&priceType&at` | view permission of the type | price valid at `at` (default now) |
+
+- `amount` is a decimal **string** (`"125000.00"`, ≤ 10 digits + 2 decimals, > 0) in requests and responses; never a float.
+- Times are RFC 3339 with offset; `effectiveTo` is exclusive and optional (open-ended).
+- `taxConfigurationId` must be empty (422) until an approved tax configuration exists.
+- Errors: 403 `SELF_APPROVAL_NOT_ALLOWED`; 409 `PRICE_OVERLAP` (`details[].field = conflictingPriceId` when known),
+  `APPROVAL_BLOCKED` (`details[].field` = `price_list`, `brand`, `variant`, `variant_verification`), `VERSION_CONFLICT`,
+  `INVALID_STATE` (approved/cancelled rows, archived list/variant), `DUPLICATE` (list name); 404 `PRICE_NOT_FOUND`
+  from lookup; 422 `VALIDATION_FAILED` (incl. retroactive `effectiveFrom`, cross-brand `variantId`, bad supersession).
+- No DELETE: drafts are cancelled (kept), approved prices are superseded. Every mutation is audited
+  (`pricing.price_list.*`, `pricing.price_item.drafted|updated|cancelled|approved|superseded`); refused approvals DENIED.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

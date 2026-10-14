@@ -56,8 +56,8 @@ function TrustNotice() {
       className="mb-4 rounded-card border border-warning/30 bg-warning-subtle px-4 py-3 text-sm text-ink"
     >
       Records marked <strong>Unverified</strong> or <strong>Pending verification</strong> are setup
-      data, not confirmed facts: do not quote them to customers. Specifications and prices are not
-      recorded in the catalogue yet.
+      data, not confirmed facts: do not quote them to customers. Specifications are not recorded
+      yet; prices come only from approved price history.
     </p>
   )
 }

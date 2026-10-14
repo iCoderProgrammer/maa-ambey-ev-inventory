@@ -47,6 +47,8 @@ import {
   useVariants,
 } from '../hooks/useCatalogue'
 import { formatDateTime, personLabel } from '../lib/presentation'
+import { PriceListsCard, VariantPricesCard } from '@/features/pricing/components/PriceCards'
+import { useCanSeePrices } from '@/features/pricing/hooks/usePricePermissions'
 
 const crumbsRoot = [
   { label: 'Home', to: '/' },
@@ -176,6 +178,7 @@ export function BrandDetailPage() {
 
 function BrandDetail({ brand }: { brand: Brand }) {
   const { has, meId } = usePerms()
+  const canSeePrices = useCanSeePrices()
   const readiness = useBrandReadiness(brand.id)
   const [modelPage, setModelPage] = useState(1)
   const models = useModels({ brandId: brand.id, page: modelPage, limit: PAGE_SIZE })
@@ -339,6 +342,12 @@ function BrandDetail({ brand }: { brand: Brand }) {
 
         <DataGapsCard />
       </div>
+
+      {canSeePrices && (
+        <div className="mt-6">
+          <PriceListsCard brandId={brand.id} brandName={brand.name} brandArchived={archived} />
+        </div>
+      )}
 
       <div className="mt-6">
         <ChildList
@@ -571,6 +580,7 @@ function ColourRowActions({ colour, variant }: { colour: VariantColour; variant:
 
 function VariantDetail({ variant }: { variant: Variant }) {
   const { has } = usePerms()
+  const canSeePrices = useCanSeePrices()
   const brand = useBrand(variant.brandId)
   const model = useCatalogueItem('models', variant.modelId)
   const [colourPage, setColourPage] = useState(1)
@@ -668,6 +678,16 @@ function VariantDetail({ variant }: { variant: Variant }) {
         <ProvenanceCard provenance={variant} />
         <DataGapsCard />
       </div>
+
+      {canSeePrices && (
+        <div className="mt-6">
+          <VariantPricesCard
+            brandId={variant.brandId}
+            variantId={variant.id}
+            variantUsable={!archived}
+          />
+        </div>
+      )}
 
       <div className="mt-6">
         <ChildList

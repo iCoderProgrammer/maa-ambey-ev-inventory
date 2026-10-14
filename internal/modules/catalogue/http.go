@@ -336,7 +336,7 @@ func (h *Handler) RecordBrandAuthorisation(c *gin.Context) {
 // BrandReadiness godoc
 //
 //	@Summary		Brand activation readiness
-//	@Description	Every prerequisite for enabling the brand for purchase/sales (BR-002) and whether it is met. Checks marked pending belong to features not built yet (supplier links, approved prices, warranty terms, identifier rules) and are never met, so no brand can be activated until those exist. Requires catalogue.view.
+//	@Description	Every prerequisite for enabling the brand for purchase/sales (BR-002) and whether it is met. approved_prices needs an approved SELLING price valid now for an active variant (C-04). Checks marked pending belong to features not built yet (supplier links, warranty terms, identifier rules) and are never met, so no brand can be activated until those exist. Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			id	path		string	true	"Brand ID"

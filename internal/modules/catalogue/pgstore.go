@@ -355,6 +355,25 @@ func hasActiveVariant(ctx context.Context, q pgx.Tx, brandID string, lock bool) 
 	return err == nil, err
 }
 
+// hasApprovedPrice: an approved SELLING price valid now for an ACTIVE variant
+// under an ACTIVE model of the brand (price_items, C-04).
+func hasApprovedPrice(ctx context.Context, q pgx.Tx, brandID string, lock bool) (bool, error) {
+	sql := `SELECT p.id FROM price_items p
+		JOIN variants v ON v.id = p.variant_id JOIN models m ON m.id = p.model_id
+		WHERE p.brand_id = $1 AND p.status = 'APPROVED' AND p.price_type = 'SELLING'
+		  AND p.effective_from <= now() AND (p.effective_to IS NULL OR p.effective_to > now())
+		  AND v.lifecycle_status = 'ACTIVE' AND m.lifecycle_status = 'ACTIVE' LIMIT 1`
+	if lock {
+		sql += ` FOR SHARE OF p, v, m`
+	}
+	var id string
+	err := q.QueryRow(ctx, sql, brandID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // BrandReadiness implements Repository.
 func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, error) {
 	var r Readiness
@@ -370,7 +389,11 @@ func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, err
 		if err != nil {
 			return err
 		}
-		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active})
+		priced, err := hasApprovedPrice(ctx, tx, id, false)
+		if err != nil {
+			return err
+		}
+		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active, HasApprovedPrice: priced})
 		return nil
 	})
 	return r, err
@@ -388,7 +411,11 @@ func (s *PGStore) ActivateBrand(ctx context.Context, id string, version int, ev 
 		if err != nil {
 			return err
 		}
-		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active}); err != nil {
+		priced, err := hasApprovedPrice(ctx, tx, id, true)
+		if err != nil {
+			return err
+		}
+		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active, HasApprovedPrice: priced}); err != nil {
 			return err
 		}
 		b, err = scanBrand(tx.QueryRow(ctx, `UPDATE brands SET lifecycle_status = 'ACTIVE', version = version + 1

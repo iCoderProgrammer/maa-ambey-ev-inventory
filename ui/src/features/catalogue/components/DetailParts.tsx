@@ -238,7 +238,7 @@ export function DataGapsCard() {
   return (
     <Card
       title="Specifications, prices and warranty"
-      description="Not recorded in the catalogue yet."
+      description="What the catalogue can and cannot tell you yet."
     >
       <ul className="flex flex-col gap-2 text-sm text-ink">
         <li className="flex items-start gap-2">
@@ -251,8 +251,8 @@ export function DataGapsCard() {
         <li className="flex items-start gap-2">
           <CircleDashed className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <span>
-            <strong>Prices</strong> are not available: approved, effective-dated price history
-            arrives with C-04. No price is shown or implied.
+            <strong>Prices</strong> come only from approved, effective-dated price history (shown to
+            authorised roles). No price is shown or implied without an approved one.
           </span>
         </li>
         <li className="flex items-start gap-2">
