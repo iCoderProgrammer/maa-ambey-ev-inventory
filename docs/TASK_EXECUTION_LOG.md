@@ -93,6 +93,10 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 Discovery items A-01–A-06 (client inputs; documentation-only) are tracked in
 `prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/00_START_HERE/00_Client_Discovery_Prompts.md`.
 
+| Item | Title | Status |
+| --- | --- | --- |
+| A-01 | Launch brand roster and activation evidence | INCOMPLETE — roster documented (`docs/client-inputs/launch-brand-roster.md`); per-brand client evidence pending |
+
 ---
 
 ## Task entries
@@ -1849,6 +1853,44 @@ suite: **55 passed, 0 failed, 5 skipped** (by design). API errors only client `c
 
 #### Final status
 COMPLETE — C-04 only. C-05 not started.
+
+### A-01 — Record confirmed launch brands and activation evidence (discovery item; documentation only)
+
+- **Status:** INCOMPLETE — documentation done; **client evidence pending** (not COMPLETE)
+- **Started/updated:** 2026-10-14
+- **Source:** `prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/00_START_HERE/00_Client_Discovery_Prompts.md` §A-01;
+  Research Brief A-01; REQUIREMENTS_BASELINE §1. A-items are not in the 59-task registry; C-05 depends on A-01.
+- Git at start: `dev` = `origin/dev` = `44d880c`, clean apart from the untracked LibreOffice lock file (untouched).
+- Workflow: documentation only — no UI, backend, browser, seed, database or permission change (TASK_EXECUTION_WORKFLOW §4).
+
+#### Acceptance criteria (from the A-01 prompt)
+- [x] `docs/client-inputs/launch-brand-roster.md` records the roster (Lectrix EV, Ceeon India, Ujagar Electric) as client-confirmed
+- [x] Per brand: fields for legal supplier/manufacturer entity, supplier contact, authorisation reference/document,
+  catalogue source, verification status, approval owner, verification date, allowed purchase/sales status
+- [x] Roster selection stated not to be proof of authorisation; existence kept separate from operational eligibility
+- [x] Ujagar Electric and Saffron EV Group explicitly not assumed to be the same legal entity
+- [x] Nothing invented: every unavailable field reads `Pending — client evidence not supplied`
+- [ ] **Per-brand evidence collected** (legal entity, contact, authorisation document, catalogue source, approval
+  owner, verification date) — **not supplied by the client**; this is what keeps A-01 incomplete
+
+#### Done
+- `docs/client-inputs/launch-brand-roster.md`: confirmed facts; limits (roster ≠ authorisation; Ujagar ≠ Saffron
+  assumption); per-brand tables with all evidence pending and purchase/sales **Not allowed**; the application's
+  activation checklist and its current state; public references kept separate and labelled "not evidence"; how to
+  complete A-01.
+- Evidence `docs/evidence/A-01/brand-records-dev-db.txt`: read-only query — 3 roster brands PENDING_VERIFICATION /
+  UNVERIFIED, no legal name/reference/evidence/verifier, 0 models/variants/prices, 0 catalogue/price grants.
+- No change to `seeds/`, the database, permissions or code.
+
+#### Dependency check for C-05
+**Not satisfied.** C-05 depends on A-01, C-01, C-02. C-01 and C-02 are COMPLETE; A-01 is INCOMPLETE because no
+per-brand evidence has been supplied. Separately, C-05 ("seed verified multi-brand catalogue") also needs verified
+catalogue data (A-03 / RB-2), which is not supplied either. C-05 not started.
+
+#### Remaining blockers (client)
+For each of Lectrix EV, Ceeon India and Ujagar Electric: legal supplier/manufacturer entity and contact;
+dealer/stocking authorisation reference and document; catalogue source; approval owner (OQ-2); verification date.
+For Ujagar Electric: documented relationship (or none) to Saffron EV Group. Verified catalogue data: A-03.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

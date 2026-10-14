@@ -18,7 +18,7 @@ Status legend: **Confirmed** = client decision · **Pending** = waiting on clien
 | Initial brands: **Lectrix EV**, **Ceeon India**, **Ujagar Electric** | Confirmed |
 | More brands can be added later with no code or schema change | Confirmed · Implemented (brands are rows in `brands`) |
 | Idempotent seed for the three brands (`seeds/0001_initial_brands.sql`, `make db-seed`) | Implemented |
-| Authorisation evidence for each brand: supplier/manufacturer legal identity, authorisation reference, approval owner, verified date (BR-002) | **Pending** |
+| Authorisation evidence for each brand: supplier/manufacturer legal identity, authorisation reference, approval owner, verified date (BR-002) | **Pending** — collected in `docs/client-inputs/launch-brand-roster.md` (A-01) |
 
 Seeded brands start as `lifecycle_status = PENDING_VERIFICATION` and
 `authorisation_status = UNVERIFIED`. The client named them as operating brands, but approved
