@@ -310,6 +310,32 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Rollback:** down migration drops price tables (destructive; `--confirm` in staging/production) and refuses while a
   role holds a `catalogue.price.*` grant.
 
+## ADR-014 — Brand isolation and brand-specific rule resolution (C-06)
+
+- **Status:** Accepted for what exists; supplier, warranty, identifier rules, exports and per-user brand scope pending.
+- **Principle:** brands are data. Every brand-specific value is resolved by IDs that carry their brand (composite FKs),
+  never by brand name. A test (`internal/isolation/nocode_test.go`) scans Go, SQL and UI source (tests excluded) for
+  the seeded brand names (read from the seed, so the test hardcodes none) and the name "Saffron"; any hit fails.
+- **Cross-brand mismatches fail (422)** at every entry point:
+  - writes: child under another brand's parent, client `brandId` differing from the parent's, moving a model/variant,
+    a price for a variant of another brand than its list, supersession across lists (C-02, C-04);
+  - **filters (new in C-06):** `GET /variants` with `brandId` + another brand's `modelId`, `GET /colours` with
+    `brandId` + another brand's `variantId`, `GET /price-items` with `brandId` / `priceListId` / `variantId` of
+    different brands — previously these returned an empty list; an unknown referenced ID is also 422;
+  - **price lookup (new in C-06):** a variant of another brand than the list (or an unknown list/variant) is 422 instead
+    of "no price";
+  - database: composite FKs refuse cross-brand rows even without the API (23503).
+- **Scoped results:** brand filters return only that brand's rows; readiness of a brand reads only its own variants and
+  prices; archiving one brand changes no other; cost prices stay behind cost permissions in every brand.
+- **Rule resolution today:** price = approved item of (list, variant, type) valid at an instant (ADR-013); activation
+  readiness = generic checks over the brand's own rows. Both are configured by data per brand/variant.
+- **Limitations (not built, not fabricated):** supplier mappings (`brand_supplier_links`, D-01), warranty terms (RB-2),
+  vehicle identifier rules (D-04, OQ-4), export endpoints (G-05) and per-user brand scope (RB-5: whether users are
+  limited to some brands). Each must resolve through brand/model/variant IDs like prices do and get isolation tests in
+  its own task; until then the readiness checklist keeps them pending.
+- **UI:** the Variants list drops a model filter that belongs to another brand (stale or edited link) before calling the
+  API; model/variant pickers list only the chosen brand's models; price data is requested with the record's own brand.
+
 ---
 
 ## Open questions (need client / accountant sign-off)

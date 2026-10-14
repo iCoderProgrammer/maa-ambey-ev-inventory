@@ -206,11 +206,11 @@ func TestBrandScopedUniquenessAndCrossBrandRules(t *testing.T) {
 	// The brand of a model never changes.
 	expectError(t, a.h.call(a.admin, http.MethodPatch, "/models/"+m1.ID, map[string]any{"version": m1.Version, "brandId": b2.ID}),
 		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
-	// Filtering one brand never returns another brand's rows.
-	var list VariantList
-	expect(t, a.h.call(a.viewer, http.MethodGet, "/variants?brandId="+b2.ID+"&modelId="+m1.ID, nil), http.StatusOK, &list)
-	if list.Total != 0 {
-		t.Fatal("cross-brand filter returned rows")
+	// A filter pairing one brand with another brand's model is a mismatch and fails (C-06).
+	e = expectError(t, a.h.call(a.viewer, http.MethodGet, "/variants?brandId="+b2.ID+"&modelId="+m1.ID, nil),
+		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	if !hasField(e.Details, "brandId") {
+		t.Fatal(e)
 	}
 }
 

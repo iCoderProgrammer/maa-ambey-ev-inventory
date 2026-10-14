@@ -44,7 +44,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | COMPLETE |
 | C-04 | Effective-dated price history | P0 | C-01, C-02 | COMPLETE |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
-| C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | NOT STARTED |
+| C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | COMPLETE |
 | D-01 | Supplier master | P0 | B-05, B-07, B-08 | NOT STARTED |
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
@@ -1891,6 +1891,91 @@ catalogue data (A-03 / RB-2), which is not supplied either. C-05 not started.
 For each of Lectrix EV, Ceeon India and Ujagar Electric: legal supplier/manufacturer entity and contact;
 dealer/stocking authorisation reference and document; catalogue source; approval owner (OQ-2); verification date.
 For Ujagar Electric: documented relationship (or none) to Saffron EV Group. Verified catalogue data: A-03.
+
+### C-06 — Brand-specific rules and isolation tests
+
+- **Status:** COMPLETE (for implemented features; supplier/warranty/identifier rules, exports, per-user brand scope pending)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_06_brand-specific-rules-and-isolation-tests.md
+- Git at start: `dev` at `7b35af7` (1 ahead of `origin/dev`: A-01 docs, unpushed). Lock file untouched. C-05 not started
+  (A-01 INCOMPLETE).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-02 | COMPLETE | `20429e0`; catalogue API + cross-brand refusals |
+| C-04 | COMPLETE | `2594848`; price history, lookup, composite brand FKs |
+| B-07 | COMPLETE | RBAC deny-by-default; location scope; brand scope per user pending (RB-5) |
+
+#### Gap analysis at start
+- Existing: cross-brand refusals on create/move (catalogue, price items), composite brand FKs, cost prices behind
+  cost permissions, no brand names in code (only `seeds/0001_initial_brands.sql`).
+- Gaps: contradictory cross-brand **filters** return silent empty lists (variants brandId+modelId, colours
+  brandId+variantId, price items brandId/priceListId/variantId); price **lookup** with a variant of another brand than
+  the list answers 404 instead of refusing; no end-to-end "arbitrary new brand" test; no Go-side scan for hardcoded brands.
+- Not implemented anywhere yet (documented, not fabricated): supplier mappings (D-01), warranty terms (RB-2),
+  identifier rules (D-04/OQ-4), export endpoints (G-05), per-user brand scope (RB-5).
+
+#### Acceptance criteria
+- [x] AC1 Cross-brand mismatch requests fail (writes, contradictory filters, price lookup) — API + PostgreSQL tests
+- [x] AC2 Brand filters stay scoped (catalogue lists, price lists/items, readiness) — isolation tests across 3+ brands
+- [x] AC3 An arbitrary new brand works end-to-end with data only; no brand name in Go or UI code (source scans)
+- [x] AC4 Unauthorised access denied; cost/authorisation details permission-based (API + UI)
+- [x] AC5 UI: brand choice constrains model/variant options; filters stay consistent (stale model filter dropped)
+- [x] AC6 Missing features (supplier, warranty, identifier rules, exports, per-user brand scope) documented as limitations
+- [x] AC7 Tests, lint, typecheck, builds, `make ci`, browser test of the changed UI
+
+#### Stage 1 — UI
+Result: COMPLETE. `VariantsPage` checks the brand of a `modelId` filter (by ID, not the 100-item option list) and drops
+a model of another brand from the URL before calling the API (stale/edited links no longer error). Tests
+`features/catalogue/isolation.test.tsx` (5): stale cross-brand model filter dropped and never sent; matching pair kept;
+brand change clears the model and offers only that brand's models; price lists requested with the variant's own brand;
+arbitrary brand name from data with activation warning, authorisation editing/enabling and price sections gated by
+permission. (Existing: brand→model pickers C-03, cost-price gating C-04.)
+
+#### Stage 2 — Backend
+Result: COMPLETE. No migration.
+- `catalogue/pgstore.go`: `filterBrandMatches` — `GET /variants` (brandId+modelId) and `GET /colours`
+  (brandId+variantId) refuse cross-brand pairs and unknown parents with 422.
+- `pricing/pgstore.go`: `checkFilterBrands` — `GET /price-items` (brandId/priceListId/variantId) and `GET /prices/lookup`
+  (list vs variant) refuse cross-brand mismatches and unknown IDs with 422.
+- OpenAPI descriptions updated (`make swagger`, swagger-check ok). ADR-014.
+- New test package `internal/isolation` (real catalogue + pricing routes, real sessions, PostgreSQL): arbitrary new brand
+  end to end (catalogue, price list, approved price, lookup, listing) with data only; cross-brand writes, filters,
+  lookup, supersession and DB inserts (23503) refused; filters scoped across 3 brands (models, variants, colours,
+  price lists, price items, search) with SELLING+COST prices; readiness uses only the brand's own price; archiving one
+  brand leaves another; unauthorised/no-session/selling-only/authorisation-permission denials; source scan for brand
+  names (read from the seed) in Go/SQL/UI code. Mutation check: without the store changes the cross-brand test fails.
+- Existing C-02 integration test updated: cross-brand variant filter now expects 422 (was an empty 200).
+
+#### Stage 3 — API integration
+Result: COMPLETE — no client change needed beyond the Variants filter guard; the UI never sends mismatched pairs.
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack. New `e2e/isolation.e2e.ts` (desktop + Pixel 7): two arbitrary brands;
+stale link `?brandId=B&modelId=<A model>` becomes `?brandId=B`, only B's variant listed, no error; model filter offers
+only B's model; signed-in API calls for cross-brand variant filter, price items and lookup → 422, cross-brand variant
+create → 422; brand filters return only that brand's rows; no console errors. Full suite: **57 passed, 0 failed,
+5 skipped** (by design). API errors only client `context canceled`.
+
+#### Checks (actual results)
+`make ci` exit 0; `go test -json ./...` with PostgreSQL: 15 packages / **336 tests** pass, 0 fail; Vitest 18 files /
+**147 tests**; `git diff --check` clean. One first-run failure: the C-02 test asserting the old empty-200 filter
+behaviour — updated to the intended 422.
+
+#### Evidence
+`docs/evidence/C-06/verification.txt`.
+
+#### Known limitations / unresolved dependencies
+- Supplier mappings (D-01), warranty terms (RB-2), identifier rules (D-04, OQ-4): not implemented; not fabricated;
+  each needs brand-scoped resolution + isolation tests in its task.
+- Export endpoints (G-05): none exist, so there are no export queries to test yet.
+- Per-user brand scope (RB-5): not modelled — any holder of a catalogue/price view permission sees all brands. Needs the
+  owner's decision on whether staff are limited to brands.
+- C-05 still blocked (A-01 INCOMPLETE; verified catalogue data A-03/RB-2 not supplied).
+
+#### Final status
+COMPLETE — C-06 only. No other task started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

@@ -1,5 +1,5 @@
 import { Plus, SearchX, Tags } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -27,7 +27,7 @@ import {
   OperationalBadge,
 } from '../components/StatusBadges'
 import { ResponsiveTable } from '../components/ResponsiveTable'
-import { useBrands, useModels, useVariants } from '../hooks/useCatalogue'
+import { useBrands, useCatalogueItem, useModels, useVariants } from '../hooks/useCatalogue'
 import { authorisationLabels, formatDateTime } from '../lib/presentation'
 
 const OPTION_LIMIT = 100
@@ -444,15 +444,36 @@ export function VariantsPage() {
         .filter((m) => m.brandId === values.brandId)
         .map((m) => ({ value: m.id, label: `${m.name} (${m.internalCode})` }))
     : []
-  const query = useVariants({
-    q: values.q || undefined,
-    brandId: values.brandId || undefined,
-    modelId: values.modelId || undefined,
-    status: (values.status || undefined) as LifecycleStatus | undefined,
-    confidence: (values.confidence || undefined) as Confidence | undefined,
-    page,
-    limit: PAGE_SIZE,
+  // A link can carry a model of another brand (stale or edited URL). The server
+  // refuses that pair (C-06), so check the model's brand first and drop a
+  // mismatched model filter instead of showing an error.
+  const pairToCheck = Boolean(values.brandId && values.modelId)
+  const filterModel = useCatalogueItem('models', values.modelId || undefined, {
+    enabled: pairToCheck,
   })
+  const modelMatches = !pairToCheck
+    ? true
+    : filterModel.data
+      ? filterModel.data.brandId === values.brandId
+      : filterModel.isError
+        ? false
+        : undefined
+  useEffect(() => {
+    if (modelMatches === false) set({ modelId: '' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- set is stable in behaviour
+  }, [modelMatches])
+  const query = useVariants(
+    {
+      q: values.q || undefined,
+      brandId: values.brandId || undefined,
+      modelId: modelMatches ? values.modelId || undefined : undefined,
+      status: (values.status || undefined) as LifecycleStatus | undefined,
+      confidence: (values.confidence || undefined) as Confidence | undefined,
+      page,
+      limit: PAGE_SIZE,
+    },
+    { enabled: modelMatches !== undefined },
+  )
   const onSearch = useCallback((q: string) => {
     set({ q })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- set is stable in behaviour

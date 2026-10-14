@@ -609,8 +609,32 @@ func (s *PGStore) UpdateModel(ctx context.Context, id string, in ModelUpdateRequ
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 
+// filterBrandMatches refuses a list filter that pairs a brand with a parent of
+// another brand (C-06): such a request is a cross-brand mismatch, not "no rows".
+// An unknown parent is reported as a validation error too.
+func (s *PGStore) filterBrandMatches(ctx context.Context, table, id, brandID, field, label string) error {
+	if id == "" || brandID == "" {
+		return nil
+	}
+	var actual string
+	err := s.pool.QueryRow(ctx, `SELECT brand_id::text FROM `+table+` WHERE id = $1`, id).Scan(&actual)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &ValidationError{Fields: []FieldProblem{{field, "does not exist"}}}
+	}
+	if err != nil {
+		return fmt.Errorf("check %s filter: %w", field, err)
+	}
+	if actual != brandID {
+		return &ValidationError{Fields: []FieldProblem{{"brandId", "does not match the " + label + "'s brand"}}}
+	}
+	return nil
+}
+
 // ListVariants implements Repository.
 func (s *PGStore) ListVariants(ctx context.Context, f ListFilter) (Page[Variant], error) {
+	if err := s.filterBrandMatches(ctx, "models", f.ModelID, f.BrandID, "modelId", "model"); err != nil {
+		return Page[Variant]{}, err
+	}
 	var w where
 	itemFilters(&w, f, "variant_code", "manufacturer_code")
 	if f.ModelID != "" {
@@ -679,6 +703,9 @@ func (s *PGStore) UpdateVariant(ctx context.Context, id string, in VariantUpdate
 
 // ListColours implements Repository.
 func (s *PGStore) ListColours(ctx context.Context, f ListFilter) (Page[Colour], error) {
+	if err := s.filterBrandMatches(ctx, "variants", f.VariantID, f.BrandID, "variantId", "variant"); err != nil {
+		return Page[Colour]{}, err
+	}
 	var w where
 	itemFilters(&w, f, "colour_code")
 	if f.VariantID != "" {

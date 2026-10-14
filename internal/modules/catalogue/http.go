@@ -574,7 +574,7 @@ func (h *Handler) ArchiveModel(c *gin.Context) { h.archive(c, kindModel) }
 // ListVariants godoc
 //
 //	@Summary		List variants
-//	@Description	Sorted by name. Requires catalogue.view.
+//	@Description	Sorted by name. brandId together with a modelId of another brand is a cross-brand mismatch: 422 (C-06). Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			brandId		query	string	false	"Brand ID"
@@ -732,7 +732,7 @@ func (h *Handler) ArchiveVariant(c *gin.Context) { h.archive(c, kindVariant) }
 // ListColours godoc
 //
 //	@Summary		List colours
-//	@Description	Sorted by name. Requires catalogue.view.
+//	@Description	Sorted by name. brandId together with a variantId of another brand is a cross-brand mismatch: 422 (C-06). Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			brandId		query	string	false	"Brand ID"

@@ -298,7 +298,7 @@ func (h *Handler) ArchivePriceList(c *gin.Context) {
 // ListItems godoc
 //
 //	@Summary		Price history
-//	@Description	Drafts, approved and cancelled prices, newest effective date first. Only price types the caller may see are returned (COST needs catalogue.cost_price.view); asking for another type is 403.
+//	@Description	Drafts, approved and cancelled prices, newest effective date first. Only price types the caller may see are returned (COST needs catalogue.cost_price.view); asking for another type is 403. brandId, priceListId and variantId of different brands are a cross-brand mismatch: 422 (C-06).
 //	@Tags			pricing
 //	@Produce		json
 //	@Param			priceListId	query	string	false	"Price list ID"
@@ -459,7 +459,7 @@ func (h *Handler) ApproveItem(c *gin.Context) {
 // Lookup godoc
 //
 //	@Summary		Price valid at a time
-//	@Description	The approved price of the variant and type on the list that is valid at `at` (default now). Quotations store this answer as a snapshot (SAL-003); later approvals never change the answer for a past instant. 404 PRICE_NOT_FOUND when none is valid. COST needs catalogue.cost_price.view.
+//	@Description	The approved price of the variant and type on the list that is valid at `at` (default now). Quotations store this answer as a snapshot (SAL-003); later approvals never change the answer for a past instant. 404 PRICE_NOT_FOUND when none is valid; a variant of another brand than the list (or an unknown list/variant) is 422 (C-06). COST needs catalogue.cost_price.view.
 //	@Tags			pricing
 //	@Produce		json
 //	@Param			priceListId	query		string	true	"Price list ID"

@@ -217,6 +217,8 @@ Brands, models, variants, colours and spec keys are data and never appear in cod
 - Value sets come from DB CHECKs: lifecycle `PENDING_VERIFICATION|ACTIVE|ARCHIVED`; authorisation
   `UNVERIFIED|AUTHORISED|NOT_AUTHORISED|REVOKED` (OQ-1); confidence `UNVERIFIED|SUPPLIER_CONFIRMED|CLIENT_APPROVED`.
 - Spec values (`variant_specs`) have no endpoint yet (ADR-012).
+- Cross-brand list filters fail with 422 (C-06, ADR-014): `GET /variants` `brandId` + a `modelId` of another brand,
+  `GET /colours` `brandId` + a `variantId` of another brand (`details[].field = brandId`); unknown referenced IDs are 422.
 
 | HTTP | `code` | When |
 | --- | --- | --- |
@@ -246,6 +248,8 @@ Rules: ADR-013. Schema: migration 000009. Client: `ui/src/features/pricing/api/p
   `APPROVAL_BLOCKED` (`details[].field` = `price_list`, `brand`, `variant`, `variant_verification`), `VERSION_CONFLICT`,
   `INVALID_STATE` (approved/cancelled rows, archived list/variant), `DUPLICATE` (list name); 404 `PRICE_NOT_FOUND`
   from lookup; 422 `VALIDATION_FAILED` (incl. retroactive `effectiveFrom`, cross-brand `variantId`, bad supersession).
+- Cross-brand mismatches fail with 422 (C-06): `GET /price-items` with `brandId`/`priceListId`/`variantId` of different
+  brands, and `GET /prices/lookup` with a variant of another brand than the list (or an unknown list/variant).
 - No DELETE: drafts are cancelled (kept), approved prices are superseded. Every mutation is audited
   (`pricing.price_list.*`, `pricing.price_item.drafted|updated|cancelled|approved|superseded`); refused approvals DENIED.
 

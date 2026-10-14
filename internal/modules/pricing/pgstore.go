@@ -246,8 +246,51 @@ func (s *PGStore) ArchivePriceList(ctx context.Context, id string, version int, 
 
 // ── Items ────────────────────────────────────────────────────────────────────
 
+// brandOf returns the brand of a price list or variant; unknown IDs are a
+// validation error on field.
+func (s *PGStore) brandOf(ctx context.Context, table, id, field string) (string, error) {
+	var brand string
+	err := s.pool.QueryRow(ctx, `SELECT brand_id::text FROM `+table+` WHERE id = $1`, id).Scan(&brand)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", invalid(field, "does not exist")
+	}
+	if err != nil {
+		return "", fmt.Errorf("brand of %s: %w", field, err)
+	}
+	return brand, nil
+}
+
+// checkFilterBrands refuses filters that name a brand, price list and variant of
+// different brands (C-06): a cross-brand mismatch fails instead of returning nothing.
+func (s *PGStore) checkFilterBrands(ctx context.Context, brandID, priceListID, variantID string) error {
+	brand := brandID
+	for _, ref := range []struct{ table, id, field string }{
+		{"price_lists", priceListID, "priceListId"},
+		{"variants", variantID, "variantId"},
+	} {
+		if ref.id == "" {
+			continue
+		}
+		b, err := s.brandOf(ctx, ref.table, ref.id, ref.field)
+		if err != nil {
+			return err
+		}
+		if brand == "" {
+			brand = b
+			continue
+		}
+		if b != brand {
+			return invalid(ref.field, "belongs to another brand than the other filters")
+		}
+	}
+	return nil
+}
+
 // ListItems implements Repository. f.Types limits the visible price types.
 func (s *PGStore) ListItems(ctx context.Context, f ListFilter) (Page[Item], error) {
+	if err := s.checkFilterBrands(ctx, f.BrandID, f.PriceListID, f.VariantID); err != nil {
+		return Page[Item]{}, err
+	}
 	var w where
 	w.add("price_type = ANY(?)", f.Types)
 	if f.BrandID != "" {
@@ -486,8 +529,13 @@ func (s *PGStore) ApproveItem(ctx context.Context, id string, in ApproveRequest,
 	return it, err
 }
 
-// Lookup implements Repository: the approved price valid at the instant.
+// Lookup implements Repository: the approved price valid at the instant. A
+// variant of another brand than the list is a cross-brand mismatch (422), not
+// "no price".
 func (s *PGStore) Lookup(ctx context.Context, priceListID, variantID, priceType string, at time.Time) (Item, error) {
+	if err := s.checkFilterBrands(ctx, "", priceListID, variantID); err != nil {
+		return Item{}, err
+	}
 	it, err := scanItem(s.pool.QueryRow(ctx, `SELECT `+itemColumns+` FROM price_items
 		WHERE status = 'APPROVED' AND price_list_id = $1 AND variant_id = $2 AND price_type = $3
 		  AND effective_from <= $4 AND (effective_to IS NULL OR effective_to > $4)`, priceListID, variantID, priceType, at))
