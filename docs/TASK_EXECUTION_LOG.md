@@ -1718,6 +1718,29 @@ Result: COMPLETE on an isolated throwaway stack (details: `docs/evidence/C-03/br
 - Spec values have no API yet; correction of active items / restoring archived ones pending (OQ-12).
 - Option pickers load up to 100 brands/models; enough for the current roster, revisit if catalogues grow.
 
+#### Final browser/regression verification (user-requested, 2026-10-13; verification only)
+- Commit `9609244`, clean tree; no code changed in this pass.
+- Shared dev stack (already running, used as-is): headless Chrome desktop + mobile — `/admin/catalogue` deep link
+  goes to sign-in, empty submit validated client-side, wrong credentials → 401 generic message, no horizontal
+  overflow, `/api/v1/brands` without session → 401, **0 console/page errors**. Dev DB permissions/data identical
+  before and after (1 PROPOSED grant, 0 catalogue grants, 3 brands, 0 models).
+- Isolated throwaway stack, full `npx playwright test` (desktop + Pixel 7): **53 passed, 0 failed, 5 skipped** (by
+  design). API ERROR lines (7 requests) all traced by request ID to `context canceled` — client aborts, no server failure.
+- `make ci` exit 0; `go test -json ./...` with PostgreSQL: 13 packages pass, 302 tests pass, 0 fail, 0 skipped;
+  Vitest 132/132. `git diff --check` clean. No bugs found; no fixes needed.
+- Evidence: `docs/evidence/C-03/final-verification.txt`.
+
+#### Manual verification by the user (2026-10-14)
+- Environment provided for it (2026-10-13): temporary throwaway stack — postgres:18-alpine :5449, API :8093 built from
+  `9609244`, UI http://localhost:5175 — with test-only accounts `e2e.catalogue` (PROPOSED grants for the 7 catalogue keys
+  and attachments), `e2e.catviewer` (`catalogue.view`) and `e2e.active` (no role), plus a suggested manual test script
+  (admin flow, stale version, viewer, no access, mobile).
+- **User's statement:** "C-03 manual testing is complete and working correctly, as verified by me."
+- Recorded as an overall user confirmation only. Which individual steps of the suggested script were exercised was not
+  reported, so no individual manual test case is claimed here.
+- Temporary environment removed afterwards (API, Vite :5175, container and its database, temporary password and upload
+  files). Normal development environment (:5173, :8081, DB :5436) and its database left untouched.
+
 #### Final status
 COMPLETE — C-03 only. C-04 not started.
 
