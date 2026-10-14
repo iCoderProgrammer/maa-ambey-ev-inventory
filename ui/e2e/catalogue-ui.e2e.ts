@@ -71,7 +71,12 @@ test.describe('catalogue screens (C-03)', () => {
 
     await table.getByRole('link').first().click()
     await expect(page.getByRole('heading', { name: 'Activation readiness' })).toBeVisible()
-    await expect(page.getByText(/supplier master, D-01/)).toBeVisible()
+    // Supplier relationships come from the supplier master (D-01); the seeded
+    // roster has none, and none is assumed.
+    await expect(page.getByRole('heading', { name: 'Supplier relationship' })).toBeVisible()
+    await expect(
+      page.getByText(/No (verified, current )?supplier relationship is recorded/),
+    ).toBeVisible()
     for (const name of ['Edit', 'Archive', 'Record', 'Enable…', 'Add model']) {
       await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
     }

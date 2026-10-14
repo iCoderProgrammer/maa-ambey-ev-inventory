@@ -61,6 +61,10 @@ export const Permission = {
   PriceApprove: 'catalogue.price.approve',
   CostPriceView: 'catalogue.cost_price.view',
   CostPriceEdit: 'catalogue.cost_price.edit',
+  SupplierView: 'suppliers.view',
+  SupplierManage: 'suppliers.manage',
+  SupplierVerify: 'suppliers.verify',
+  SupplierArchive: 'suppliers.archive',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

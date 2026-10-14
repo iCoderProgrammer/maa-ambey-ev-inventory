@@ -300,10 +300,10 @@ func TestBrandAuthorisationAndActivationGate(t *testing.T) {
 	v := a.createVariant(t, m.ID, "STD")
 	a.verifyAndActivate(t, "/variants/"+v.ID, v.Version)
 	expect(t, a.h.call(a.viewer, http.MethodGet, "/brands/"+b.ID+"/activation-readiness", nil), http.StatusOK, &r)
-	// Without an approved price (C-04 price history) approved_prices is the one
-	// recordable check still open; pending checks are never met.
+	// Without an approved price (C-04) or a verified supplier relationship (D-01)
+	// those two recordable checks stay open; pending checks are never met.
 	for _, c := range r.Checks {
-		if c.Key == "approved_prices" {
+		if c.Key == "approved_prices" || c.Key == "supplier_link" {
 			if c.Met || c.Pending {
 				t.Errorf("approved_prices met=%v pending=%v", c.Met, c.Pending)
 			}
@@ -315,7 +315,7 @@ func TestBrandAuthorisationAndActivationGate(t *testing.T) {
 	}
 	e = expectError(t, a.h.call(a.admin, http.MethodPost, "/brands/"+b.ID+"/activate", map[string]any{"version": b.Version}),
 		http.StatusConflict, "ACTIVATION_BLOCKED")
-	if len(e.Details) != len(pendingChecks)+1 || !hasField(e.Details, "approved_prices") {
+	if len(e.Details) != len(pendingChecks)+2 || !hasField(e.Details, "approved_prices") || !hasField(e.Details, "supplier_link") {
 		t.Fatalf("unmet %+v", e.Details)
 	}
 	var stored Brand

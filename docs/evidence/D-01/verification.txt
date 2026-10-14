@@ -1,0 +1,35 @@
+D-01 verification — 2026-10-14
+
+== Go (make ci: gofmt, go vet, go test with PostgreSQL integration REQUIRED, builds) ==
+175 top-level Go tests PASS, 0 skipped, 0 failed (TEST_DATABASE_URL set, REQUIRE_INTEGRATION_TESTS=1).
+New supplier tests: TestSupplierCreateSearchAndDuplicates (search, status filter, case-insensitive name and GSTIN
+duplicates, 6 concurrent creates of one name -> exactly one 201, rest 409), TestContactsKeepHistoryAndPrivacy,
+TestDocumentsUsePrivateAttachments, TestVerificationNeedsOwnEvidence, TestMultiBrandRelationships (two brands,
+one open link per brand, verify needs VERIFIED supplier + own document, end keeps history, readiness supplier_link
+met only for a verified current link), TestArchivePreservesHistory, TestViewerCannotChangeAnything,
+TestSupplierRoutesDenyByDefault, TestSupplierInputValidation, TestGSTINNormalised,
+attachments TestCanSeeLinkedAttachments. DB guards: DELETE on suppliers / supplier_documents / supplier_brand_links
+refused (42501) even outside the API.
+Catalogue tests updated: supplier_link is a real readiness check now (pending checks: warranty_terms, identifier_rules).
+
+== UI (make ci: eslint, tsc, vitest, vite build) ==
+Vitest 19 files / 156 tests PASS (9 new in features/suppliers). Lint + typecheck clean. Build OK.
+
+== OpenAPI ==
+make swagger: 12 supplier paths / 14 operations added; existing paths unchanged.
+
+== Isolated throwaway stack (postgres:18-alpine :5449 migrated to v10, API :8093, Vite :5175;
+   test-only users; PROPOSED grants on that database only: owner suppliers.* + attachments.upload/view,
+   accountant suppliers.view; stack removed afterwards) ==
+e2e/suppliers.e2e.ts desktop + Pixel 7: 4/4 PASS — deny without suppliers.view (no nav link, page denied, API 403);
+create with client validation (bad GSTIN), case-insensitive duplicate shown on the field, private document upload
++ signed download, supplier verification with evidence, two brand relationships, verify one with evidence,
+brand page shows it and readiness "Verified supplier relationship — met", contact validation + add + remove (kept),
+end relationship (kept), read-only viewer sees no actions, archive with confirmation (history kept, no edits),
+no sideways scroll, no console errors.
+Full suite (first run): 59 passed, 5 skipped (viewport-specific by design), 2 failed — C-03 viewer test still expected
+the old "supplier master, D-01" placeholder on the brand page; assertion updated to the real Supplier relationship
+card ("No ... supplier relationship is recorded"); re-run e2e/catalogue-ui.e2e.ts: 6/6 PASS.
+API log: 16 5xx lines, all client-aborted requests during navigation ("context canceled"); no other errors.
+
+Screenshots: desktop-supplier-detail.png, mobile-suppliers.png (placeholder data, synthetic GSTIN).

@@ -11,7 +11,8 @@
 //
 // Later modules (goods receipt, PDI …) link attachments to their records and
 // must add their own owner check to canSee before linked attachments become
-// visible; until then linked attachments are denied (fail closed).
+// visible; until then linked attachments are denied (fail closed). Supplier
+// documents (owner "supplier", D-01) need suppliers.view.
 package attachments
 
 import (
@@ -138,12 +139,17 @@ func canSee(a access.Access, att Attachment) bool {
 	if att.LocationID != "" && !a.Scope.Allows(att.LocationID) {
 		return false
 	}
-	if att.OwnerType == "" {
+	switch att.OwnerType {
+	case "":
 		return att.UploadedBy == a.UserID
+	case "supplier":
+		// Supplier documents (D-01): visible to whoever may view suppliers.
+		return a.Has(access.PermSupplierView)
+	default:
+		// Other owners need their module's check, which none provides yet.
+		// Deny rather than guess.
+		return false
 	}
-	// Linked attachments need the owning module's check, which no module
-	// provides yet. Deny rather than guess.
-	return false
 }
 
 // UploadInput is one file to store.

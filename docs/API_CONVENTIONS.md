@@ -253,6 +253,29 @@ Rules: ADR-013. Schema: migration 000009. Client: `ui/src/features/pricing/api/p
 - No DELETE: drafts are cancelled (kept), approved prices are superseded. Every mutation is audited
   (`pricing.price_list.*`, `pricing.price_item.drafted|updated|cancelled|approved|superseded`); refused approvals DENIED.
 
+## Suppliers (D-01)
+
+Rules: ADR-015. Schema: migration 000010. Client: `ui/src/features/suppliers/api/suppliers.ts`; hooks `hooks/useSuppliers.ts`.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /suppliers` · `GET /suppliers/{id}` | `suppliers.view` | filters `q` (name/GSTIN), `status`, `brandId`, paging; detail includes contacts, documents, links |
+| `POST /suppliers` · `PATCH /suppliers/{id}` | `suppliers.manage` | GSTIN upper-cased; identity change on a verified supplier → pending |
+| `POST /suppliers/{id}/verify` | `suppliers.verify` | needs `documentId` (this supplier's) + `reference` |
+| `POST /suppliers/{id}/archive` | `suppliers.archive` | `reason`; read-only afterwards; contacts, documents and links kept |
+| `POST /suppliers/{id}/contacts` · `PATCH …/contacts/{contactId}` · `POST …/contacts/{contactId}/remove` | `suppliers.manage` | phone or email required; one active primary; removal keeps the row |
+| `POST /suppliers/{id}/documents` | `suppliers.manage` (+ `attachments.upload` to upload first) | links the caller's own unlinked attachment |
+| `POST /suppliers/{id}/brand-links` | `suppliers.manage` | starts `UNVERIFIED`; one open link per supplier + brand |
+| `GET /supplier-brand-links?brandId=…` or `?supplierId=…` | `suppliers.view` | one of the two filters required; optional `status` |
+| `POST /supplier-brand-links/{id}/verify` | `suppliers.verify` | supplier must be `VERIFIED`; evidence document + reference + `effectiveFrom` |
+| `POST /supplier-brand-links/{id}/end` | `suppliers.archive` | `reason`; ended links are immutable |
+
+- Errors: 409 `DUPLICATE` (`legalName`, `gstin`, `brandId`), `VERSION_CONFLICT`, `INVALID_STATE` (archived supplier,
+  unverified supplier, archived brand, ended link); 404 `NOT_FOUND`; 422 `VALIDATION_FAILED` (format, unknown or other
+  supplier's document); 403 `FORBIDDEN`.
+- No DELETE. Every mutation is audited (`supplier.created|updated|verified|archived|contact_*|document_added|brand_link_*`);
+  audit payloads carry no phone numbers or emails.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

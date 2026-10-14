@@ -336,6 +336,33 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **UI:** the Variants list drops a model filter that belongs to another brand (stale or edited link) before calling the
   API; model/variant pickers list only the chosen brand's models; price data is requested with the record's own brand.
 
+## ADR-015 — Supplier master and supplier ↔ brand relationships (D-01)
+
+- **Status:** Accepted (technical design; document types, grants and who verifies are pending — OQ-19, OQ-20, RB-5).
+- **Schema (migration 000010):** `suppliers` (legal name unique case-insensitively, optional trade name, optional GSTIN —
+  format CHECK + unique, address, PIN CHECK, status `PENDING_VERIFICATION` / `VERIFIED` / `ARCHIVED`, verification
+  reference + evidence document + verifier + time; a CHECK makes `VERIFIED` impossible without evidence),
+  `supplier_contacts` (removed = `active=false`, at most one active primary, phone or email required),
+  `supplier_documents` (links a private attachment to the supplier; type `GST_REGISTRATION` / `AUTHORISATION` /
+  `AGREEMENT` / `OTHER`, immutable), `supplier_brand_links` (status `UNVERIFIED` / `VERIFIED` / `ENDED`, effective
+  dates, authorisation reference, evidence document of the **same** supplier via composite FK, at most one open link
+  per supplier + brand). Trigger `supplier_history_guard` refuses deletes and changes to ended links and documents.
+  This is the `brand_supplier_links` table planned in ADR-006 (named `supplier_brand_links`).
+- **A supplier record is not dealership authorisation.** New suppliers and links start pending/unverified; only a
+  holder of `suppliers.verify` can verify, and only with an uploaded document and a reference. A link can be verified
+  only when the supplier is `VERIFIED`. Changing the legal name or GSTIN of a verified supplier returns it to
+  `PENDING_VERIFICATION`. No supplier, contact, document or relationship is seeded.
+- **Archive, not delete:** archived suppliers are read-only (`INVALID_STATE`); their contacts, documents and links stay
+  as history, and their links no longer count for readiness (the supplier is no longer `VERIFIED`). Contacts are
+  removed (kept), links ended with a reason (kept). Every mutation is audited (`supplier.*`) without phone/email.
+- **Documents** use the private attachment service (ADR-010): the caller uploads (needs `attachments.upload`), then
+  links their own, not-yet-linked upload; downloads go through short-lived signed links. Attachments with owner type
+  `supplier` are visible to users with `attachments.view` **and** `suppliers.view`.
+- **Catalogue readiness:** `supplier_link` is now a real check — a `VERIFIED` link, current by its dates, to a
+  `VERIFIED` supplier. Pending checks left: `warranty_terms`, `identifier_rules`.
+- **Permissions:** `suppliers.view`, `suppliers.manage`, `suppliers.verify`, `suppliers.archive` exist with **no
+  grants** (deny by default). Concurrency: `version` on suppliers, contacts and links (409 `VERSION_CONFLICT`).
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -359,4 +386,6 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-16 | May an approved price ever be backdated (e.g. correcting yesterday's price)? C-04 refuses retroactive starts (5-minute clock grace). | C-04, owner |
 | OQ-17 | Maker-checker for prices: C-04 never lets the drafter approve their own price. Is that the rule for a small team, or may the owner self-approve? Who approves (owner only?) and is there an amount threshold? | C-04, RB-5 |
 | OQ-18 | Tax treatment of price amounts and the tax configuration a price must reference (HSN, rate set, inclusive/exclusive) — needs the accountant's configuration (F-10, DOC-003). Until then the reference must stay empty. | C-04, F-10 |
+| OQ-19 | Supplier document types: is `GST_REGISTRATION`, `AUTHORISATION`, `AGREEMENT`, `OTHER` the right set, and which documents are required to verify a supplier or a brand relationship? | D-01, D-02 |
+| OQ-20 | Who verifies suppliers and supplier ↔ brand relationships (owner only?), and may the person who recorded a supplier also verify it? D-01 has a separate `suppliers.verify` permission but no maker-checker rule. | D-01, RB-5, OQ-2 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

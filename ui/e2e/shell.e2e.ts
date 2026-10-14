@@ -34,8 +34,8 @@ test.describe('application shell (B-03, B-04, B-05)', () => {
   test('planned modules are labelled as planned and unknown paths show not-found', async ({
     page,
   }) => {
-    await signIn(page, '/procurement/suppliers')
-    await expect(page.getByRole('heading', { level: 1, name: 'Suppliers' })).toBeVisible()
+    await signIn(page, '/procurement/purchase-orders')
+    await expect(page.getByRole('heading', { level: 1, name: 'Purchase Orders' })).toBeVisible()
     await expect(page.locator('main').getByText('Planned', { exact: true }).first()).toBeVisible()
     await expect(page.getByText(/not implemented yet/)).toBeVisible()
 

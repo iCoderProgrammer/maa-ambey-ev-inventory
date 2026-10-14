@@ -12,6 +12,7 @@ import {
 } from '@/features/catalogue/pages/DetailPages'
 import { BrandsPage, ModelsPage, VariantsPage } from '@/features/catalogue/pages/ListPages'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
 import { NotFoundPage } from './NotFoundPage'
 import { PlannedModulePage } from './PlannedModulePage'
 import { RouteErrorPage } from './RouteErrorPage'
@@ -35,6 +36,8 @@ export const routes: RouteObject[] = [
               { index: true, element: <DashboardPage /> },
               { path: 'admin/users', element: <RolesPage /> },
               { path: 'documents', element: <DocumentsPage /> },
+              { path: 'procurement/suppliers', element: <SuppliersPage /> },
+              { path: 'procurement/suppliers/:supplierId', element: <SupplierDetailPage /> },
               {
                 path: 'admin/catalogue',
                 element: <CatalogueLayout />,

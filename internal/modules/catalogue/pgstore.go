@@ -374,6 +374,22 @@ func hasApprovedPrice(ctx context.Context, q pgx.Tx, brandID string, lock bool) 
 	return err == nil, err
 }
 
+// hasSupplierLink: a VERIFIED supplier relationship valid today with a VERIFIED supplier (D-01).
+func hasSupplierLink(ctx context.Context, q pgx.Tx, brandID string, lock bool) (bool, error) {
+	sql := `SELECT l.id FROM supplier_brand_links l JOIN suppliers s ON s.id = l.supplier_id
+		WHERE l.brand_id = $1 AND l.status = 'VERIFIED' AND s.status = 'VERIFIED'
+		  AND l.effective_from <= current_date AND (l.effective_to IS NULL OR l.effective_to >= current_date) LIMIT 1`
+	if lock {
+		sql += ` FOR SHARE OF l, s`
+	}
+	var id string
+	err := q.QueryRow(ctx, sql, brandID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // BrandReadiness implements Repository.
 func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, error) {
 	var r Readiness
@@ -393,7 +409,11 @@ func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, err
 		if err != nil {
 			return err
 		}
-		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active, HasApprovedPrice: priced})
+		supplied, err := hasSupplierLink(ctx, tx, id, false)
+		if err != nil {
+			return err
+		}
+		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active, HasApprovedPrice: priced, HasSupplierLink: supplied})
 		return nil
 	})
 	return r, err
@@ -415,7 +435,11 @@ func (s *PGStore) ActivateBrand(ctx context.Context, id string, version int, ev 
 		if err != nil {
 			return err
 		}
-		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active, HasApprovedPrice: priced}); err != nil {
+		supplied, err := hasSupplierLink(ctx, tx, id, true)
+		if err != nil {
+			return err
+		}
+		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active, HasApprovedPrice: priced, HasSupplierLink: supplied}); err != nil {
 			return err
 		}
 		b, err = scanBrand(tx.QueryRow(ctx, `UPDATE brands SET lifecycle_status = 'ACTIVE', version = version + 1

@@ -48,6 +48,7 @@ import {
 } from '../hooks/useCatalogue'
 import { formatDateTime, personLabel } from '../lib/presentation'
 import { PriceListsCard, VariantPricesCard } from '@/features/pricing/components/PriceCards'
+import { SupplierRelationshipCard } from '@/features/suppliers/components/SupplierRelationshipCard'
 import { useCanSeePrices } from '@/features/pricing/hooks/usePricePermissions'
 
 const crumbsRoot = [
@@ -329,16 +330,10 @@ function BrandDetail({ brand }: { brand: Brand }) {
           {readiness.data && <ReadinessList readiness={readiness.data} />}
         </Card>
 
-        <Card title="Supplier relationship" description="Verified supplier ↔ brand links.">
-          {readiness.data?.checks.find((c) => c.key === 'supplier_link')?.met ? (
-            <p className="text-sm text-ink">A verified supplier relationship is recorded.</p>
-          ) : (
-            <p className="text-sm text-muted">
-              No supplier relationship is recorded. The supplier master (D-01) is not built yet, so
-              no supplier is shown or assumed for this brand.
-            </p>
-          )}
-        </Card>
+        <SupplierRelationshipCard
+          brandId={brand.id}
+          linkMet={readiness.data?.checks.find((c) => c.key === 'supplier_link')?.met ?? false}
+        />
 
         <DataGapsCard />
       </div>

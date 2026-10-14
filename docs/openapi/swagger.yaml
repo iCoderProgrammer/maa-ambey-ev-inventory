@@ -945,6 +945,425 @@ definitions:
         example: true
         type: boolean
     type: object
+  Supplier:
+    properties:
+      addressLine1:
+        type: string
+        x-nullable: true
+      addressLine2:
+        type: string
+        x-nullable: true
+      brandCount:
+        description: Brands with an open (unverified or verified) relationship.
+        example: 0
+        type: integer
+      city:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      gstin:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      legalName:
+        example: Example Supplier Private Limited
+        type: string
+      notes:
+        type: string
+        x-nullable: true
+      postalCode:
+        type: string
+        x-nullable: true
+      state:
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        example: PENDING_VERIFICATION
+        type: string
+      tradeName:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      verificationDocumentId:
+        type: string
+        x-nullable: true
+      verificationReference:
+        type: string
+        x-nullable: true
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierArchive:
+    properties:
+      reason:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierBrandLink:
+    properties:
+      authorisationReference:
+        type: string
+        x-nullable: true
+      brandId:
+        type: string
+      brandName:
+        type: string
+      createdAt:
+        type: string
+      current:
+        description: 'Current: VERIFIED, supplier VERIFIED and today within the effective
+          dates.'
+        type: boolean
+      effectiveFrom:
+        example: "2026-10-01"
+        type: string
+        x-nullable: true
+      effectiveTo:
+        type: string
+        x-nullable: true
+      endedReason:
+        type: string
+        x-nullable: true
+      evidenceDocumentId:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - UNVERIFIED
+        - VERIFIED
+        - ENDED
+        example: UNVERIFIED
+        type: string
+      supplierId:
+        type: string
+      supplierName:
+        type: string
+      supplierStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        type: string
+      updatedAt:
+        type: string
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        type: integer
+    type: object
+  SupplierBrandLinkCreate:
+    properties:
+      brandId:
+        type: string
+      note:
+        type: string
+    type: object
+  SupplierBrandLinkEnd:
+    properties:
+      effectiveTo:
+        type: string
+      reason:
+        example: Agreement expired
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierBrandLinkVerify:
+    properties:
+      authorisationReference:
+        example: DLR-2026-001
+        type: string
+      effectiveFrom:
+        example: "2026-10-01"
+        type: string
+      effectiveTo:
+        type: string
+      evidenceDocumentId:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierContact:
+    properties:
+      active:
+        type: boolean
+      createdAt:
+        type: string
+      email:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      isPrimary:
+        type: boolean
+      name:
+        type: string
+      phone:
+        type: string
+        x-nullable: true
+      role:
+        type: string
+        x-nullable: true
+      supplierId:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  SupplierContactCreate:
+    properties:
+      email:
+        type: string
+      isPrimary:
+        type: boolean
+      name:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+    type: object
+  SupplierContactUpdate:
+    properties:
+      email:
+        type: string
+      isPrimary:
+        type: boolean
+      name:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierCreate:
+    properties:
+      addressLine1:
+        type: string
+      addressLine2:
+        type: string
+      city:
+        type: string
+      gstin:
+        type: string
+      legalName:
+        type: string
+      notes:
+        type: string
+      postalCode:
+        type: string
+      state:
+        type: string
+      tradeName:
+        type: string
+    type: object
+  SupplierDetail:
+    properties:
+      addressLine1:
+        type: string
+        x-nullable: true
+      addressLine2:
+        type: string
+        x-nullable: true
+      brandCount:
+        description: Brands with an open (unverified or verified) relationship.
+        example: 0
+        type: integer
+      brandLinks:
+        items:
+          $ref: '#/definitions/SupplierBrandLink'
+        type: array
+      city:
+        type: string
+        x-nullable: true
+      contacts:
+        items:
+          $ref: '#/definitions/SupplierContact'
+        type: array
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      documents:
+        items:
+          $ref: '#/definitions/SupplierDocument'
+        type: array
+      gstin:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      legalName:
+        example: Example Supplier Private Limited
+        type: string
+      notes:
+        type: string
+        x-nullable: true
+      postalCode:
+        type: string
+        x-nullable: true
+      state:
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        example: PENDING_VERIFICATION
+        type: string
+      tradeName:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      verificationDocumentId:
+        type: string
+        x-nullable: true
+      verificationReference:
+        type: string
+        x-nullable: true
+      verifiedAt:
+        type: string
+        x-nullable: true
+      verifiedBy:
+        type: string
+        x-nullable: true
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierDocument:
+    properties:
+      addedBy:
+        type: string
+      attachmentId:
+        type: string
+      contentType:
+        type: string
+      createdAt:
+        type: string
+      documentType:
+        enum:
+        - GST_REGISTRATION
+        - AUTHORISATION
+        - AGREEMENT
+        - OTHER
+        type: string
+      fileName:
+        type: string
+      id:
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      supplierId:
+        type: string
+    type: object
+  SupplierDocumentAdd:
+    properties:
+      attachmentId:
+        type: string
+      documentType:
+        enum:
+        - GST_REGISTRATION
+        - AUTHORISATION
+        - AGREEMENT
+        - OTHER
+        type: string
+      note:
+        type: string
+    type: object
+  SupplierPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/Supplier'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  SupplierUpdate:
+    properties:
+      addressLine1:
+        type: string
+      addressLine2:
+        type: string
+      city:
+        type: string
+      gstin:
+        type: string
+      legalName:
+        type: string
+      notes:
+        type: string
+      postalCode:
+        type: string
+      state:
+        type: string
+      tradeName:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierVerify:
+    properties:
+      documentId:
+        type: string
+      reference:
+        example: GST certificate checked
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  SupplierVersion:
+    properties:
+      version:
+        example: 1
+        type: integer
+    type: object
   attachments.FileType:
     properties:
       contentType:
@@ -3165,6 +3584,731 @@ paths:
       summary: Readiness check
       tags:
       - health
+  /supplier-brand-links:
+    get:
+      description: By brand or by supplier (one is required); up to 200, open ones
+        first. current=true means verified, supplier verified and today within the
+        effective dates. Requires suppliers.view.
+      parameters:
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Supplier ID
+        in: query
+        name: supplierId
+        type: string
+      - description: Status
+        enum:
+        - UNVERIFIED
+        - VERIFIED
+        - ENDED
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/SupplierBrandLink'
+                  type: array
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Supplier-brand relationships
+      tags:
+      - suppliers
+  /supplier-brand-links/{id}/end:
+    post:
+      consumes:
+      - application/json
+      description: Sets ENDED with an end date (default today) and reason; kept as
+        history. Requires suppliers.archive and X-CSRF-Token. Audited.
+      parameters:
+      - description: Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version, reason, end date
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierBrandLinkEnd'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierBrandLink'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: End a supplier-brand relationship
+      tags:
+      - suppliers
+  /supplier-brand-links/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Needs the supplier verified first, an authorisation reference,
+        an evidence document of the same supplier and the start date; the caller is
+        the verifier. Requires suppliers.verify and X-CSRF-Token. Audited.
+      parameters:
+      - description: Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierBrandLinkVerify'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierBrandLink'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE (supplier not verified, brand
+            archived)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (evidence not of this supplier)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Verify a supplier-brand relationship
+      tags:
+      - suppliers
+  /suppliers:
+    get:
+      description: Search legal name, trade name or GSTIN; filter by status or by
+        brand (suppliers with an open relationship to it). Requires suppliers.view.
+      parameters:
+      - description: Search
+        in: query
+        name: q
+        type: string
+      - description: Status
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        in: query
+        name: status
+        type: string
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List suppliers
+      tags:
+      - suppliers
+    post:
+      consumes:
+      - application/json
+      description: Starts PENDING_VERIFICATION. A supplier record is not proof of
+        dealership authorisation. Legal name and GSTIN are unique. Requires suppliers.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Supplier'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE (legalName, gstin)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a supplier
+      tags:
+      - suppliers
+  /suppliers/{id}:
+    get:
+      description: The supplier with contacts (including removed ones, marked inactive),
+        documents and brand relationships. Requires suppliers.view.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a supplier
+      tags:
+      - suppliers
+    patch:
+      consumes:
+      - application/json
+      description: Changing the legal name or GSTIN of a verified supplier returns
+        it to PENDING_VERIFICATION. Archived suppliers cannot change. Requires suppliers.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Supplier'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a supplier
+      tags:
+      - suppliers
+  /suppliers/{id}/archive:
+    post:
+      consumes:
+      - application/json
+      description: Nothing is deleted; contacts, documents and relationships stay
+        as history. Requires suppliers.archive and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierArchive'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Supplier'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Archive a supplier
+      tags:
+      - suppliers
+  /suppliers/{id}/brand-links:
+    post:
+      consumes:
+      - application/json
+      description: Starts UNVERIFIED and proves nothing until verified with evidence.
+        One open relationship per supplier and brand; a supplier may serve several
+        brands. Requires suppliers.manage and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Brand
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierBrandLinkCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierBrandLink'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE (brandId) or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Propose a supplier-brand relationship
+      tags:
+      - suppliers
+  /suppliers/{id}/contacts:
+    post:
+      consumes:
+      - application/json
+      description: Business contact; phone or email required. A new primary contact
+        replaces the previous primary. Audited without the phone/email. Requires suppliers.manage
+        and X-CSRF-Token.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Contact
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierContactCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierContact'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: INVALID_STATE (archived supplier)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Add a supplier contact
+      tags:
+      - suppliers
+  /suppliers/{id}/contacts/{contactId}:
+    patch:
+      consumes:
+      - application/json
+      description: Requires suppliers.manage and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Contact ID
+        in: path
+        name: contactId
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierContactUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierContact'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a supplier contact
+      tags:
+      - suppliers
+  /suppliers/{id}/contacts/{contactId}/remove:
+    post:
+      consumes:
+      - application/json
+      description: Deactivates the contact; it stays as history. Requires suppliers.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Contact ID
+        in: path
+        name: contactId
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierVersion'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierContact'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Remove a supplier contact
+      tags:
+      - suppliers
+  /suppliers/{id}/documents:
+    post:
+      consumes:
+      - application/json
+      description: Links one of the caller's own unlinked private uploads (POST /attachments)
+        to the supplier. From then on anyone holding suppliers.view and attachments.view
+        may open it through the attachments API; nobody else can. Requires suppliers.manage,
+        attachments.upload and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Document
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierDocumentAdd'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/SupplierDocument'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: INVALID_STATE or DUPLICATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (not your unlinked upload)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Attach a document to a supplier
+      tags:
+      - suppliers
+  /suppliers/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Records a reference and one of the supplier's own documents; the
+        caller is the verifier. Requires suppliers.verify and X-CSRF-Token. Audited.
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SupplierVerify'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/Supplier'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (document not of this supplier)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Verify a supplier
+      tags:
+      - suppliers
   /variants:
     get:
       description: 'Sorted by name. brandId together with a modelId of another brand

@@ -45,7 +45,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | C-04 | Effective-dated price history | P0 | C-01, C-02 | COMPLETE |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
 | C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | COMPLETE |
-| D-01 | Supplier master | P0 | B-05, B-07, B-08 | NOT STARTED |
+| D-01 | Supplier master | P0 | B-05, B-07, B-08 | COMPLETE |
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | NOT STARTED |
@@ -1988,6 +1988,81 @@ behaviour — updated to the intended 422.
 
 #### Final status
 COMPLETE — C-06 only. No other task started.
+
+### D-01 — Supplier master
+
+- **Status:** COMPLETE (mechanism; no supplier data, document-type sign-off or grants — OQ-19, OQ-20, RB-5)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_01_supplier-master.md
+- Git at start: A-01 `7b35af7`, C-06 `43be033` and C-06 verification docs `afafc00` pushed (`dev` = `origin/dev`);
+  only the untracked LibreOffice lock file remains (untouched).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | migration framework; migrations at 9 |
+| B-07 | COMPLETE | deny-by-default RBAC, `Require/RequireAny` |
+| B-08 | COMPLETE | `audit.Record` in transactions |
+(Also used: B-09 private attachments for supplier documents; C-01/C-02 brands; C-02 readiness `supplier_link` pending.)
+
+#### Acceptance criteria
+- [x] AC1 Supplier schema/API: legal name, trade name, GSTIN when applicable, address, status, contacts, document references
+- [x] AC2 Searchable list with status (and brand) filter; detail with contact and document sections
+- [x] AC3 Multiple brands per supplier; relationships validated server-side; verification needs evidence; a supplier record is not authorisation
+- [x] AC4 Archive preserves history; nothing referenced is hard-deleted; contacts soft-removed; links ended, not deleted
+- [x] AC5 Supplier documents via private attachments; download only with supplier + attachment permissions
+- [x] AC6 Deny by default; audit of sensitive changes; duplicate/conflict/stale handling
+- [x] AC7 UI list/detail/forms with loading/empty/validation/duplicate/network/401/403 states, desktop + mobile
+- [x] AC8 Tests (backend, API, permission, multi-brand, duplicate, archive), Playwright, `make ci`
+
+
+#### Stage 1 — UI
+Result: COMPLETE (built against the typed API client; no production mock adapter)
+- The backend was built in the same task before the screens, so the UI used the real client from the start; Vitest
+  stubs `fetch` in tests only. `ui/src/features/suppliers/`: `api/suppliers.ts`, `hooks/useSuppliers.ts`,
+  `lib/labels.ts`, `components/{SupplierDialogs,SupplierBadges,SupplierRelationshipCard}.tsx`, `SupplierPages.tsx`.
+- Routes `/procurement/suppliers`, `/procurement/suppliers/:supplierId`; nav "Suppliers" (needs `suppliers.view`,
+  no longer "planned"). List: search, status filter, table on desktop / stacked list on phones, "not proof of dealership
+  authorisation" note. Detail: identity + verification, contacts (add/edit/remove, removed kept), documents (upload in
+  dialog via private attachments, signed download), brand relationships (add, verify with evidence, end), archive with
+  confirmation. Loading/empty/validation/duplicate-on-field/network/401/403/404/stale-version states.
+- Brand detail: "Supplier relationship" card shows real links to `suppliers.view` holders, otherwise only whether the
+  server counts one as current. Tests that used Suppliers as the example planned module now use Purchase Orders.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000010_create_suppliers` (up/down): permissions `suppliers.view|manage|verify|archive` (no grants);
+  `suppliers`, `supplier_contacts`, `supplier_documents`, `supplier_brand_links`; CHECKs (GSTIN, PIN, verified needs
+  evidence), composite FKs (evidence must be the same supplier's document), partial unique indexes (case-insensitive
+  legal name, GSTIN, one active primary contact, one open link per supplier + brand), trigger `supplier_history_guard`.
+- Module `internal/modules/suppliers` (types, validate, service, pgstore, http), 14 routes (API_CONVENTIONS "Suppliers").
+  Transactions + row locks + `version` (409 `VERSION_CONFLICT`); audit `supplier.*` without phone/email.
+- `attachments.canSee`: owner type `supplier` needs `attachments.view` + `suppliers.view`.
+- Catalogue readiness `supplier_link` is a real check (verified current link to a verified supplier).
+- Design: ADR-015; open questions OQ-19 (document types), OQ-20 (who verifies / maker-checker).
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 14 endpoints used through TanStack Query; nothing shown as saved before the server confirms; server field
+  errors mapped to form fields; cache invalidation of supplier detail, lists and brand readiness/links.
+- `make ci` PASS: gofmt, go vet, 175 Go tests (PostgreSQL integration required, 0 skipped), eslint, tsc,
+  Vitest 156/156, vite build, Go builds. OpenAPI regenerated (additive).
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5449 v10, API :8093, Vite :5175, test-only users, PROPOSED grants on that
+  database only; removed afterwards). `e2e/suppliers.e2e.ts` 4/4 (desktop + Pixel 7). Full suite: 59 passed,
+  5 skipped by design, 2 failed — the C-03 viewer test still expected the old "supplier master, D-01" placeholder;
+  assertion updated to the real card; `e2e/catalogue-ui.e2e.ts` re-run 6/6 PASS.
+- Console clean; API log 5xx only client-aborted requests ("context canceled").
+- Evidence: `docs/evidence/D-01/verification.txt`, `desktop-supplier-detail.png`, `mobile-suppliers.png`.
+
+#### Known issues / pending approvals
+- No supplier, contact, document or relationship data supplied — none seeded or invented. Any supplier stays
+  `PENDING_VERIFICATION` until someone with `suppliers.verify` records evidence.
+- `suppliers.*` permissions have no grants (RB-5); verifier/maker-checker OQ-20; document types OQ-19.
+- **The shared dev database is now at migration 10.** The running dev API (older build) reports `not_ready`
+  (migrations down) until it is restarted with this build. Shared dev permissions were not changed.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

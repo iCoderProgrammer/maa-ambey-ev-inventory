@@ -357,7 +357,9 @@ describe('brand detail', () => {
       await screen.findByText('1 of 4 requirements met · 2 depend on features not built yet'),
     ).toBeInTheDocument()
     expect(screen.getByText(/Supplier master not available yet/)).toBeInTheDocument()
-    expect(screen.getByText(/No supplier relationship is recorded/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/No verified, current supplier relationship is recorded/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/Authorisation not verified/)).toBeInTheDocument()
     expect(screen.getByText(/No price is shown or implied/)).toBeInTheDocument()
 

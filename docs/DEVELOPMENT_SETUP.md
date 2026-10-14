@@ -206,6 +206,10 @@ make user ARGS="create --username e2e.priceapprover --name 'E2E Price Approver'"
 make access ARGS="assign --username e2e.priceapprover --role sales_executive"
 for p in catalogue.view catalogue.price.view catalogue.price.approve; do
   make access ARGS="grant --role sales_executive --permission $p"; done
+# optional, for the supplier tests (D-01)
+for p in suppliers.view suppliers.manage suppliers.verify suppliers.archive attachments.upload attachments.view; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission suppliers.view"
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
@@ -226,6 +230,7 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   It creates placeholder brands/models: throwaway database only. `e2e/catalogue-ui.e2e.ts` (C-03) drives the
   catalogue screens with the same two accounts (plus `e2e.active` for the no-permission case) on desktop and mobile;
   `e2e/prices.e2e.ts` (C-04) also needs `E2E_PRICE_APPROVER_*`; `e2e/isolation.e2e.ts` (C-06) uses `E2E_CATALOGUE_*`.
+  `e2e/suppliers.e2e.ts` (D-01) uses `E2E_CATALOGUE_*` with the supplier grants above (throwaway database only).
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

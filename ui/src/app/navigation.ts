@@ -100,8 +100,9 @@ export const navigation: NavSection[] = [
         label: 'Suppliers',
         path: '/procurement/suppliers',
         icon: Building2,
-        backlog: ['D-01'],
+        backlog: [],
         summary: 'Supplier master and verified supplier–brand relationships.',
+        permission: 'suppliers.view',
       },
       {
         label: 'Purchase Orders',

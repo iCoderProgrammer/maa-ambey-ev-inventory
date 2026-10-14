@@ -20,6 +20,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/catalogue"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/health"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/pricing"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/suppliers"
 )
 
 // APIPrefix is the versioned base path for all business endpoints.
@@ -39,14 +40,16 @@ type Deps struct {
 	Catalogue *catalogue.Handler
 	// Pricing serves price lists and price history (C-04).
 	Pricing *pricing.Handler
-	Version string
+	// Suppliers serves the supplier master (D-01).
+	Suppliers *suppliers.Handler
+	Version   string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
-	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil {
-		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue and Pricing dependencies are required")
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing and Suppliers dependencies are required")
 	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
@@ -104,6 +107,7 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	d.Attachments.Register(api)
 	d.Catalogue.Register(api)
 	d.Pricing.Register(api)
+	d.Suppliers.Register(api)
 
 	return r, nil
 }
