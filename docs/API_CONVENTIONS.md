@@ -276,6 +276,36 @@ Rules: ADR-015. Schema: migration 000010. Client: `ui/src/features/suppliers/api
 - No DELETE. Every mutation is audited (`supplier.created|updated|verified|archived|contact_*|document_added|brand_link_*`);
   audit payloads carry no phone numbers or emails.
 
+## Purchase orders (D-02)
+
+Rules: ADR-016. Schema: migration 000011. Client: `ui/src/features/purchasing/api/purchaseOrders.ts`; hooks
+`hooks/usePurchaseOrders.ts`. Every mutation answers with the whole PO detail (`PurchaseOrderDetail`).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /purchase-orders` · `GET /purchase-orders/{id}` | `purchase_orders.view` | filters `q` (number/supplier), `status`, `supplierId`, `brandId`, paging; detail has lines, history (`events`), `blockers`, `approvalRequired`/`approvalReason` (drafts), caller `actions` |
+| `POST /purchase-orders` | `purchase_orders.manage` | draft with optional `lines`; optional `Idempotency-Key` header (8–100 `[A-Za-z0-9_-]`): a repeat by the same user returns the first PO with 200 + `Idempotent-Replayed: true` |
+| `PATCH /purchase-orders/{id}` | `purchase_orders.manage` | drafts only: `supplierId`, `expectedDate` (YYYY-MM-DD or null), `notes` |
+| `POST …/lines` · `PATCH …/lines/{lineId}` · `POST …/lines/{lineId}/remove` | `purchase_orders.manage` (+ `catalogue.cost_price.view` to name `priceListId`) | drafts only; `version` is the PO's; one line per variant; `quantity` 1–10000; `unitCost` positive, ≤ 2 decimals |
+| `POST /purchase-orders/{id}/submit` | `purchase_orders.manage` | `SUBMITTED`, or `APPROVED` (basis `BELOW_THRESHOLD`) only within a signed-off threshold |
+| `POST /purchase-orders/{id}/approve` | `purchase_orders.approve` | never by the creator or submitter (403 `SELF_APPROVAL_NOT_ALLOWED`); prerequisites re-checked |
+| `POST /purchase-orders/{id}/return` | `purchase_orders.approve` | `SUBMITTED` → `DRAFT`, `reason` required |
+| `POST /purchase-orders/{id}/cancel` | `purchase_orders.cancel` | from `DRAFT`, `SUBMITTED`, or `APPROVED` with nothing received; `reason` required |
+| `GET /purchase-order-settings` | `purchase_orders.view` or `.settings.manage` | `approvalThreshold` null = not configured |
+| `PUT /purchase-order-settings` | `purchase_orders.settings.manage` | threshold needs `approvalReference` (owner sign-off) |
+
+- Amounts are decimal strings in INR excluding tax; totals, line totals, remaining quantities, cost variance and line
+  `warnings` (`PRICE_VARIANCE`, `PARTIAL_DELIVERY`, `OVER_RECEIPT`) are computed by the server. Unknown body fields
+  (e.g. `totalAmount`, `status`) are refused with 422.
+- Catalogue cost snapshot (`reference*`): taken when a line names `priceListId` (the list's approved `COST` price valid
+  now); kept unchanged afterwards. Hidden (`referenceHidden: true`) without `catalogue.cost_price.view`.
+- Errors: 409 `SUBMISSION_BLOCKED` / `APPROVAL_BLOCKED` (details: unmet keys `lines`, `expected_date`,
+  `supplier_verified`, `supplier_brand_link`, `brand_active`, `model_active`, `variant_active`), `DUPLICATE` (`variantId`),
+  `VERSION_CONFLICT`, `INVALID_STATE`; 403 `FORBIDDEN`, `SELF_APPROVAL_NOT_ALLOWED`; 404 `NOT_FOUND`; 422
+  `VALIDATION_FAILED` (format, cross-brand/archived catalogue, archived or unknown supplier, other brand's price list).
+- No DELETE of a PO. Audited: `purchase_order.created|updated|line_added|line_updated|line_removed|submitted|approved|
+  returned|cancelled|settings_updated`; refused approvals are recorded with outcome `DENIED`.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

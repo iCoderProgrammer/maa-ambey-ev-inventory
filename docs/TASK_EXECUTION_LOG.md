@@ -2088,6 +2088,115 @@ Result: PASS — commit `f4034a2` pushed to `origin/dev` (fast-forward `afafc00.
 #### Final status
 COMPLETE — D-01 only, verified and pushed (`f4034a2`). D-02 not started.
 
+### D-02 — Purchase order lifecycle
+
+- **Status:** COMPLETE (mechanism; no PO data, grants, approvers or threshold — OQ-21…OQ-24, RB-5)
+- **Started:** 2026-10-23 · **Finished:** 2026-10-23
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_02_purchase-order-lifecycle.md
+- Git at start: D-01 `f4034a2` and its verification docs `6dff525` pushed (`dev` = `origin/dev`), clean tree.
+  Order: backend first (new API/schema, prompt execution note), then UI on the real API.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-07 | COMPLETE | deny-by-default `Require`, `Access.Has`; access tests pass |
+| C-02 | COMPLETE | brand/model/variant with composite brand FKs, lifecycle + brand activation gate; catalogue tests pass |
+| C-04 | COMPLETE | `price_items` COST type, approved/immutable rows, supersession; pricing tests pass |
+| D-01 | COMPLETE | suppliers + verified `supplier_brand_links`; final verification `6dff525`; supplier tests pass |
+
+#### Acceptance criteria
+- [x] AC1 PO number generation, supplier, creator, expected date, line items (brand/model/variant, quantity, agreed cost), status history
+- [x] AC2 Transitions validated server-side (DRAFT → SUBMITTED → APPROVED, return to draft, cancel); later states reserved for D-03
+- [x] AC3 Brand/model/variant compatibility and archived/cross-brand refusal server-side; supplier verified with a current link to each brand before submit/approve
+- [x] AC4 Line costs/prices are snapshots: catalogue COST snapshot never changes after later price approvals; lines frozen after submission
+- [x] AC5 Totals and remaining quantities computed by the server; client totals/statuses rejected
+- [x] AC6 Unauthorised approvals fail (no permission, own PO); threshold config only with owner sign-off; none configured → every PO needs an approver
+- [x] AC7 Concurrency (versions, row locks), duplicate protection (one line per variant, Idempotency-Key), audit, no hard delete
+- [x] AC8 UI list/create/edit/detail/line editor/submit/approve/history with warnings (price variance, partial, over-receipt) and all states, desktop + mobile, real API
+- [x] AC9 Tests (unit, Go integration, Vitest, Playwright desktop + mobile), `make ci`
+
+#### Stage 1 — UI
+Result: COMPLETE (built after the backend, directly on the typed API client; no production mock adapter)
+- `ui/src/features/purchasing/`: `api/purchaseOrders.ts` (Zod contracts, 13 calls; create sends an `Idempotency-Key`
+  kept for the dialog's lifetime), `hooks/usePurchaseOrders.ts`, `lib/labels.ts` (status/event/warning labels,
+  `describePOError`), `components/PurchaseOrderDialogs.tsx` (create/edit header, line editor with brand → model →
+  variant from the catalogue API and optional cost list, remove line, submit, approve, return, cancel, approval
+  settings), `PurchaseOrderPages.tsx` (list with search/status/brand filters, server totals, received/remaining,
+  approval policy note; detail with order/totals cards, server blockers, lines with snapshot/variance/partial/over-receipt
+  warnings, status history, actions from the server's `actions`).
+- Routes `/procurement/purchase-orders`, `/procurement/purchase-orders/:poId`; nav "Purchase Orders" now needs
+  `purchase_orders.view` (no longer planned). Shared: PO check keys added to `checkLabel`; `ActionErrorBox` list keys
+  made unique (several blockers can share a key). Tests that used Purchase Orders as the example planned module now use
+  Goods Receipts & PDI.
+- States: loading, empty, no results, validation (client + server field errors), duplicate, submission/approval
+  blocked with the server's checks, self-approval, stale version (reload), invalid state, 401/403 (gate + messages),
+  404, network errors; success only after the server confirms (cache replaced by the server's detail).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000011_create_purchase_orders` (up/down): permissions `purchase_orders.view|manage|approve|cancel|settings.manage`
+  (no grants); sequence `purchase_order_number_seq` (`PO-000001` …); `purchase_order_settings` (one row, threshold NULL =
+  not configured; a threshold needs a sign-off reference — CHECK); `purchase_orders` (status CHECK incl. later D-03 states,
+  submitted/approved/cancelled pairs, approval basis `APPROVER` / `BELOW_THRESHOLD`, CHECK approver ≠ creator/submitter,
+  per-user unique idempotency key); `purchase_order_lines` (composite FKs brand/model/variant and price list ↔ brand,
+  one line per variant, quantity 1–10000, unit cost > 0, COST snapshot columns); `purchase_order_events` (append-only,
+  ordered by identity `seq`). Trigger `purchase_order_history_guard`: no PO delete, events immutable, lines change only
+  while DRAFT (afterwards only `received_quantity`, for D-03).
+- Module `internal/modules/purchasing` (types, validate, rules, service, pgstore, http): 13 routes (see API_CONVENTIONS
+  "Purchase orders"). Submit/approve lock the PO, share-lock supplier/brand/model/variant and settings, re-check
+  prerequisites (supplier VERIFIED, current VERIFIED link per brand, brand ACTIVE + AUTHORISED, model/variant ACTIVE,
+  ≥1 line, expected date not past). Self-approval 403 `SELF_APPROVAL_NOT_ALLOWED`, blocked 409 `SUBMISSION_BLOCKED` /
+  `APPROVAL_BLOCKED`; refused approvals audited DENIED. Catalogue cost snapshots visible only with
+  `catalogue.cost_price.view`. New error code `SUBMISSION_BLOCKED`.
+- Tests: `rules_test.go` (transitions, prerequisites, approval requirement, warnings, action hints), `http_test.go`
+  (deny by default per route, input validation, no DB), `api_integration_test.go` (numbering/totals/remaining, client
+  totals refused, cross-brand/archived/duplicates, snapshots unchanged after supersession + redaction + DB freeze,
+  transitions/self-approval/stale/approval re-check/cancel/history/DB guards, return-to-draft and edit, threshold
+  settings incl. first-time supplier, concurrent approvals, idempotent parallel creates, parallel line adds, deny by default).
+- `go vet` clean, gofmt clean; full `go test` with PostgreSQL: all packages pass after applying migration 11 to the dev DB
+  (`TestDevelopmentSchemaIsCurrent` needs it). OpenAPI regenerated: 10 new paths, existing paths/definitions unchanged.
+- Shared dev DB migrated to 11 (schema, 5 permission keys, the empty settings row; no grants, no PO data). Dev API :8081
+  restarted with this build: `/ready` ready.
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 13 endpoints used through TanStack Query; supplier, brand/model/variant and cost price lists come from their APIs
+  (selects disabled with an explanation when the user lacks `suppliers.view` / `catalogue.view`).
+- Vitest 20 files / 165 tests (9 new: deny without view, list totals/policy/filters, create validation + one
+  idempotency key across a failed and a successful attempt, blockers + SUBMISSION_BLOCKED, visible snapshot + variance,
+  line cascade + client validation + duplicate, approve only after the server confirms, self-approval + stale version,
+  not found). `make ci` exit 0 (Go run via `/snap/go/current/bin`); Go 17 packages / 190 top-level / 380 tests pass.
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5449 v11, API :8093, Vite :5175, test-only users, PROPOSED grants and an
+  eligible PO fixture inserted by SQL on that database only; removed afterwards). `e2e/purchase-orders.e2e.ts`
+  6/6 (desktop + Pixel 7) after one test-locator fix (mobile matched the hidden desktop cell; the page was right).
+  Full suite: **67 passed, 5 skipped (by design), 0 failed**.
+- Console clean; API 5xx only client-aborted GETs (`context canceled`, ≤ 17 ms). Dev DB permissions/data unchanged.
+- Evidence: `docs/evidence/D-02/verification.txt`, `desktop-po-detail.png`, `mobile-po-list.png`.
+
+#### Files changed
+Backend: `migrations/000011_create_purchase_orders.{up,down}.sql`, `internal/modules/purchasing/*` (new),
+`internal/modules/access/policy.go`, `internal/httpx/response.go`, `internal/server/server.go` (+ test), `cmd/api/main.go`,
+`docs/openapi/*`. UI: `ui/src/features/purchasing/*` (new), `ui/src/app/{routes,navigation}.ts(x)`,
+`ui/src/features/access/api/access.ts`, `ui/src/features/catalogue/{lib/presentation.ts,components/ActionErrorBox.tsx}`,
+tests (`App`, `AppShell`, `access`), `ui/e2e/{purchase-orders,access,shell}.e2e.ts`. Docs: ADR-016, OQ-21…OQ-24,
+API_CONVENTIONS "Purchase orders", DEVELOPMENT_SETUP e2e grants, this log, `docs/evidence/D-02/`.
+
+#### Known issues / pending approvals
+- `purchase_orders.*` permissions have no grants (RB-5). Approvers, maker-checker exceptions and the threshold are
+  pending (OQ-21): no threshold → every PO needs an approver who did not create or submit it.
+- **No PO can be submitted in a real database yet:** submission needs an activated brand, and brand activation still
+  has pending checks (warranty terms RB-2, identifier rules D-04/OQ-4). The approval flow was verified only with a
+  test fixture inserted into the throwaway database.
+- PO number format (OQ-22), variance tolerance (OQ-23), delivery location (OQ-24) and tax treatment (F-10) pending.
+  Amounts exclude tax. Receiving (`PARTIALLY_RECEIVED`, `RECEIVED`, over-receipt override) is D-03.
+- The shared dev DB is now at migration 11; dev API restarted on this build.
+
+#### Final status
+COMPLETE — D-02 only. Not pushed. D-03 not started.
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--

@@ -46,6 +46,8 @@ const (
 	CodeApprovalBlocked = "APPROVAL_BLOCKED" // 409
 	CodeSelfApproval    = "SELF_APPROVAL_NOT_ALLOWED"
 	CodePriceNotFound   = "PRICE_NOT_FOUND" // 404
+	// Purchase orders (D-02).
+	CodeSubmissionBlocked = "SUBMISSION_BLOCKED" // 409
 )
 
 // DataResponse is the success envelope. In swag annotations use

@@ -95,13 +95,15 @@ describe('sidebar', () => {
     renderApp('/')
 
     const link = within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
-      name: /Purchase Orders/,
+      name: /Goods Receipts/,
     })
     link.focus()
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('heading', { level: 1, name: 'Purchase Orders' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Goods Receipts & PDI' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveFocus()
-    expect(document.title).toBe('Purchase Orders · Maa Ambey Inventory')
+    expect(document.title).toBe('Goods Receipts & PDI · Maa Ambey Inventory')
   })
 })
 

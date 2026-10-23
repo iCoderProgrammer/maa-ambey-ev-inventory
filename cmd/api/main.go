@@ -20,6 +20,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/catalogue"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/pricing"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/purchasing"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/suppliers"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/server"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
@@ -102,9 +103,10 @@ func run() error {
 	catalogueHandler := catalogue.NewHandler(catalogue.NewService(catalogue.NewPGStore(pool), log), accessHandler, log)
 	pricingHandler := pricing.NewHandler(pricing.NewService(pricing.NewPGStore(pool), log), accessHandler, log)
 	supplierHandler := suppliers.NewHandler(suppliers.NewService(suppliers.NewPGStore(pool), log), accessHandler, log)
+	purchaseOrderHandler := purchasing.NewHandler(purchasing.NewService(purchasing.NewPGStore(pool), log), accessHandler, log)
 	log.Info("attachment storage ready", slog.String("driver", objects.Driver()), slog.Int64("max_bytes", cfg.AttachmentMaxBytes))
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, Version: version})
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

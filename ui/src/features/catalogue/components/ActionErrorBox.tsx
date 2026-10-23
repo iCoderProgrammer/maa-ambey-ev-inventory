@@ -15,8 +15,8 @@ export function ActionErrorBox({ error, onReload }: { error: ActionError; onRelo
       </div>
       {error.blockers && error.blockers.length > 0 && (
         <ul className="ml-6 list-disc space-y-1 text-ink">
-          {error.blockers.map((b) => (
-            <li key={b.key}>
+          {error.blockers.map((b, i) => (
+            <li key={`${b.key}-${String(i)}`}>
               <span className="font-medium">{checkLabel(b.key)}</span>
               <span className="text-muted"> — {b.message}</span>
             </li>

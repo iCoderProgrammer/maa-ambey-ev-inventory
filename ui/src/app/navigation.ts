@@ -108,8 +108,9 @@ export const navigation: NavSection[] = [
         label: 'Purchase Orders',
         path: '/procurement/purchase-orders',
         icon: ShoppingCart,
-        backlog: ['D-02'],
-        summary: 'Purchase order lifecycle from draft to closed.',
+        backlog: [],
+        summary: 'Purchase orders: lines with agreed costs, submission, approval and history.',
+        permission: 'purchase_orders.view',
       },
       {
         label: 'Goods Receipts & PDI',

@@ -12,6 +12,10 @@ import {
 } from '@/features/catalogue/pages/DetailPages'
 import { BrandsPage, ModelsPage, VariantsPage } from '@/features/catalogue/pages/ListPages'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import {
+  PurchaseOrderDetailPage,
+  PurchaseOrdersPage,
+} from '@/features/purchasing/PurchaseOrderPages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
 import { NotFoundPage } from './NotFoundPage'
 import { PlannedModulePage } from './PlannedModulePage'
@@ -38,6 +42,11 @@ export const routes: RouteObject[] = [
               { path: 'documents', element: <DocumentsPage /> },
               { path: 'procurement/suppliers', element: <SuppliersPage /> },
               { path: 'procurement/suppliers/:supplierId', element: <SupplierDetailPage /> },
+              { path: 'procurement/purchase-orders', element: <PurchaseOrdersPage /> },
+              {
+                path: 'procurement/purchase-orders/:poId',
+                element: <PurchaseOrderDetailPage />,
+              },
               {
                 path: 'admin/catalogue',
                 element: <CatalogueLayout />,

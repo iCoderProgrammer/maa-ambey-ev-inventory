@@ -3341,6 +3341,1036 @@ const docTemplate = `{
                 }
             }
         },
+        "/purchase-order-settings": {
+            "get": {
+                "description": "approvalThreshold null means none is configured and every PO needs an approver. Requires purchase_orders.view or purchase_orders.settings.manage.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Get the purchase order approval settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "A threshold needs the owner's sign-off reference. POs already submitted keep the threshold they were submitted under. Requires purchase_orders.settings.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Change the purchase order approval settings",
+                "parameters": [
+                    {
+                        "description": "Settings",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderSettingsUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders": {
+            "get": {
+                "description": "Newest first. Search the PO number or supplier name; filter by status, supplier or brand (a line of that brand). Totals and remaining quantities are computed by the server. Requires purchase_orders.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "List purchase orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "APPROVED",
+                            "PARTIALLY_RECEIVED",
+                            "RECEIVED",
+                            "CLOSED",
+                            "CANCELLED"
+                        ],
+                        "type": "string",
+                        "description": "Status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Supplier ID",
+                        "name": "supplierId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Gets the next PO number. The supplier must exist and not be archived; each line's brand, model and variant must belong together and not be archived. A line's priceListId (needs catalogue.cost_price.view) snapshots that list's approved COST price valid now. With Idempotency-Key, a repeat by the same user returns the first PO with 200. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Create a draft purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Purchase order",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay of an earlier create with the same Idempotency-Key",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}": {
+            "get": {
+                "description": "The PO with lines (agreed costs, received and remaining quantities, warnings), status history, unmet prerequisites for the next step and the caller's possible actions. Catalogue cost snapshots need catalogue.cost_price.view. Requires purchase_orders.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Get a purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Supplier, expected date (YYYY-MM-DD) or notes; null clears the date or notes. Drafts only. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Edit a draft purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/approve": {
+            "post": {
+                "description": "Never by the PO's creator or submitter (403 SELF_APPROVAL_NOT_ALLOWED). The submission prerequisites are checked again. Refusals are audited as DENIED. Requires purchase_orders.approve and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Approve a submitted purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Approval",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderApprove"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "APPROVAL_BLOCKED, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/cancel": {
+            "post": {
+                "description": "Drafts, submitted POs and approved POs with nothing received. The PO stays as history. Requires purchase_orders.cancel and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Cancel a purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderReason"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/lines": {
+            "post": {
+                "description": "One line per variant. Brand, model and variant must belong together and not be archived. priceListId (needs catalogue.cost_price.view) snapshots the approved COST price valid now. version is the PO's. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Add a line to a draft",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Line",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderLineAdd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE (variantId), VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/lines/{lineId}": {
+            "patch": {
+                "description": "Quantity, unit cost or note. Sending priceListId takes a fresh cost snapshot; null removes it; leaving it out keeps the snapshot as it was. version is the PO's. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Edit a draft line",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Line ID",
+                        "name": "lineId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderLineUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/lines/{lineId}/remove": {
+            "post": {
+                "description": "Only lines of a draft are removed; submitted POs keep their lines. version is the PO's. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Remove a draft line",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Line ID",
+                        "name": "lineId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderVersion"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/return": {
+            "post": {
+                "description": "With a reason, recorded in the status history. Requires purchase_orders.approve and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Return a submitted purchase order to draft",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderReason"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/submit": {
+            "post": {
+                "description": "Needs at least one line, an expected date not in the past, a VERIFIED supplier with a current verified relationship to every line's brand, and each brand (active and authorised), model and variant active. Without a signed-off threshold every PO then waits for approval (SUBMITTED); within a signed-off threshold it is APPROVED with basis BELOW_THRESHOLD. Requires purchase_orders.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "purchase-orders"
+                ],
+                "summary": "Submit a draft",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PurchaseOrderVersion"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PurchaseOrderDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "SUBMISSION_BLOCKED (details: unmet keys), VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ready": {
             "get": {
                 "description": "Reports whether PostgreSQL is reachable (\"database\") and migrated to the schema version this build expects with no failed migration (\"migrations\"). Returns 503 when not ready. The API never migrates on its own.",
@@ -6308,6 +7338,747 @@ const docTemplate = `{
             }
         },
         "PriceVersion": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrder": {
+            "type": "object",
+            "properties": {
+                "approvalBasis": {
+                    "type": "string",
+                    "enum": [
+                        "APPROVER",
+                        "BELOW_THRESHOLD"
+                    ],
+                    "x-nullable": true
+                },
+                "approvalNote": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandNames": {
+                    "description": "Brands of the lines (names from the catalogue).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cancelReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "createdByName": {
+                    "type": "string"
+                },
+                "currency": {
+                    "description": "Indian rupees, excluding tax (tax configuration is pending, F-10).",
+                    "type": "string",
+                    "example": "INR"
+                },
+                "expectedDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-11-15"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lineCount": {
+                    "description": "Computed by the server from the lines.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "number": {
+                    "type": "string",
+                    "example": "PO-000001"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "remainingQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "PARTIALLY_RECEIVED",
+                        "RECEIVED",
+                        "CLOSED",
+                        "CANCELLED"
+                    ],
+                    "example": "DRAFT"
+                },
+                "submittedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "submittedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "supplierName": {
+                    "type": "string",
+                    "example": "Example Supplier Private Limited"
+                },
+                "supplierStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "VERIFIED",
+                        "ARCHIVED"
+                    ]
+                },
+                "thresholdApplied": {
+                    "description": "The approval threshold applied at submission; null when none was configured.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "totalAmount": {
+                    "type": "string",
+                    "example": "0.00"
+                },
+                "totalQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderActions": {
+            "type": "object",
+            "properties": {
+                "approve": {
+                    "type": "boolean"
+                },
+                "cancel": {
+                    "type": "boolean"
+                },
+                "edit": {
+                    "type": "boolean"
+                },
+                "return": {
+                    "type": "boolean"
+                },
+                "submit": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "PurchaseOrderApprove": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "PurchaseOrderCheck": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "supplier_verified"
+                },
+                "lineId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "PurchaseOrderCreate": {
+            "type": "object",
+            "properties": {
+                "expectedDate": {
+                    "type": "string",
+                    "example": "2026-11-15"
+                },
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PurchaseOrderLineInput"
+                    }
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "supplierId": {
+                    "type": "string"
+                }
+            }
+        },
+        "PurchaseOrderDetail": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "$ref": "#/definitions/PurchaseOrderActions"
+                },
+                "approvalBasis": {
+                    "type": "string",
+                    "enum": [
+                        "APPROVER",
+                        "BELOW_THRESHOLD"
+                    ],
+                    "x-nullable": true
+                },
+                "approvalNote": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvalReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvalRequired": {
+                    "description": "Whether submission will need an approver under the current settings (drafts only).",
+                    "type": "boolean",
+                    "x-nullable": true
+                },
+                "approvedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "blockers": {
+                    "description": "Unmet prerequisites for the next step (submit for drafts, approve for submitted POs).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PurchaseOrderCheck"
+                    }
+                },
+                "brandNames": {
+                    "description": "Brands of the lines (names from the catalogue).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cancelReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "createdByName": {
+                    "type": "string"
+                },
+                "currency": {
+                    "description": "Indian rupees, excluding tax (tax configuration is pending, F-10).",
+                    "type": "string",
+                    "example": "INR"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PurchaseOrderEvent"
+                    }
+                },
+                "expectedDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-11-15"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lineCount": {
+                    "description": "Computed by the server from the lines.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PurchaseOrderLine"
+                    }
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "number": {
+                    "type": "string",
+                    "example": "PO-000001"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "remainingQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "PARTIALLY_RECEIVED",
+                        "RECEIVED",
+                        "CLOSED",
+                        "CANCELLED"
+                    ],
+                    "example": "DRAFT"
+                },
+                "submittedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "submittedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "supplierName": {
+                    "type": "string",
+                    "example": "Example Supplier Private Limited"
+                },
+                "supplierStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "VERIFIED",
+                        "ARCHIVED"
+                    ]
+                },
+                "thresholdApplied": {
+                    "description": "The approval threshold applied at submission; null when none was configured.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "totalAmount": {
+                    "type": "string",
+                    "example": "0.00"
+                },
+                "totalQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderEvent": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "CREATED",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "APPROVAL_NOT_REQUIRED",
+                        "RETURNED",
+                        "CANCELLED"
+                    ]
+                },
+                "actorId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "actorName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "toStatus": {
+                    "type": "string"
+                }
+            }
+        },
+        "PurchaseOrderLine": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "brandName": {
+                    "type": "string"
+                },
+                "brandStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "costVariance": {
+                    "description": "unitCost - referenceUnitCost (null without a visible snapshot).",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "0.00"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lineNo": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "lineTotal": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "modelName": {
+                    "type": "string"
+                },
+                "modelStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "referenceCapturedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "referenceHidden": {
+                    "type": "boolean"
+                },
+                "referencePriceItemId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "referencePriceListId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "referenceUnitCost": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "remainingQuantity": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "unitCost": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variantId": {
+                    "type": "string"
+                },
+                "variantName": {
+                    "type": "string"
+                },
+                "variantStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING_VERIFICATION",
+                        "ACTIVE",
+                        "ARCHIVED"
+                    ]
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "PRICE_VARIANCE",
+                            "PARTIAL_DELIVERY",
+                            "OVER_RECEIPT"
+                        ]
+                    }
+                }
+            }
+        },
+        "PurchaseOrderLineAdd": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "priceListId": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "unitCost": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "variantId": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderLineInput": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "priceListId": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "unitCost": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "variantId": {
+                    "type": "string"
+                }
+            }
+        },
+        "PurchaseOrderLineUpdate": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string"
+                },
+                "priceListId": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "unitCost": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PurchaseOrder"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "PurchaseOrderReason": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Quantities to be confirmed with the supplier"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "PurchaseOrderSettings": {
+            "type": "object",
+            "properties": {
+                "approvalReference": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvalThreshold": {
+                    "description": "Null: not configured — every PO needs an approver.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "100000.00"
+                },
+                "firstTimeSupplierNeedsApproval": {
+                    "type": "boolean"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "updatedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderSettingsUpdate": {
+            "type": "object",
+            "properties": {
+                "approvalReference": {
+                    "type": "string",
+                    "example": "Owner sign-off 2026-10-20"
+                },
+                "approvalThreshold": {
+                    "type": "string",
+                    "example": "100000.00"
+                },
+                "firstTimeSupplierNeedsApproval": {
+                    "type": "boolean"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderUpdate": {
+            "type": "object",
+            "properties": {
+                "expectedDate": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PurchaseOrderVersion": {
             "type": "object",
             "properties": {
                 "version": {

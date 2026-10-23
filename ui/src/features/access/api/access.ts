@@ -65,6 +65,11 @@ export const Permission = {
   SupplierManage: 'suppliers.manage',
   SupplierVerify: 'suppliers.verify',
   SupplierArchive: 'suppliers.archive',
+  PurchaseOrderView: 'purchase_orders.view',
+  PurchaseOrderManage: 'purchase_orders.manage',
+  PurchaseOrderApprove: 'purchase_orders.approve',
+  PurchaseOrderCancel: 'purchase_orders.cancel',
+  PurchaseOrderSettings: 'purchase_orders.settings.manage',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

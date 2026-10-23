@@ -881,6 +881,543 @@ definitions:
         example: 1
         type: integer
     type: object
+  PurchaseOrder:
+    properties:
+      approvalBasis:
+        enum:
+        - APPROVER
+        - BELOW_THRESHOLD
+        type: string
+        x-nullable: true
+      approvalNote:
+        type: string
+        x-nullable: true
+      approvedAt:
+        type: string
+        x-nullable: true
+      approvedBy:
+        type: string
+        x-nullable: true
+      brandNames:
+        description: Brands of the lines (names from the catalogue).
+        items:
+          type: string
+        type: array
+      cancelReason:
+        type: string
+        x-nullable: true
+      cancelledAt:
+        type: string
+        x-nullable: true
+      cancelledBy:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      createdByName:
+        type: string
+      currency:
+        description: Indian rupees, excluding tax (tax configuration is pending, F-10).
+        example: INR
+        type: string
+      expectedDate:
+        example: "2026-11-15"
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      lineCount:
+        description: Computed by the server from the lines.
+        example: 0
+        type: integer
+      notes:
+        type: string
+        x-nullable: true
+      number:
+        example: PO-000001
+        type: string
+      receivedQuantity:
+        example: 0
+        type: integer
+      remainingQuantity:
+        example: 0
+        type: integer
+      status:
+        enum:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - PARTIALLY_RECEIVED
+        - RECEIVED
+        - CLOSED
+        - CANCELLED
+        example: DRAFT
+        type: string
+      submittedAt:
+        type: string
+        x-nullable: true
+      submittedBy:
+        type: string
+        x-nullable: true
+      supplierId:
+        type: string
+      supplierName:
+        example: Example Supplier Private Limited
+        type: string
+      supplierStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        type: string
+      thresholdApplied:
+        description: The approval threshold applied at submission; null when none
+          was configured.
+        type: string
+        x-nullable: true
+      totalAmount:
+        example: "0.00"
+        type: string
+      totalQuantity:
+        example: 0
+        type: integer
+      updatedAt:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderActions:
+    properties:
+      approve:
+        type: boolean
+      cancel:
+        type: boolean
+      edit:
+        type: boolean
+      return:
+        type: boolean
+      submit:
+        type: boolean
+    type: object
+  PurchaseOrderApprove:
+    properties:
+      note:
+        type: string
+      version:
+        example: 2
+        type: integer
+    type: object
+  PurchaseOrderCheck:
+    properties:
+      key:
+        example: supplier_verified
+        type: string
+      lineId:
+        type: string
+        x-nullable: true
+      message:
+        type: string
+    type: object
+  PurchaseOrderCreate:
+    properties:
+      expectedDate:
+        example: "2026-11-15"
+        type: string
+      lines:
+        items:
+          $ref: '#/definitions/PurchaseOrderLineInput'
+        type: array
+      notes:
+        type: string
+      supplierId:
+        type: string
+    type: object
+  PurchaseOrderDetail:
+    properties:
+      actions:
+        $ref: '#/definitions/PurchaseOrderActions'
+      approvalBasis:
+        enum:
+        - APPROVER
+        - BELOW_THRESHOLD
+        type: string
+        x-nullable: true
+      approvalNote:
+        type: string
+        x-nullable: true
+      approvalReason:
+        type: string
+        x-nullable: true
+      approvalRequired:
+        description: Whether submission will need an approver under the current settings
+          (drafts only).
+        type: boolean
+        x-nullable: true
+      approvedAt:
+        type: string
+        x-nullable: true
+      approvedBy:
+        type: string
+        x-nullable: true
+      blockers:
+        description: Unmet prerequisites for the next step (submit for drafts, approve
+          for submitted POs).
+        items:
+          $ref: '#/definitions/PurchaseOrderCheck'
+        type: array
+      brandNames:
+        description: Brands of the lines (names from the catalogue).
+        items:
+          type: string
+        type: array
+      cancelReason:
+        type: string
+        x-nullable: true
+      cancelledAt:
+        type: string
+        x-nullable: true
+      cancelledBy:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      createdByName:
+        type: string
+      currency:
+        description: Indian rupees, excluding tax (tax configuration is pending, F-10).
+        example: INR
+        type: string
+      events:
+        items:
+          $ref: '#/definitions/PurchaseOrderEvent'
+        type: array
+      expectedDate:
+        example: "2026-11-15"
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      lineCount:
+        description: Computed by the server from the lines.
+        example: 0
+        type: integer
+      lines:
+        items:
+          $ref: '#/definitions/PurchaseOrderLine'
+        type: array
+      notes:
+        type: string
+        x-nullable: true
+      number:
+        example: PO-000001
+        type: string
+      receivedQuantity:
+        example: 0
+        type: integer
+      remainingQuantity:
+        example: 0
+        type: integer
+      status:
+        enum:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - PARTIALLY_RECEIVED
+        - RECEIVED
+        - CLOSED
+        - CANCELLED
+        example: DRAFT
+        type: string
+      submittedAt:
+        type: string
+        x-nullable: true
+      submittedBy:
+        type: string
+        x-nullable: true
+      supplierId:
+        type: string
+      supplierName:
+        example: Example Supplier Private Limited
+        type: string
+      supplierStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - VERIFIED
+        - ARCHIVED
+        type: string
+      thresholdApplied:
+        description: The approval threshold applied at submission; null when none
+          was configured.
+        type: string
+        x-nullable: true
+      totalAmount:
+        example: "0.00"
+        type: string
+      totalQuantity:
+        example: 0
+        type: integer
+      updatedAt:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderEvent:
+    properties:
+      action:
+        enum:
+        - CREATED
+        - SUBMITTED
+        - APPROVED
+        - APPROVAL_NOT_REQUIRED
+        - RETURNED
+        - CANCELLED
+        type: string
+      actorId:
+        type: string
+        x-nullable: true
+      actorName:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      fromStatus:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      toStatus:
+        type: string
+    type: object
+  PurchaseOrderLine:
+    properties:
+      brandId:
+        type: string
+      brandName:
+        type: string
+      brandStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      costVariance:
+        description: unitCost - referenceUnitCost (null without a visible snapshot).
+        example: "0.00"
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      id:
+        type: string
+      lineNo:
+        example: 1
+        type: integer
+      lineTotal:
+        example: "1000.00"
+        type: string
+      modelId:
+        type: string
+      modelName:
+        type: string
+      modelStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      quantity:
+        example: 1
+        type: integer
+      receivedQuantity:
+        example: 0
+        type: integer
+      referenceCapturedAt:
+        type: string
+        x-nullable: true
+      referenceHidden:
+        type: boolean
+      referencePriceItemId:
+        type: string
+        x-nullable: true
+      referencePriceListId:
+        type: string
+        x-nullable: true
+      referenceUnitCost:
+        type: string
+        x-nullable: true
+      remainingQuantity:
+        example: 1
+        type: integer
+      unitCost:
+        example: "1000.00"
+        type: string
+      updatedAt:
+        type: string
+      variantId:
+        type: string
+      variantName:
+        type: string
+      variantStatus:
+        enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - ARCHIVED
+        type: string
+      warnings:
+        items:
+          enum:
+          - PRICE_VARIANCE
+          - PARTIAL_DELIVERY
+          - OVER_RECEIPT
+          type: string
+        type: array
+    type: object
+  PurchaseOrderLineAdd:
+    properties:
+      brandId:
+        type: string
+      modelId:
+        type: string
+      note:
+        type: string
+      priceListId:
+        type: string
+      quantity:
+        example: 1
+        type: integer
+      unitCost:
+        example: "1000.00"
+        type: string
+      variantId:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderLineInput:
+    properties:
+      brandId:
+        type: string
+      modelId:
+        type: string
+      note:
+        type: string
+      priceListId:
+        type: string
+      quantity:
+        example: 1
+        type: integer
+      unitCost:
+        example: "1000.00"
+        type: string
+      variantId:
+        type: string
+    type: object
+  PurchaseOrderLineUpdate:
+    properties:
+      note:
+        type: string
+      priceListId:
+        type: string
+      quantity:
+        type: integer
+      unitCost:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/PurchaseOrder'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  PurchaseOrderReason:
+    properties:
+      reason:
+        example: Quantities to be confirmed with the supplier
+        type: string
+      version:
+        example: 2
+        type: integer
+    type: object
+  PurchaseOrderSettings:
+    properties:
+      approvalReference:
+        type: string
+        x-nullable: true
+      approvalThreshold:
+        description: 'Null: not configured — every PO needs an approver.'
+        example: "100000.00"
+        type: string
+        x-nullable: true
+      firstTimeSupplierNeedsApproval:
+        type: boolean
+      updatedAt:
+        type: string
+        x-nullable: true
+      updatedBy:
+        type: string
+        x-nullable: true
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderSettingsUpdate:
+    properties:
+      approvalReference:
+        example: Owner sign-off 2026-10-20
+        type: string
+      approvalThreshold:
+        example: "100000.00"
+        type: string
+      firstTimeSupplierNeedsApproval:
+        type: boolean
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderUpdate:
+    properties:
+      expectedDate:
+        type: string
+      notes:
+        type: string
+      supplierId:
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PurchaseOrderVersion:
+    properties:
+      version:
+        example: 1
+        type: integer
+    type: object
   Readiness:
     properties:
       checks:
@@ -3551,6 +4088,680 @@ paths:
       summary: Price valid at a time
       tags:
       - pricing
+  /purchase-order-settings:
+    get:
+      description: approvalThreshold null means none is configured and every PO needs
+        an approver. Requires purchase_orders.view or purchase_orders.settings.manage.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderSettings'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get the purchase order approval settings
+      tags:
+      - purchase-orders
+    put:
+      consumes:
+      - application/json
+      description: A threshold needs the owner's sign-off reference. POs already submitted
+        keep the threshold they were submitted under. Requires purchase_orders.settings.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Settings
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderSettingsUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderSettings'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Change the purchase order approval settings
+      tags:
+      - purchase-orders
+  /purchase-orders:
+    get:
+      description: Newest first. Search the PO number or supplier name; filter by
+        status, supplier or brand (a line of that brand). Totals and remaining quantities
+        are computed by the server. Requires purchase_orders.view.
+      parameters:
+      - description: Search
+        in: query
+        name: q
+        type: string
+      - description: Status
+        enum:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - PARTIALLY_RECEIVED
+        - RECEIVED
+        - CLOSED
+        - CANCELLED
+        in: query
+        name: status
+        type: string
+      - description: Supplier ID
+        in: query
+        name: supplierId
+        type: string
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List purchase orders
+      tags:
+      - purchase-orders
+    post:
+      consumes:
+      - application/json
+      description: Gets the next PO number. The supplier must exist and not be archived;
+        each line's brand, model and variant must belong together and not be archived.
+        A line's priceListId (needs catalogue.cost_price.view) snapshots that list's
+        approved COST price valid now. With Idempotency-Key, a repeat by the same
+        user returns the first PO with 200. Requires purchase_orders.manage and X-CSRF-Token.
+        Audited.
+      parameters:
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Purchase order
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderCreate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Replay of an earlier create with the same Idempotency-Key
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a draft purchase order
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}:
+    get:
+      description: The PO with lines (agreed costs, received and remaining quantities,
+        warnings), status history, unmet prerequisites for the next step and the caller's
+        possible actions. Catalogue cost snapshots need catalogue.cost_price.view.
+        Requires purchase_orders.view.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a purchase order
+      tags:
+      - purchase-orders
+    patch:
+      consumes:
+      - application/json
+      description: Supplier, expected date (YYYY-MM-DD) or notes; null clears the
+        date or notes. Drafts only. Requires purchase_orders.manage and X-CSRF-Token.
+        Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a draft purchase order
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Never by the PO's creator or submitter (403 SELF_APPROVAL_NOT_ALLOWED).
+        The submission prerequisites are checked again. Refusals are audited as DENIED.
+        Requires purchase_orders.approve and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Approval
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderApprove'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: APPROVAL_BLOCKED, VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Approve a submitted purchase order
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Drafts, submitted POs and approved POs with nothing received. The
+        PO stays as history. Requires purchase_orders.cancel and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderReason'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Cancel a purchase order
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/lines:
+    post:
+      consumes:
+      - application/json
+      description: One line per variant. Brand, model and variant must belong together
+        and not be archived. priceListId (needs catalogue.cost_price.view) snapshots
+        the approved COST price valid now. version is the PO's. Requires purchase_orders.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Line
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderLineAdd'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE (variantId), VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Add a line to a draft
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/lines/{lineId}:
+    patch:
+      consumes:
+      - application/json
+      description: Quantity, unit cost or note. Sending priceListId takes a fresh
+        cost snapshot; null removes it; leaving it out keeps the snapshot as it was.
+        version is the PO's. Requires purchase_orders.manage and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Line ID
+        in: path
+        name: lineId
+        required: true
+        type: string
+      - description: Changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderLineUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Edit a draft line
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/lines/{lineId}/remove:
+    post:
+      consumes:
+      - application/json
+      description: Only lines of a draft are removed; submitted POs keep their lines.
+        version is the PO's. Requires purchase_orders.manage and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Line ID
+        in: path
+        name: lineId
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderVersion'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Remove a draft line
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/return:
+    post:
+      consumes:
+      - application/json
+      description: With a reason, recorded in the status history. Requires purchase_orders.approve
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderReason'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Return a submitted purchase order to draft
+      tags:
+      - purchase-orders
+  /purchase-orders/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Needs at least one line, an expected date not in the past, a VERIFIED
+        supplier with a current verified relationship to every line's brand, and each
+        brand (active and authorised), model and variant active. Without a signed-off
+        threshold every PO then waits for approval (SUBMITTED); within a signed-off
+        threshold it is APPROVED with basis BELOW_THRESHOLD. Requires purchase_orders.manage
+        and X-CSRF-Token. Audited.
+      parameters:
+      - description: Purchase order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PurchaseOrderVersion'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PurchaseOrderDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: 'SUBMISSION_BLOCKED (details: unmet keys), VERSION_CONFLICT
+            or INVALID_STATE'
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Submit a draft
+      tags:
+      - purchase-orders
   /ready:
     get:
       description: Reports whether PostgreSQL is reachable ("database") and migrated

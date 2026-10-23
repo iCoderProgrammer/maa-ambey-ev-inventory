@@ -49,6 +49,14 @@ const checkLabels: Record<string, string> = {
   brand: 'Brand is not archived',
   variant: 'Model and variant are not archived',
   variant_verification: 'Variant is verified',
+  // Purchase order submission and approval (D-02)
+  lines: 'At least one line',
+  expected_date: 'Expected delivery date',
+  supplier_verified: 'Verified supplier',
+  supplier_brand_link: 'Current verified supplier relationship with the brand',
+  brand_active: 'Brand activated for purchase',
+  model_active: 'Active model',
+  variant_active: 'Active variant',
 }
 
 export function checkLabel(key: string): string {

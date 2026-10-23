@@ -363,6 +363,35 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Permissions:** `suppliers.view`, `suppliers.manage`, `suppliers.verify`, `suppliers.archive` exist with **no
   grants** (deny by default). Concurrency: `version` on suppliers, contacts and links (409 `VERSION_CONFLICT`).
 
+## ADR-016 — Purchase order lifecycle (D-02)
+
+- **Status:** Accepted (technical design; approvers, threshold, number format, variance tolerance and grants pending —
+  OQ-21…OQ-24, RB-5).
+- **Schema (migration 000011):** `purchase_orders` (number `PO-000001…` from `purchase_order_number_seq`, supplier,
+  status, expected date, creator, submitter, approval basis/approver/note, threshold applied, cancellation, `version`,
+  per-user idempotency key), `purchase_order_lines` (brand/model/variant via composite FKs, one line per variant,
+  quantity, agreed `unit_cost`, `received_quantity` for D-03, catalogue COST snapshot: list, item, amount, time),
+  `purchase_order_events` (append-only status history), `purchase_order_settings` (one row; threshold NULL).
+  Trigger `purchase_order_history_guard`: POs never deleted, history immutable, lines change only while `DRAFT`
+  (afterwards only `received_quantity`). CHECKs: approver ≠ creator/submitter, threshold needs a sign-off reference,
+  approved states carry a basis.
+- **Lifecycle:** `DRAFT → SUBMITTED → APPROVED`; `SUBMITTED → DRAFT` (return, reason); cancel from `DRAFT`, `SUBMITTED`
+  or `APPROVED` with nothing received. `PARTIALLY_RECEIVED`, `RECEIVED`, `CLOSED` exist for goods receipts (D-03).
+- **Eligibility (submit and approve, re-checked in the transaction with share locks):** supplier `VERIFIED` with a
+  current `VERIFIED` relationship to every line's brand; each brand `ACTIVE` + `AUTHORISED` (C-02 activation gate);
+  model and variant `ACTIVE`; ≥ 1 line; expected date set and not past. Drafts may use pending (not archived)
+  suppliers and catalogue items, so work can start before verification; nothing past a draft does. Because brand
+  activation still has pending checks (warranty terms, identifier rules), no PO can be submitted in a real database yet.
+- **Approval:** `purchase_orders.approve`, never the creator or submitter (maker-checker, like C-04 prices).
+  PO-001's threshold is configuration recorded only with the owner's sign-off reference; none is set, so every PO
+  needs an approver. With a threshold, a PO within it (and not a supplier's first, when enabled) is approved on
+  submission with basis `BELOW_THRESHOLD`; the threshold used is stored on the PO.
+- **Snapshots:** the agreed unit cost is the PO's own value; a named cost price list snapshots its approved `COST`
+  price at that moment, and later price approvals never change it. Totals and remaining quantities are computed from
+  the lines on every read; client totals/statuses are not accepted.
+- **Concurrency/duplicates:** row lock + `version` (409 `VERSION_CONFLICT`); unique variant per PO; idempotent create.
+- **Permissions:** `purchase_orders.view|manage|approve|cancel|settings.manage` with **no grants**.
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -388,4 +417,8 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-18 | Tax treatment of price amounts and the tax configuration a price must reference (HSN, rate set, inclusive/exclusive) — needs the accountant's configuration (F-10, DOC-003). Until then the reference must stay empty. | C-04, F-10 |
 | OQ-19 | Supplier document types: is `GST_REGISTRATION`, `AUTHORISATION`, `AGREEMENT`, `OTHER` the right set, and which documents are required to verify a supplier or a brand relationship? | D-01, D-02 |
 | OQ-20 | Who verifies suppliers and supplier ↔ brand relationships (owner only?), and may the person who recorded a supplier also verify it? D-01 has a separate `suppliers.verify` permission but no maker-checker rule. | D-01, RB-5, OQ-2 |
+| OQ-21 | Purchase order approvals: who approves (owner only?), may the creator approve their own PO in a small team (D-02 never allows it), what is the approval threshold, and does a supplier's first PO always need approval (D-02 default: yes)? Until signed off, no threshold is set and every PO needs an approver. | D-02, RB-5, PO-001 |
+| OQ-22 | PO number format: D-02 uses `PO-000001` from one sequence (gaps possible). Is a prefix per financial year/location wanted? Not a tax document number. | D-02 |
+| OQ-23 | Price variance tolerance for PO lines and supplier bills (PO-007): D-02 warns on any difference from the catalogue cost snapshot; tolerance and any approval requirement are not configured. | D-02, D-03 |
+| OQ-24 | Do purchase orders need a delivery location (location scope, B-07)? D-02 has none. | D-02, D-03 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

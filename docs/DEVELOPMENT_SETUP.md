@@ -210,6 +210,12 @@ for p in catalogue.view catalogue.price.view catalogue.price.approve; do
 for p in suppliers.view suppliers.manage suppliers.verify suppliers.archive attachments.upload attachments.view; do
   make access ARGS="grant --role owner --permission $p"; done
 make access ARGS="grant --role accountant --permission suppliers.view"
+# optional, for the purchase order tests (D-02)
+for p in purchase_orders.view purchase_orders.manage purchase_orders.approve purchase_orders.cancel; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission purchase_orders.view"
+for p in purchase_orders.view purchase_orders.approve; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
@@ -231,6 +237,11 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   catalogue screens with the same two accounts (plus `e2e.active` for the no-permission case) on desktop and mobile;
   `e2e/prices.e2e.ts` (C-04) also needs `E2E_PRICE_APPROVER_*`; `e2e/isolation.e2e.ts` (C-06) uses `E2E_CATALOGUE_*`.
   `e2e/suppliers.e2e.ts` (D-01) uses `E2E_CATALOGUE_*` with the supplier grants above (throwaway database only).
+  `e2e/purchase-orders.e2e.ts` (D-02) uses `E2E_CATALOGUE_*` and `E2E_PRICE_APPROVER_*` with the purchase order
+  grants above. Its approval test also needs an eligible fixture — an `ACTIVE`/`AUTHORISED` brand with an active model
+  and variant, a verified supplier with a verified current link to it, and a cost price list with an approved `COST`
+  price — inserted directly into the throwaway database (brand activation cannot pass through the API yet) and named
+  in `E2E_PO_SUPPLIER`, `E2E_PO_BRAND`, `E2E_PO_COST_LIST`; without them that test is skipped.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.
