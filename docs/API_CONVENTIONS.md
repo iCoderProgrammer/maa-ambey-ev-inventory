@@ -306,6 +306,31 @@ Rules: ADR-016. Schema: migration 000011. Client: `ui/src/features/purchasing/ap
 - No DELETE of a PO. Audited: `purchase_order.created|updated|line_added|line_updated|line_removed|submitted|approved|
   returned|cancelled|settings_updated`; refused approvals are recorded with outcome `DENIED`.
 
+## Goods receipts (D-03)
+
+Rules: ADR-017. Schema: migration 000012. Client: `ui/src/features/receiving/api/goodsReceipts.ts`; hooks
+`hooks/useGoodsReceipts.ts`. Every mutation answers with the whole receipt (`GoodsReceiptDetail`). A draft changes no
+stock (`stockPosted: false`); posting is D-07.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /goods-receipts` · `GET /goods-receipts/{id}` | `goods_receipts.view` | filters `q` (GRN/PO number, supplier, supplier reference), `status`, `purchaseOrderId`, paging; detail lists **every** PO line with `orderedQuantity`, `postedQuantity`, `otherDraftsQuantity`, `availableQuantity`, received/accepted/rejected, `excessQuantity`, `overReceipt`, `units`, `warnings`; plus `documents`, `events`, caller `actions` |
+| `GET /receivable-purchase-orders` | `goods_receipts.manage` | `APPROVED`/`PARTIALLY_RECEIVED` POs with ordered, posted, draft-held and available quantities |
+| `POST /goods-receipts` | `goods_receipts.manage` | `purchaseOrderId`, `receivedDate` (not future), `supplierReference`, `notes`; optional `Idempotency-Key` as for POs |
+| `PUT /goods-receipts/{id}` | `goods_receipts.manage` (+ `goods_receipts.over_receipt` to send `overReceiptReason`) | replaces header, lines and units of a draft, all or nothing; `version` required; lines with nothing entered are dropped, so error paths (`lines[i].units[j].chassisNumber`) keep the client's positions |
+| `POST /goods-receipts/{id}/cancel` | `goods_receipts.manage` | drafts only, `reason` required; kept as history |
+| `POST /goods-receipts/{id}/documents` | `goods_receipts.manage` + `attachments.upload` | links one of the caller's own unlinked uploads (`documentType` `DELIVERY_CHALLAN`/`SUPPLIER_INVOICE`/`PHOTO`/`OTHER`); drafts only; downloads need `attachments.view` + `goods_receipts.view` |
+
+- Per line `receivedQuantity` = `acceptedQuantity` + `rejectedQuantity` (1–10000); units ≤ received, accepted/rejected
+  units ≤ those quantities. Identifiers are optional printable ASCII ≤ 50; a chassis/frame number (trimmed,
+  upper-cased) appears once per receipt and not on another `DRAFT`/`POSTED` receipt.
+- `availableQuantity` = ordered − posted − other open drafts. Above it: 409 `OVER_RECEIPT_REQUIRES_OVERRIDE` (details per
+  line), or 403 `OVER_RECEIPT_NOT_AUTHORISED` when the reason comes from a caller without the permission (audited
+  `DENIED`). An authorisation stays while it covers the received quantity.
+- Errors also: 409 `DUPLICATE` (details per unit), `VERSION_CONFLICT`, `INVALID_STATE` (not a draft, or the PO is no
+  longer receivable); 404; 422 `VALIDATION_FAILED`. No DELETE and no posting route. Audited:
+  `goods_receipt.created|saved|over_receipt_authorised|cancelled|document_added`.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

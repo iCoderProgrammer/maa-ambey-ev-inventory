@@ -12,7 +12,8 @@
 // Later modules (goods receipt, PDI …) link attachments to their records and
 // must add their own owner check to canSee before linked attachments become
 // visible; until then linked attachments are denied (fail closed). Supplier
-// documents (owner "supplier", D-01) need suppliers.view.
+// documents (owner "supplier", D-01) need suppliers.view; goods receipt
+// documents (owner "goods_receipt", D-03) need goods_receipts.view.
 package attachments
 
 import (
@@ -145,6 +146,9 @@ func canSee(a access.Access, att Attachment) bool {
 	case "supplier":
 		// Supplier documents (D-01): visible to whoever may view suppliers.
 		return a.Has(access.PermSupplierView)
+	case "goods_receipt":
+		// Delivery documents and photos (D-03): visible to whoever may view goods receipts.
+		return a.Has(access.PermGoodsReceiptView)
 	default:
 		// Other owners need their module's check, which none provides yet.
 		// Deny rather than guess.

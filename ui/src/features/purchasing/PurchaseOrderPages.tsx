@@ -23,6 +23,7 @@ import {
   personLabel,
 } from '@/features/catalogue/lib/presentation'
 import { formatINR } from '@/features/pricing/lib/format'
+import { PurchaseOrderReceipts } from '@/features/receiving/GoodsReceiptPages'
 import { SupplierStatusBadge } from '@/features/suppliers/components/SupplierBadges'
 import { ApiError } from '@/lib/api/client'
 import type { PODetail, POLine, POStatus, PurchaseOrder } from './api/purchaseOrders'
@@ -488,6 +489,10 @@ function PurchaseOrderDetailBody({ id }: { id: string }) {
           onRemove={(line) => {
             setOpen({ kind: 'removeLine', line })
           }}
+        />
+        <PurchaseOrderReceipts
+          purchaseOrderId={po.id}
+          receivable={po.status === 'APPROVED' || po.status === 'PARTIALLY_RECEIVED'}
         />
         <HistoryCard po={po} meId={perms.meId} />
       </div>

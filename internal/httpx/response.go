@@ -48,6 +48,9 @@ const (
 	CodePriceNotFound   = "PRICE_NOT_FOUND" // 404
 	// Purchase orders (D-02).
 	CodeSubmissionBlocked = "SUBMISSION_BLOCKED" // 409
+	// Goods receipts (D-03).
+	CodeOverReceiptNeedsOverride = "OVER_RECEIPT_REQUIRES_OVERRIDE" // 409
+	CodeOverReceiptForbidden     = "OVER_RECEIPT_NOT_AUTHORISED"    // 403
 )
 
 // DataResponse is the success envelope. In swag annotations use

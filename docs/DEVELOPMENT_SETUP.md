@@ -216,6 +216,12 @@ for p in purchase_orders.view purchase_orders.manage purchase_orders.approve pur
 make access ARGS="grant --role accountant --permission purchase_orders.view"
 for p in purchase_orders.view purchase_orders.approve; do
   make access ARGS="grant --role sales_executive --permission $p"; done
+# optional, for the goods receipt tests (D-03)
+for p in goods_receipts.view goods_receipts.manage; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission goods_receipts.view"
+for p in goods_receipts.view goods_receipts.manage goods_receipts.over_receipt; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
@@ -242,6 +248,10 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   and variant, a verified supplier with a verified current link to it, and a cost price list with an approved `COST`
   price — inserted directly into the throwaway database (brand activation cannot pass through the API yet) and named
   in `E2E_PO_SUPPLIER`, `E2E_PO_BRAND`, `E2E_PO_COST_LIST`; without them that test is skipped.
+  `e2e/goods-receipts.e2e.ts` (D-03) uses the same fixture (it creates, submits and approves its own purchase order
+  through the API) with `E2E_CATALOGUE_*` (receives, without over-receipt), `E2E_PRICE_APPROVER_*` (authorises
+  over-receipt) and `E2E_CATALOGUE_VIEWER_*` (read-only) and the goods receipt grants above. Set `E2E_EVIDENCE_DIR`
+  to save desktop/mobile screenshots.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

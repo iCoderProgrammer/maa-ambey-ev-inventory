@@ -47,8 +47,9 @@ describe('navigation from the permissions contract', () => {
     expect(within(nav).queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: /Catalogue & Brands/ })).not.toBeInTheDocument()
     // Ungated (planned) modules stay listed.
-    expect(within(nav).getByRole('link', { name: /Goods Receipts/ })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /Stock Movements/ })).toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: /Purchase Orders/ })).not.toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: /Goods Receipts/ })).not.toBeInTheDocument()
   })
 
   it('shows the link once the permission is granted', () => {

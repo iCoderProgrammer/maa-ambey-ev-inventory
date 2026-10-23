@@ -2196,6 +2196,106 @@ API_CONVENTIONS "Purchase orders", DEVELOPMENT_SETUP e2e grants, this log, `docs
 
 #### Final status
 COMPLETE — D-02 only. Not pushed. D-03 not started.
+Pushed later on instruction (fast-forward, no force): `origin/dev` = `4a5a9c0` (2026-10-23).
+
+### D-03 — Goods receipt draft workflow
+
+- **Status:** COMPLETE (draft mechanism; no receipt data or grants; identifier rules, document types and over-receipt
+  policy pending — OQ-4, OQ-25…OQ-27, RB-5)
+- **Started:** 2026-10-23 · **Finished:** 2026-10-23
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_03_goods-receipt-draft-workflow.md
+- Git at start: D-02 `4a5a9c0` pushed (`dev` = `origin/dev`), clean tree. Order: backend first (new API/schema), then UI
+  on the real API.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-02 | COMPLETE | approved POs, `purchase_order_lines.received_quantity` reserved for receipts; purchasing tests pass |
+| B-09 | COMPLETE | private attachments, owner linking once, signed links, `canSee` fail-closed; attachment tests pass |
+| C-01 | COMPLETE | brand → model → variant schema; catalogue tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Draft GRN linked to an approved PO (`APPROVED`/`PARTIALLY_RECEIVED`), numbered, idempotent create, no future date
+- [x] AC2 Partial deliveries: per PO line received / accepted / rejected, discrepancy note; several drafts per PO
+- [x] AC3 Remaining quantity validated server-side against posted quantities and other open drafts, under a PO row lock
+- [x] AC4 Over-receipt needs `goods_receipts.over_receipt` and a reason (else 409/403, audited DENIED); authorisation stored
+- [x] AC5 Per-unit capture (condition, chassis/frame, motor, battery, charger, note); duplicate chassis refused per receipt
+  and across open/posted receipts and shown per unit; missing identifiers and repeated serials shown as warnings
+- [x] AC6 Supplier documents via the private attachment service; access needs `attachments.view` + `goods_receipts.view`
+- [x] AC7 Drafts change no stock: no vehicle unit/movement, PO received quantities, status and version untouched (tested)
+- [x] AC8 Audit, no hard delete, invalid transitions refused, stale versions refused (DB history guard)
+- [x] AC9 UI: list, PO chooser, stepper (lines → units → documents → review), Save draft separate from (unavailable) Post
+  receipt, all states, desktop + mobile, real API
+- [x] AC10 Tests: Go unit + PostgreSQL integration, Vitest, Playwright desktop + mobile, `make ci`
+
+#### Stage 1 — UI
+Result: COMPLETE (built after the backend, directly on the typed API client; no production mock adapter)
+- `ui/src/features/receiving/`: `api/goodsReceipts.ts` (Zod contracts, 7 calls; create sends an `Idempotency-Key` kept for
+  the dialog), `hooks/useGoodsReceipts.ts`, `lib/labels.ts` (labels, server field path → form path, `describeGRNError`),
+  `components/ReceiptDialogs.tsx` (new receipt with receivable PO chooser, cancel with reason, attach document with
+  upload), `components/ReceiptEditor.tsx` (stepper, React Hook Form + Zod: accepted = received − rejected, units with
+  scanner-style focus, immediate duplicate-chassis check, over-receipt warning and reason field only for authorised
+  users, review with disabled "Post receipt"; saves against the version it loaded and offers "Reload latest version";
+  entries kept on every refusal), `GoodsReceiptPages.tsx` (list, detail, read-only view, documents, history, and a
+  "Goods receipts" card with "Receive goods" on the PO page).
+- Routes `/procurement/goods-receipts`, `/procurement/goods-receipts/:grnId`; nav "Goods Receipts" needs
+  `goods_receipts.view` (no longer planned); dashboard shortcut marked available. Tests that used Goods Receipts as the
+  example planned module now use Stock Movements.
+- States: loading, empty, no results, validation, over-receipt (409/403), duplicates per unit, stale version, invalid
+  state (PO closed), 401/403, 404, network errors, attachment upload/download failures; success only after the server
+  confirms.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000012_create_goods_receipts` (up/down): permissions `goods_receipts.view|manage|over_receipt` (no grants);
+  sequence `GRN-000001`…; `goods_receipts`, `goods_receipt_lines`, `goods_receipt_units`, `goods_receipt_documents`,
+  `goods_receipt_events`; `UNIQUE (id, purchase_order_id)` added on `purchase_order_lines` for the composite FK; trigger
+  `goods_receipt_history_guard`. `POSTED` + posting columns reserved for D-07.
+- Module `internal/modules/receiving` (types, validate, rules, service, pgstore, http): 7 routes (API_CONVENTIONS
+  "Goods receipts"). Attachments `canSee` gains owner `goods_receipt`. New codes `OVER_RECEIPT_REQUIRES_OVERRIDE`,
+  `OVER_RECEIPT_NOT_AUTHORISED`.
+- Tests: `rules_test.go`, `http_test.go` (deny by default per route, CSRF, validation, no delete/post route),
+  `api_integration_test.go` (partial draft changes no PO/stock state, other drafts + posted counted, override refused /
+  forbidden + DENIED audit / authorised / kept / dropped, cancel frees quantity, duplicate chassis across drafts + DB
+  constraints, concurrent saves cannot both take the last units, idempotent create, states, history guard, document
+  linking and attachment authorisation through the real attachment service), attachments `cansee_test.go`.
+- gofmt/vet clean. OpenAPI regenerated: 5 new paths, 17 new schemas, existing ones unchanged.
+- Shared dev DB migrated to 12 (schema + 3 permission keys only; no grants, no receipts; snapshot before/after). Dev API
+  :8081 restarted on this build: `/ready` ready.
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 7 endpoints through TanStack Query; receipt mutations refresh receipts, receivable POs and purchase orders.
+- Vitest 21 files / 178 tests (13 new). Go 18 packages / 204 top-level / 394 tests pass (PostgreSQL). `make ci` exit 0.
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5451 at migration 12, API :8095, Vite :5177, test-only users, PROPOSED grants and
+  the eligible PO fixture on that database only). `e2e/goods-receipts.e2e.ts` 4/4 (desktop + Pixel 7) after one
+  test-locator fix (search not yet filtered on mobile). Full suite: **71 passed, 5 skipped (by design), 0 failed**.
+- Console clean; API 5xx only client-aborted GETs (`context canceled`, 67, all GET). Dev DB unchanged.
+- Evidence: `docs/evidence/D-03/verification.txt`, `desktop-grn-draft.png`, `mobile-grn-draft.png`.
+
+#### Files changed
+Backend: `migrations/000012_create_goods_receipts.{up,down}.sql`, `internal/modules/receiving/*` (new),
+`internal/modules/attachments/{service.go,cansee_test.go,http_test.go}`, `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `internal/server/server.go` (+ test), `cmd/api/main.go`, `docs/openapi/*`.
+UI: `ui/src/features/receiving/*` (new), `ui/src/app/{routes,navigation}.ts(x)`, `ui/src/features/access/api/access.ts`,
+`ui/src/features/purchasing/PurchaseOrderPages.tsx`, `ui/src/features/dashboard/DashboardPage.tsx`, tests (`App`,
+`AppShell`, `access`), `ui/e2e/{goods-receipts,access,shell}.e2e.ts`. Docs: ADR-017, OQ-25…OQ-27, API_CONVENTIONS
+"Goods receipts", DEVELOPMENT_SETUP e2e grants, this log, `docs/evidence/D-03/`.
+
+#### Known issues / pending approvals
+- `goods_receipts.*` have no grants (RB-5). Who may authorise over-receipt, whether rejected units count, and
+  maker-checker are pending (OQ-27).
+- Identifier rules per brand (formats, mandatory serials, motor/battery uniqueness, separators) are pending (OQ-4,
+  OQ-26): identifiers are optional in drafts; checks against registered vehicles come with D-04/D-05 and posting (D-07).
+- Document type list is a proposal (OQ-25). Receipts have no location yet (OQ-24).
+- No receipt can be made in a real database yet: it needs an approved PO, which needs an activated brand (D-02 note).
+- Posting, PDI and stock are D-06/D-07/E-01; nothing here changes stock.
+
+#### Final status
+COMPLETE — D-03 only. Not pushed. D-04 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

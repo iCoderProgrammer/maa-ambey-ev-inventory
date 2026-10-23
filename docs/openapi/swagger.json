@@ -1778,6 +1778,485 @@
                 }
             }
         },
+        "/goods-receipts": {
+            "get": {
+                "description": "Newest first. Search the GRN or PO number, supplier name or supplier reference; filter by status or purchase order. Requires goods_receipts.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "List goods receipts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "DRAFT",
+                            "POSTED",
+                            "CANCELLED"
+                        ],
+                        "type": "string",
+                        "description": "Status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "purchaseOrderId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Gets the next GRN number. The purchase order must be APPROVED or PARTIALLY_RECEIVED; the received date must not be in the future. Lines are entered with PUT. With Idempotency-Key, a repeat by the same user returns the first receipt with 200. Changes no stock. Requires goods_receipts.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Start a draft goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Receipt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GoodsReceiptCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay of an earlier create with the same Idempotency-Key",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/goods-receipts/{id}": {
+            "get": {
+                "description": "The receipt with every line of its purchase order (ordered, posted, held by other drafts, available, received, accepted, rejected, over-receipt authorisation, units with identifiers, warnings), documents, history and the caller's actions. stockPosted is false for drafts: they change no stock. Requires goods_receipts.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Get a goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Replaces the draft's received date, supplier reference, notes, lines and units with what is sent (all or nothing). Per line: received = accepted + rejected; units at most the received quantity (accepted/rejected units at most those quantities); identifiers optional, a chassis/frame number once per receipt and not on another open or posted receipt (409 DUPLICATE, details per unit). A line above what the PO line has left (ordered - posted - other drafts) needs overReceiptReason from a holder of goods_receipts.over_receipt (else 409 OVER_RECEIPT_REQUIRES_OVERRIDE, or 403 OVER_RECEIPT_NOT_AUTHORISED when the reason comes from someone without it, audited DENIED). Changes no stock. Requires goods_receipts.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Save a draft goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Draft",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GoodsReceiptSave"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN, OVER_RECEIPT_NOT_AUTHORISED or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "OVER_RECEIPT_REQUIRES_OVERRIDE, DUPLICATE, VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/goods-receipts/{id}/cancel": {
+            "post": {
+                "description": "With a reason. The receipt, its lines and units stay as history and no longer hold purchase order quantity. Posted receipts are never cancelled. Requires goods_receipts.manage and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Cancel a draft goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GoodsReceiptCancel"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/goods-receipts/{id}/documents": {
+            "post": {
+                "description": "Links one of the caller's own uploads (POST /attachments) that is not attached to anything yet; it then belongs to the receipt for good. Downloads need attachments.view and goods_receipts.view. Drafts only. Requires goods_receipts.manage, attachments.upload and X-CSRF-Token. Audited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Attach a document to a draft goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Document",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GoodsReceiptDocumentInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE or INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Confirms the API process is running. Does not check dependencies.",
@@ -4420,6 +4899,76 @@
                 }
             }
         },
+        "/receivable-purchase-orders": {
+            "get": {
+                "description": "APPROVED and PARTIALLY_RECEIVED purchase orders with ordered, posted, draft-held and available quantities. Search the PO number or supplier name. Requires goods_receipts.manage.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "List purchase orders open for receipts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptPurchaseOrderPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/supplier-brand-links": {
             "get": {
                 "description": "By brand or by supplier (one is required); up to 200, open ones first. current=true means verified, supplier verified and today within the effective dates. Requires suppliers.view.",
@@ -6950,6 +7499,781 @@
                 "message": {
                     "type": "string",
                     "example": "must be lowercase letters, digits and hyphens"
+                }
+            }
+        },
+        "GoodsReceipt": {
+            "type": "object",
+            "properties": {
+                "acceptedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "cancelReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "createdByName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lineCount": {
+                    "description": "Computed by the server from the lines and units.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "number": {
+                    "type": "string",
+                    "example": "GRN-000001"
+                },
+                "postedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "postedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "purchaseOrderId": {
+                    "type": "string"
+                },
+                "purchaseOrderNumber": {
+                    "type": "string",
+                    "example": "PO-000001"
+                },
+                "purchaseOrderStatus": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "PARTIALLY_RECEIVED",
+                        "RECEIVED",
+                        "CLOSED",
+                        "CANCELLED"
+                    ]
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "rejectedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "POSTED",
+                        "CANCELLED"
+                    ],
+                    "example": "DRAFT"
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "supplierName": {
+                    "type": "string",
+                    "example": "Example Supplier Private Limited"
+                },
+                "supplierReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "DC-1234"
+                },
+                "unitCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "GoodsReceiptActions": {
+            "type": "object",
+            "properties": {
+                "addDocument": {
+                    "type": "boolean"
+                },
+                "authoriseOverReceipt": {
+                    "description": "The caller may authorise over-receipt (goods_receipts.over_receipt).",
+                    "type": "boolean"
+                },
+                "cancel": {
+                    "type": "boolean"
+                },
+                "edit": {
+                    "type": "boolean"
+                },
+                "post": {
+                    "description": "Posting changes stock and is a separate step (D-07); always false here.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "GoodsReceiptCancel": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Entered against the wrong purchase order"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "GoodsReceiptCreate": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "string"
+                },
+                "purchaseOrderId": {
+                    "type": "string"
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "supplierReference": {
+                    "type": "string",
+                    "example": "DC-1234"
+                }
+            }
+        },
+        "GoodsReceiptDetail": {
+            "type": "object",
+            "properties": {
+                "acceptedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "actions": {
+                    "$ref": "#/definitions/GoodsReceiptActions"
+                },
+                "cancelReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "cancelledBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "createdByName": {
+                    "type": "string"
+                },
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptDocument"
+                    }
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptEvent"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lineCount": {
+                    "description": "Computed by the server from the lines and units.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptLine"
+                    }
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "number": {
+                    "type": "string",
+                    "example": "GRN-000001"
+                },
+                "postedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "postedBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "purchaseOrderId": {
+                    "type": "string"
+                },
+                "purchaseOrderNumber": {
+                    "type": "string",
+                    "example": "PO-000001"
+                },
+                "purchaseOrderReceivable": {
+                    "description": "The PO accepts receipts (APPROVED or PARTIALLY_RECEIVED).",
+                    "type": "boolean"
+                },
+                "purchaseOrderStatus": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "PARTIALLY_RECEIVED",
+                        "RECEIVED",
+                        "CLOSED",
+                        "CANCELLED"
+                    ]
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "rejectedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "POSTED",
+                        "CANCELLED"
+                    ],
+                    "example": "DRAFT"
+                },
+                "stockPosted": {
+                    "description": "A draft changes no stock: always false until the receipt is posted.",
+                    "type": "boolean"
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "supplierName": {
+                    "type": "string",
+                    "example": "Example Supplier Private Limited"
+                },
+                "supplierReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "DC-1234"
+                },
+                "unitCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "GoodsReceiptDocument": {
+            "type": "object",
+            "properties": {
+                "addedBy": {
+                    "type": "string"
+                },
+                "addedByName": {
+                    "type": "string"
+                },
+                "attachmentId": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "documentType": {
+                    "type": "string",
+                    "enum": [
+                        "DELIVERY_CHALLAN",
+                        "SUPPLIER_INVOICE",
+                        "PHOTO",
+                        "OTHER"
+                    ]
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "GoodsReceiptDocumentInput": {
+            "type": "object",
+            "properties": {
+                "attachmentId": {
+                    "type": "string"
+                },
+                "documentType": {
+                    "type": "string",
+                    "enum": [
+                        "DELIVERY_CHALLAN",
+                        "SUPPLIER_INVOICE",
+                        "PHOTO",
+                        "OTHER"
+                    ],
+                    "example": "DELIVERY_CHALLAN"
+                },
+                "note": {
+                    "type": "string"
+                }
+            }
+        },
+        "GoodsReceiptEvent": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "CREATED",
+                        "CANCELLED",
+                        "POSTED"
+                    ]
+                },
+                "actorId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "actorName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "toStatus": {
+                    "type": "string"
+                }
+            }
+        },
+        "GoodsReceiptLine": {
+            "type": "object",
+            "properties": {
+                "acceptedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "availableQuantity": {
+                    "description": "ordered - posted - other drafts (never below 0): what this receipt may take without an override.",
+                    "type": "integer",
+                    "example": 5
+                },
+                "brandId": {
+                    "type": "string"
+                },
+                "brandName": {
+                    "type": "string"
+                },
+                "discrepancyNote": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "excessQuantity": {
+                    "description": "received - available when positive.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "lineNo": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "modelName": {
+                    "type": "string"
+                },
+                "orderedQuantity": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "otherDraftsQuantity": {
+                    "description": "Held by other open draft receipts of the same PO.",
+                    "type": "integer",
+                    "example": 0
+                },
+                "overReceipt": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/GoodsReceiptOverReceipt"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "postedQuantity": {
+                    "description": "Already posted against the PO line (goods receipts posted by D-07).",
+                    "type": "integer",
+                    "example": 0
+                },
+                "purchaseOrderLineId": {
+                    "type": "string"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "rejectedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "units": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptUnit"
+                    }
+                },
+                "variantName": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "OVER_RECEIPT",
+                            "OVER_RECEIPT_NOT_AUTHORISED",
+                            "PARTIAL_DELIVERY",
+                            "IDENTIFIERS_INCOMPLETE",
+                            "REJECTION_NOT_EXPLAINED"
+                        ]
+                    }
+                }
+            }
+        },
+        "GoodsReceiptLineInput": {
+            "type": "object",
+            "properties": {
+                "acceptedQuantity": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "discrepancyNote": {
+                    "type": "string"
+                },
+                "overReceiptReason": {
+                    "type": "string"
+                },
+                "purchaseOrderLineId": {
+                    "type": "string"
+                },
+                "receivedQuantity": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "rejectedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "units": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptUnitInput"
+                    }
+                }
+            }
+        },
+        "GoodsReceiptOverReceipt": {
+            "type": "object",
+            "properties": {
+                "authorisedAt": {
+                    "type": "string"
+                },
+                "authorisedBy": {
+                    "type": "string"
+                },
+                "authorisedByName": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "description": "Received quantity the authorisation covers.",
+                    "type": "integer",
+                    "example": 3
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "GoodsReceiptPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceipt"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "GoodsReceiptPurchaseOrder": {
+            "type": "object",
+            "properties": {
+                "availableQuantity": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "brandNames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "draftQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "expectedDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-11-15"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string",
+                    "example": "PO-000001"
+                },
+                "openDraftCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "orderedQuantity": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "postedQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "APPROVED",
+                        "PARTIALLY_RECEIVED"
+                    ]
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "supplierName": {
+                    "type": "string"
+                }
+            }
+        },
+        "GoodsReceiptPurchaseOrderPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptPurchaseOrder"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "GoodsReceiptSave": {
+            "type": "object",
+            "properties": {
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptLineInput"
+                    }
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "supplierReference": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "GoodsReceiptUnit": {
+            "type": "object",
+            "properties": {
+                "batterySerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chargerSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNormalised": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "condition": {
+                    "type": "string",
+                    "enum": [
+                        "ACCEPTED",
+                        "REJECTED"
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "motorSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "unitNo": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "CHASSIS_MISSING",
+                            "DUPLICATE_MOTOR_SERIAL",
+                            "DUPLICATE_BATTERY_SERIAL",
+                            "DUPLICATE_CHARGER_SERIAL"
+                        ]
+                    }
+                }
+            }
+        },
+        "GoodsReceiptUnitInput": {
+            "type": "object",
+            "properties": {
+                "batterySerial": {
+                    "type": "string"
+                },
+                "chargerSerial": {
+                    "type": "string"
+                },
+                "chassisNumber": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string",
+                    "enum": [
+                        "ACCEPTED",
+                        "REJECTED"
+                    ],
+                    "example": "ACCEPTED"
+                },
+                "motorSerial": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
                 }
             }
         },

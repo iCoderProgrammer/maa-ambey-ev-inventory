@@ -70,6 +70,9 @@ export const Permission = {
   PurchaseOrderApprove: 'purchase_orders.approve',
   PurchaseOrderCancel: 'purchase_orders.cancel',
   PurchaseOrderSettings: 'purchase_orders.settings.manage',
+  GoodsReceiptView: 'goods_receipts.view',
+  GoodsReceiptManage: 'goods_receipts.manage',
+  GoodsReceiptOverReceipt: 'goods_receipts.over_receipt',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

@@ -619,7 +619,7 @@ func TestLinkedAttachmentsAreDeniedUntilTheirModuleChecksThem(t *testing.T) {
 	h.grants.set(h.asha.userID, access.PermAttachmentsUpload, access.PermAttachmentsView, access.PermAllLocations)
 	att := h.uploadOK(&h.asha, "a.pdf", pdfBytes)
 	row := h.repo.rows[att.ID]
-	row.OwnerType, row.OwnerID = "goods_receipt", "GRN-1"
+	row.OwnerType, row.OwnerID = "pdi_inspection", "PDI-1"
 	h.repo.rows[att.ID] = row
 	if w := h.do(http.MethodGet, "/api/v1/attachments/"+att.ID, nil, "", &h.asha); w.Code != http.StatusNotFound {
 		t.Errorf("linked attachment: %d", w.Code)

@@ -113,11 +113,13 @@ export const navigation: NavSection[] = [
         permission: 'purchase_orders.view',
       },
       {
-        label: 'Goods Receipts & PDI',
+        label: 'Goods Receipts',
         path: '/procurement/goods-receipts',
         icon: PackageCheck,
-        backlog: ['D-03', 'D-06', 'D-07'],
-        summary: 'Receiving, serial capture and pre-delivery inspection.',
+        backlog: [],
+        summary:
+          'Draft receipts against approved purchase orders: quantities, unit identifiers and documents.',
+        permission: 'goods_receipts.view',
       },
     ],
   },

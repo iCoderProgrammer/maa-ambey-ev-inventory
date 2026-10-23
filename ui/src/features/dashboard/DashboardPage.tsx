@@ -16,11 +16,12 @@ const quickWorkflows = [
     domain: 'Inventory',
   },
   {
-    title: 'Goods Receipts & PDI',
+    title: 'Goods Receipts',
     path: '/procurement/goods-receipts',
     icon: Boxes,
-    description: 'Inward receiving, chassis verification & inspection dispositions.',
+    description: 'Draft receipts with unit identifiers; posting and PDI follow (D-07, D-06).',
     backlog: 'D-03',
+    available: true,
     domain: 'Procurement',
   },
   {

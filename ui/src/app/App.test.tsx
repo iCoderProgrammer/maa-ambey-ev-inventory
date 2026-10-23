@@ -42,7 +42,13 @@ describe('application shell', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const label of ['Vehicle Units', 'Goods Receipts', 'Customers', 'Reports', 'Quotations']) {
+    for (const label of [
+      'Vehicle Units',
+      'Stock Movements',
+      'Customers',
+      'Reports',
+      'Quotations',
+    ]) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')
@@ -96,8 +102,8 @@ describe('application shell', () => {
     const { router } = renderApp('/nope')
 
     expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: /Goods Receipts/ }))
-    expect(router.state.location.pathname).toBe('/procurement/goods-receipts')
+    await user.click(screen.getByRole('link', { name: /Stock Movements/ }))
+    expect(router.state.location.pathname).toBe('/inventory/movements')
   })
 
   it('switches between light and dark themes', async () => {

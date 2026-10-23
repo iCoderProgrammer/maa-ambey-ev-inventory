@@ -392,6 +392,32 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Concurrency/duplicates:** row lock + `version` (409 `VERSION_CONFLICT`); unique variant per PO; idempotent create.
 - **Permissions:** `purchase_orders.view|manage|approve|cancel|settings.manage` with **no grants**.
 
+## ADR-017 — Goods receipt drafts (D-03)
+
+- **Status:** Accepted (technical design; identifier rules, document types, over-receipt basis and grants pending —
+  OQ-4, OQ-25…OQ-27, RB-5).
+- **Schema (migration 000012):** `goods_receipts` (number `GRN-000001…`, PO, status `DRAFT`/`POSTED`/`CANCELLED`,
+  received date, supplier reference, notes, creator, cancellation, posting columns for D-07, `version`, per-user
+  idempotency key), `goods_receipt_lines` (one per PO line, composite FKs keep it on the receipt's own PO; received =
+  accepted + rejected; discrepancy note; over-receipt authorisation: quantity covered, reason, who, when),
+  `goods_receipt_units` (one row per physical unit: condition, chassis/frame number + normalised form, motor, battery,
+  charger serials, note; unique chassis per receipt), `goods_receipt_documents` (private attachments, owner type
+  `goods_receipt`), `goods_receipt_events`. Trigger `goods_receipt_history_guard`: nothing deleted except lines/units of a
+  draft; documents and events immutable; a non-draft receipt's lines never change.
+- **Drafts change no stock.** No vehicle unit, movement, PO `received_quantity` or PO status is touched; posting (D-07)
+  does that in one transaction. `POSTED` exists in the schema; no D-03 route sets it.
+- **Quantities and concurrency:** a save locks the receipt (version) and then its PO (`FOR UPDATE`), so saves of
+  drafts of one PO are serialised. Available = ordered − posted − held by other open drafts. Receiving more needs
+  `goods_receipts.over_receipt` and a reason (PO-003); the authorisation is stored per line, covers the quantity it was
+  given for and is dropped when no longer needed. Without it the save is refused and nothing is stored.
+- **Identifiers:** per-brand rules are not approved (OQ-4, `identifier_rules` pending), so all identifiers are optional
+  in a draft; the API shows missing ones as warnings. A chassis/frame number is compared trimmed and upper-cased
+  (INV-002; separators kept — OQ-26) and refused when already on this receipt or another open/posted receipt
+  (transaction advisory lock per number). Motor/battery/charger repeats only warn. Registered vehicles are checked at
+  posting (D-04/D-05/D-07).
+- **Permissions:** `goods_receipts.view|manage|over_receipt` with **no grants**. Linked documents are visible with
+  `attachments.view` + `goods_receipts.view` (attachments `canSee`).
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -421,4 +447,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-22 | PO number format: D-02 uses `PO-000001` from one sequence (gaps possible). Is a prefix per financial year/location wanted? Not a tax document number. | D-02 |
 | OQ-23 | Price variance tolerance for PO lines and supplier bills (PO-007): D-02 warns on any difference from the catalogue cost snapshot; tolerance and any approval requirement are not configured. | D-02, D-03 |
 | OQ-24 | Do purchase orders need a delivery location (location scope, B-07)? D-02 has none. | D-02, D-03 |
+| OQ-25 | Goods receipt document types: `DELIVERY_CHALLAN`, `SUPPLIER_INVOICE`, `PHOTO`, `OTHER` (D-03 proposal). Which are required before posting? | D-03, D-07 |
+| OQ-26 | Chassis/frame normalisation: D-03 trims and upper-cases only. Which separators (spaces, `-`, `/`) may be ignored when comparing (INV-002 "permitted separators"), per brand? | D-03, D-04, D-05 |
+| OQ-27 | Over-receipt: D-03 counts the *received* quantity (accepted + rejected) against the PO and lets any holder of `goods_receipts.over_receipt` authorise it, including on their own draft. Should rejected units count, and who may authorise (owner only, maker-checker)? | D-03, D-07, RB-5, PO-003 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |
