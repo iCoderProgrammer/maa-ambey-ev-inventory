@@ -2057,12 +2057,36 @@ Result: PASS
 - Console clean; API log 5xx only client-aborted requests ("context canceled").
 - Evidence: `docs/evidence/D-01/verification.txt`, `desktop-supplier-detail.png`, `mobile-suppliers.png`.
 
+#### Final verification (2026-10-23)
+Result: PASS — commit `f4034a2` pushed to `origin/dev` (fast-forward `afafc00..f4034a2`, no force).
+- Shared dev API :8081 restarted with `make dev-backend` (build `f4034a2`): `/api/v1/health` 200, `/api/v1/ready` 200
+  (database up, migrations up). Its log after the run: 0 ERROR, 0 5xx.
+- Full Playwright suite on a fresh isolated throwaway stack (PostgreSQL :5449 v10, API :8093, Vite :5175, test-only
+  users, PROPOSED grants on that database only; removed afterwards), desktop + Pixel 7: **61 passed, 5 skipped (by
+  design), 0 failed**, including the updated C-03 viewer test and both D-01 supplier tests on both viewports. A first
+  run had 1 failure (B-09 link-expiry test) because the stack was started without `ATTACHMENT_LINK_TTL=30s`; stack
+  recreated with it and the whole suite re-run.
+- 5xx `context canceled`: 33 requests (run 2), all GET, latency ≤ 39 ms (timeout is 15 s), each cause
+  `context canceled` — client-aborted requests (query aborts on navigation, pages closed). Same pattern in earlier
+  tasks and pre-D-01 modules; not a regression, no fix. Logging client aborts as ERROR/5xx is noise only.
+- `make ci` exit 0 (Go run via `/snap/go/current/bin` because the `/snap/bin/go` wrapper printed no output in this
+  shell): gofmt clean, vet, swagger-check, lint, typecheck, 16 Go packages ok, Vitest 156/156, builds.
+  `go test -json`: 175 top-level / 365 incl. subtests pass, 0 skip; all 10 supplier tests + `TestCanSeeLinkedAttachments`
+  pass. `git diff --check` clean.
+- Shared dev DB before == after: migration 10, one grant (`viewer → access.roles.view` PROPOSED), 1 user-role,
+  0 suppliers/contacts/documents/links, 3 brands. Commit adds permission keys only — no grants, seeds or supplier data.
+- Evidence: `docs/evidence/D-01/final-verification.txt`.
+
 #### Known issues / pending approvals
 - No supplier, contact, document or relationship data supplied — none seeded or invented. Any supplier stays
   `PENDING_VERIFICATION` until someone with `suppliers.verify` records evidence.
 - `suppliers.*` permissions have no grants (RB-5); verifier/maker-checker OQ-20; document types OQ-19.
-- **The shared dev database is now at migration 10.** The running dev API (older build) reports `not_ready`
-  (migrations down) until it is restarted with this build. Shared dev permissions were not changed.
+- **The shared dev database is now at migration 10.** The dev API was restarted with this build on 2026-10-23 and
+  reports ready. Shared dev permissions were not changed.
+- API logs client-aborted requests as ERROR with 500/503 (`context canceled`); cross-cutting log noise, not fixed here.
+
+#### Final status
+COMPLETE — D-01 only, verified and pushed (`f4034a2`). D-02 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 
