@@ -1,0 +1,41 @@
+D-04 verification (FRONTEND PHASE) — 2026-10-26 — base 25a5578 (D-04 backend, local, not pushed); working tree also
+holds the uncommitted regression-audit fixes (UI files, docs/TASK_EXECUTION_LOG.md lines, docs/evidence/
+REGRESSION-AUDIT-2026-10-26/), which are not part of D-04.
+
+== Scope (Prompt B: types and API hooks; no D-08 screen) ==
+No existing screen consumes registered vehicle units: D-03 drafts hold captured units, which are not vehicle units, and
+units exist only after posting (D-07). No page, form or component was added; no mock adapter, no production fixture,
+no create/update/delete call.
+Added: ui/src/features/vehicles/api/vehicleUnits.ts (Zod contracts, listVehicleUnits, getVehicleUnit),
+hooks/useVehicleUnits.ts (vehicleUnitKeys, useVehicleUnitList, useVehicleUnit, useVehicleUnitPerms),
+lib/presentation.ts (unitCostText, describeVehicleUnitReadError), vehicles.test.tsx;
+Permission.VehicleUnitView / VehicleUnitCostView in ui/src/features/access/api/access.ts.
+
+== Routes and schemas consumed ==
+GET /api/v1/vehicle-units -> VehicleUnitPage; GET /api/v1/vehicle-units/{id} -> VehicleUnitDetail
+(VehicleUnit + VehicleUnitSource + VehicleUnitEvent[]). The contract test reads docs/openapi/swagger.json and checks
+every VehicleUnit, VehicleUnitDetail, VehicleUnitSource, VehicleUnitEvent and VehicleUnitPage field name and the
+status enum against the Zod contracts: PASS (no discrepancy).
+
+== Checks ==
+npx vitest run src/features/vehicles: 1 file, 21 tests PASS —
+  parameters serialised (q, status, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page,
+  limit; empty ones skipped); encoded id, GET only; module exposes only listVehicleUnits/getVehicleUnit; hidden cost
+  with an amount and unknown status rejected as INVALID_RESPONSE; OpenAPI contract; query keys distinct per filter/page
+  and equal for empty parameters; list paging issues a new request per page; detail by id, idle without id/disabled;
+  403 and 404 asked once (production retry rules), no retry, no wider request; 422 on an out-of-scope locationId asked
+  once, never repeated without it, mapped to invalid-filter with the field; permissions read from /me only
+  (catalogue.cost_price.view does not unlock unit cost); permission keys; unitCostText (hidden -> "Recorded (not
+  visible to you)", never an amount or ₹0; amount only when sent and permitted; nothing invented when absent);
+  401/403/404/422/500/network/unknown mapped to safe states; 404 message does not reveal existence.
+npx tsc -b --noEmit: clean. npx eslint (max-warnings 0) and Prettier: clean.
+make ci (throwaway postgres:18-alpine on 127.0.0.1:5462, migrated to 13; random password never printed): exit 0 —
+  gofmt, go vet, go mod tidy, swagger-check, ESLint, Prettier, tsc, Go tests with PostgreSQL (19 packages ok),
+  Vitest 24 files / 206 tests, Go + Vite builds. golangci-lint not installed (skipped by the Makefile).
+  (A first run failed in internal/database only because the throwaway TEST_DATABASE_URL had not been migrated yet, as
+  make ci requires; after `migrate up` on it, exit 0.)
+git diff --check: clean.
+
+== Not run ==
+Browser/Playwright: not applicable — no screen added or changed. Not exercised against a live D-04 API (the shared dev
+DB is at 12 and the dev API runs an older build; neither was touched).

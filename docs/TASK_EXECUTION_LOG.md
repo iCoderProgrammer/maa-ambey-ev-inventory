@@ -48,7 +48,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-01 | Supplier master | P0 | B-05, B-07, B-08 | COMPLETE |
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
-| D-04 | Vehicle unit registry | P0 | C-01, B-05 | IN PROGRESS — backend complete; frontend phase pending |
+| D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | NOT STARTED |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
@@ -2299,10 +2299,11 @@ COMPLETE — D-03 only. Not pushed. D-04 not started.
 
 ### D-04 — Vehicle unit registry
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (user-requested backend-only session); frontend phase not started.
+- **Status:** COMPLETE — backend phase (`25a5578`) and frontend phase (typed API client, hooks, permission keys; the
+  vehicle screens are D-08). Run as two user-requested sessions.
   Mechanism only: no unit, identifier or grant exists anywhere; unit number format, cost basis, battery packs,
   identifier rules and location pending (OQ-4, OQ-24, OQ-26, OQ-28…OQ-30, RB-5).
-- **Started:** 2026-10-26
+- **Started:** 2026-10-26 · **Finished:** 2026-10-26
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_04_vehicle-unit-registry.md
 - Git at start: `dev` at `e962ee6` (D-03, local, not pushed; `origin/dev` = `4a5a9c0`); working tree held the
   uncommitted regression-audit fixes, kept out of D-04.
@@ -2325,8 +2326,18 @@ COMPLETE — D-03 only. Not pushed. D-04 not started.
 - [x] AC6 No fake data or success: no seed, no create route; units only from a POSTED receipt's accepted unit (deferred DB check)
 
 #### Stage 1 — UI
-Result: NOT APPLICABLE in this phase (backend-only session by instruction). The frontend phase (types and hooks, Prompt B)
-is the next step.
+Result: COMPLETE (frontend phase, Prompt B scope: types and API hooks; no screen — D-08 builds the list/detail).
+- No existing screen needs vehicle units: D-03 drafts hold *captured* units, which are not registered vehicles; units
+  appear only after posting (D-07). So no page, form or speculative component was added.
+- `ui/src/features/vehicles/api/vehicleUnits.ts`: Zod contracts (`VehicleUnit`, `VehicleUnitDetail` with `source` and
+  `events`, page), the 13 statuses as in OpenAPI, `costHidden` refinement (a hidden cost never carries an amount),
+  `listVehicleUnits`, `getVehicleUnit`; read-only, no write call. `hooks/useVehicleUnits.ts`: `vehicleUnitKeys`,
+  `useVehicleUnitList`, `useVehicleUnit`, `useVehicleUnitPerms`. `lib/presentation.ts`: `unitCostText` (hidden →
+  "Recorded (not visible to you)", never ₹0; amount only when sent and permitted) and
+  `describeVehicleUnitReadError` (401/403/404/422/network → safe states; 404 never reveals an out-of-scope unit).
+- `Permission.VehicleUnitView` / `VehicleUnitCostView` added to the access contract.
+- Vitest: `vehicles.test.tsx` 21 tests (parameters, keys, hooks, no retry/fallback on 403/404/422, no write call,
+  cost display, error states, permission keys, OpenAPI contract). Lint, Prettier, typecheck clean.
 
 #### Stage 2 — Backend
 Result: COMPLETE
@@ -2343,17 +2354,26 @@ Result: COMPLETE
 - Shared dev DB **not** migrated (still at 12; dev API untouched). To apply: `make db-migrate-up` then restart the API.
 
 #### Stage 3 — API integration
-Result: NOT APPLICABLE in this phase (no UI consumer yet; frontend phase).
+Result: COMPLETE (frontend phase) — the typed client calls the real routes; no mock adapter, no production fixture.
+- `GET /vehicle-units` and `GET /vehicle-units/{id}` through `apiRequest` + Zod; hooks with stable keys (empty
+  parameters dropped), `keepPreviousData` for paging; refused reads (403/404/422) are not retried (queryClient
+  defaults) and nothing falls back to a wider request. No mutation exists.
+- Contract test compares the Zod fixtures field for field and the status enum with the committed OpenAPI
+  (`docs/openapi/swagger.json`). Not exercised against a live D-04 API: no screen consumes it yet.
 - Checks: `make ci` exit 0 (throwaway DB). Go 19 packages, 410 tests (220 top-level) pass, 0 skip; Vitest 23 / 185.
 
 #### Stage 4 — Browser testing
-Result: NOT APPLICABLE in this phase (no UI change); runs with the frontend phase.
+Result: NOT APPLICABLE — neither phase adds or changes a screen (types, API calls and hooks only; Prompt B scope).
+Browser tests come with the first screen that uses these hooks (D-08). No Playwright run was made for D-04.
 
 #### Files changed
 `migrations/000013_create_vehicle_units.{up,down}.sql`, `internal/modules/vehicles/*` (new),
 `internal/modules/access/policy.go`, `internal/modules/receiving/api_integration_test.go`, `internal/server/server{,_test}.go`,
 `cmd/api/main.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md` (ADR-018, OQ-28…OQ-30), this log,
 `docs/evidence/D-04/verification.txt`.
+Frontend phase: `ui/src/features/vehicles/{api/vehicleUnits.ts,hooks/useVehicleUnits.ts,lib/presentation.ts,vehicles.test.tsx}`
+(new), `ui/src/features/access/api/access.ts`, `docs/API_CONVENTIONS.md` (client line), this log,
+`docs/evidence/D-04/frontend-verification.txt`.
 
 #### Known issues / pending approvals
 - No grants for `vehicle_units.*` (RB-5). No unit can exist yet: units come only from receipt posting (D-07), which
@@ -2361,10 +2381,10 @@ Result: NOT APPLICABLE in this phase (no UI change); runs with the frontend phas
 - Chassis uniqueness, motor/battery policies and the conflict error are D-05; the lookup indexes are non-unique until then.
 - Status/location changes and their movements are E-01 (guard refuses all updates meanwhile); PDI fields D-06; list
   ageing/colour/timeline D-08/E-02; opening stock source G-07.
-- Frontend phase must add `vehicle_units.view` / `vehicle_units.cost.view` to `ui/src/features/access/api/access.ts`.
+- Shared dev DB still at migration 12: the D-04 API answers only after `make db-migrate-up` and an API restart there.
 
 #### Final status
-IN PROGRESS — D-04 backend phase complete and committed locally (not pushed). D-04 frontend phase not started.
+COMPLETE — D-04 backend (`25a5578`) and frontend phase committed locally, not pushed. D-05 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

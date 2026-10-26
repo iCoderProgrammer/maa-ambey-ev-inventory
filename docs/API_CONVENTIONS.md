@@ -333,8 +333,10 @@ stock (`stockPosted: false`); posting is D-07.
 
 ## Vehicle units (D-04)
 
-Rules: ADR-018. Schema: migration 000013. Read-only: units are created only by receipt posting (D-07,
-`vehicles.RegisterFromReceiptUnit` in the posting transaction) and change only through the stock movement service (E-01).
+Rules: ADR-018. Schema: migration 000013. Client: `ui/src/features/vehicles/api/vehicleUnits.ts`; hooks
+`hooks/useVehicleUnits.ts`; cost text and read-error states `lib/presentation.ts`. Read-only: units are created only by
+receipt posting (D-07, `vehicles.RegisterFromReceiptUnit` in the posting transaction) and change only through the stock
+movement service (E-01).
 
 | Route | Permission | Notes |
 | --- | --- | --- |

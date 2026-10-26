@@ -73,6 +73,8 @@ export const Permission = {
   GoodsReceiptView: 'goods_receipts.view',
   GoodsReceiptManage: 'goods_receipts.manage',
   GoodsReceiptOverReceipt: 'goods_receipts.over_receipt',
+  VehicleUnitView: 'vehicle_units.view',
+  VehicleUnitCostView: 'vehicle_units.cost.view',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */
