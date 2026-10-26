@@ -66,6 +66,22 @@ func (h *Handler) respond(c *gin.Context, v any, err error) {
 	}
 }
 
+// WriteDuplicateIdentifier answers 409 DUPLICATE_IDENTIFIER when err is a
+// *DuplicateIdentifierError and reports whether it did. For the route that
+// registers units (receipt posting, D-07): field is the request path of the
+// conflicting identifier, e.g. "lines[0].units[1].chassisNumber". The message is
+// generic and nothing about the already registered vehicle is returned.
+func WriteDuplicateIdentifier(c *gin.Context, err error, field string) bool {
+	var dup *DuplicateIdentifierError
+	if !errors.As(err, &dup) {
+		return false
+	}
+	httpx.Error(c, http.StatusConflict, httpx.CodeDuplicateIdentifier,
+		"This identifier is already registered to another vehicle. Correct it and try again. Nothing was saved.",
+		httpx.FieldError{Field: field, Message: "is already registered"})
+	return true
+}
+
 // List godoc
 //
 //	@Summary		List vehicle units

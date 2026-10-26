@@ -355,6 +355,29 @@ movement service (E-01).
 - The referenced PO, receipt and receipt documents open through their own routes and permissions.
 - Audited (by posting, D-07): `vehicle_unit.registered` (summary without the cost).
 
+### Duplicate vehicle identifiers (D-05)
+
+A normalised chassis/frame number (trimmed, upper-cased; separators kept, OQ-26) belongs to one vehicle unit across all
+brands (unique index `vehicle_units_chassis_key`). Motor, battery and charger numbers are not unique (no approved policy:
+OQ-4, OQ-30). The route that registers units — receipt posting, D-07 — answers a conflict with
+`vehicles.WriteDuplicateIdentifier`:
+
+```json
+HTTP/1.1 409 Conflict
+{"error": {"code": "DUPLICATE_IDENTIFIER",
+  "message": "This identifier is already registered to another vehicle. Correct it and try again. Nothing was saved.",
+  "requestId": "…",
+  "details": [{"field": "lines[0].units[1].chassisNumber", "message": "is already registered"}]}}
+```
+
+- `code` is stable; `details[].field` is the request path of the conflicting identifier (ends in `chassisNumber`), so
+  the form marks that input. Nothing about the registered vehicle (number, brand, location, supplier) is returned.
+- Only that index maps to this code; a repeat for the same captured unit is a different error, and other database
+  errors stay `INTERNAL_ERROR`. No current route returns it yet (the vehicle unit API is read-only), so the OpenAPI
+  document lists it with the posting route (D-07).
+- Drafts (D-03) already refuse a chassis on another open or posted receipt (`DUPLICATE`, per unit); every registered
+  unit so far comes from a posted receipt.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

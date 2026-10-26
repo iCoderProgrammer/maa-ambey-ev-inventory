@@ -461,6 +461,30 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-019 — Duplicate vehicle identifier controls (D-05)
+
+- **Status:** Accepted (chassis/frame only; motor/battery/charger policies and separator rules pending — OQ-4, OQ-26,
+  OQ-30, INV-003, INV-004).
+- **Database (migration 000014):** unique index `vehicle_units_chassis_key` on the generated `chassis_normalised`
+  (`upper(btrim(chassis_number))`, migration 000013) replaces the lookup index. Global across brands (INV-002;
+  architecture: "chassis/VIN remains globally unique"). NULLs never conflict, so units without a chassis (allowed while
+  `RECEIVED_PENDING_PDI`) are fine; blanks are refused by the length CHECK; the normalised column cannot be written.
+  The up migration first looks for existing duplicates and stops with their normalised values (no other data), changing
+  nothing. Down restores the non-unique lookup index.
+- **Service:** `RegisterFromReceiptUnit` first answers `ErrAlreadyRegistered` for a repeat of the same captured unit,
+  then checks the chassis with the column's own expression and returns `*DuplicateIdentifierError{Field:
+  "chassisNumber", GoodsReceiptUnitID}` (`errors.Is(err, ErrDuplicateIdentifier)`). Two transactions can both pass that
+  check; the unique index makes the second wait for the first and fail, and `vehicle_units_chassis_key` (only that
+  name) maps to the same error. The caller rolls back, so no history or audit row remains.
+- **API contract:** `DUPLICATE_IDENTIFIER`, 409, `details[].field` = request path of the identifier, generic message,
+  nothing about the existing vehicle (`vehicles.WriteDuplicateIdentifier`, for D-07's posting route).
+- **Not decided, so not enforced:** motor/battery/charger uniqueness (INV-003 asks to define it after brand validation;
+  INV-004 makes battery/charger rules per brand/model/variant; no approved policy or policy model exists), which
+  separators are ignored (OQ-26), several or swappable battery packs (OQ-30), and the "authorised exception" route for
+  duplicate serials (INV-003). Motor/battery/charger lookup indexes stay non-unique.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -468,7 +492,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-1 | Final value set for `brands.authorisation_status`. Current proposal: `UNVERIFIED`, `AUTHORISED`, `NOT_AUTHORISED`, `REVOKED`. Change via a new migration if needed. | C-01, C-02 |
 | OQ-2 | Which user role is the "approval owner" for brand activation (BR-002)? An `approved_by` FK is added once `users` exists (B-06). | C-02 |
 | OQ-3 | Launch roster confirmed (Lectrix EV, Ceeon India, Ujagar Electric; seeded). Authorisation evidence per brand still outstanding. | C-02, C-05 |
-| OQ-4 | Are motor / battery / charger serials mandatory, and is battery-swap history needed (Architecture §12.3, INV-003/004)? | D-04 |
+| OQ-4 | Are motor / battery / charger serials mandatory, and is battery-swap history needed (Architecture §12.3, INV-003/004)? Are motor/battery/charger serials unique — globally, per brand or per variant — and who may approve a documented exception (INV-003)? D-05 enforces chassis only. | D-04, D-05 |
 | OQ-5 | Deployment provider, API host, DB region, backup RPO/RTO (Architecture §12). | H-06, H-10 |
 | ~~OQ-6~~ | Session strategy — **resolved 2026-10-12**: local accounts + server-side sessions in an HttpOnly cookie (ADR-008). Session lifetimes (2h idle / 12h absolute) and the password policy are proposals the owner may change via config. | — |
 | OQ-8 | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI): which goes first, or should D-08 only link to the timeline once E-02 exists? | D-08, E-02 |

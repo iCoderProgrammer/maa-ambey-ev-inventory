@@ -51,6 +51,8 @@ const (
 	// Goods receipts (D-03).
 	CodeOverReceiptNeedsOverride = "OVER_RECEIPT_REQUIRES_OVERRIDE" // 409
 	CodeOverReceiptForbidden     = "OVER_RECEIPT_NOT_AUTHORISED"    // 403
+	// Vehicle identifiers (D-05): details name the field (e.g. chassisNumber); 409.
+	CodeDuplicateIdentifier = "DUPLICATE_IDENTIFIER"
 )
 
 // DataResponse is the success envelope. In swag annotations use

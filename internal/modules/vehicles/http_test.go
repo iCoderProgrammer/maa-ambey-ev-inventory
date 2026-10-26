@@ -1,8 +1,14 @@
 package vehicles
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
@@ -68,5 +74,28 @@ func TestVehicleUnitInputIsCheckedBeforeTheDatabase(t *testing.T) {
 	e = expectError(t, h.get(s, "/vehicle-units?locationId=22222222-2222-2222-2222-222222222222"), http.StatusUnprocessableEntity, "VALIDATION_FAILED")
 	if !hasField(e.Details, "locationId") {
 		t.Errorf("details = %+v", e.Details)
+	}
+}
+
+// The conflict answer for the route that will register units (D-07): stable
+// code, the caller's field, a generic message, nothing about the other vehicle.
+func TestDuplicateIdentifierResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	if WriteDuplicateIdentifier(c, errors.New("other"), "x") || w.Body.Len() != 0 {
+		t.Fatal("wrote a response for an unrelated error")
+	}
+	err := fmt.Errorf("post: %w", &DuplicateIdentifierError{Field: FieldChassisNumber, GoodsReceiptUnitID: someID})
+	if !WriteDuplicateIdentifier(c, err, "lines[0].units[1].chassisNumber") {
+		t.Fatal("not handled")
+	}
+	e := expectError(t, w, http.StatusConflict, "DUPLICATE_IDENTIFIER")
+	if len(e.Details) != 1 || e.Details[0].Field != "lines[0].units[1].chassisNumber" || e.Details[0].Message != "is already registered" {
+		t.Fatalf("details %+v", e.Details)
+	}
+	if strings.Contains(w.Body.String(), someID) {
+		t.Fatalf("body reveals ids: %s", w.Body)
 	}
 }

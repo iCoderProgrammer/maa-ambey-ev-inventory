@@ -171,8 +171,11 @@ type Registration struct {
 // entry and an audit event in the same transaction.
 //
 // The database re-checks at commit that the receipt is POSTED (a draft never
-// has vehicle units); pass the commit error through CommitError. Chassis and
-// serial uniqueness are not checked here (D-05).
+// has vehicle units); pass the commit error through CommitError. A chassis/frame
+// number already registered (compared in its normalised form, across every
+// brand) returns a *DuplicateIdentifierError; the unique index decides when two
+// transactions race, and its violation maps to the same error. The caller must
+// then roll back: the transaction is aborted.
 func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, requestID, receiptUnitID string, locationID *string) (Registration, error) {
 	if actor.Type != audit.ActorUser || actor.UserID == "" {
 		return Registration{}, errors.New("vehicle units are registered by a signed-in user")
@@ -212,6 +215,21 @@ func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, 
 	if condition != "ACCEPTED" {
 		return Registration{}, ErrReceiptUnitNotAccepted
 	}
+	// Friendly early answers; the unique keys are the final word under concurrency.
+	// A repeat for the same captured unit is ErrAlreadyRegistered, not a duplicate identifier.
+	// The chassis comparison uses the column's own normalisation expression.
+	var registered, taken bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM vehicle_units WHERE goods_receipt_unit_id = $1),
+			$2::text IS NOT NULL AND EXISTS (SELECT 1 FROM vehicle_units WHERE chassis_normalised = upper(btrim($2::text)))`,
+		receiptUnitID, chassis).Scan(&registered, &taken); err != nil {
+		return Registration{}, fmt.Errorf("check identifiers: %w", err)
+	}
+	if registered {
+		return Registration{}, ErrAlreadyRegistered
+	}
+	if taken {
+		return Registration{}, &DuplicateIdentifierError{Field: FieldChassisNumber, GoodsReceiptUnitID: receiptUnitID}
+	}
 	var r Registration
 	err = tx.QueryRow(ctx, `INSERT INTO vehicle_units (brand_id, model_id, variant_id, status, chassis_number, motor_serial,
 			battery_serial, charger_serial, location_id, source_type, supplier_id, purchase_order_id, purchase_order_line_id,
@@ -221,7 +239,7 @@ func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, 
 		brandID, modelID, variantID, StatusReceivedPendingPDI, chassis, motor, battery, charger, locationID, SourceGoodsReceipt,
 		supplierID, poID, poLineID, receiptID, lineID, receiptUnitID, received, cost, actor.UserID).Scan(&r.ID, &r.UnitNumber)
 	if err != nil {
-		return Registration{}, registrationError(err)
+		return Registration{}, registrationError(err, receiptUnitID)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO vehicle_unit_events (vehicle_unit_id, action, to_status, source_type, source_id,
 			source_reference, actor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -240,7 +258,8 @@ func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, 
 	return r, nil
 }
 
-func registrationError(err error) error {
+// registrationError maps the named constraints only; any other database error stays an internal error.
+func registrationError(err error, receiptUnitID string) error {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {
 		return fmt.Errorf("register vehicle unit: %w", err)
@@ -248,6 +267,8 @@ func registrationError(err error) error {
 	switch {
 	case pgErr.Code == "23505" && pgErr.ConstraintName == "vehicle_units_receipt_unit_key":
 		return ErrAlreadyRegistered
+	case pgErr.Code == "23505" && pgErr.ConstraintName == "vehicle_units_chassis_key":
+		return &DuplicateIdentifierError{Field: FieldChassisNumber, GoodsReceiptUnitID: receiptUnitID}
 	case pgErr.Code == "23503" && pgErr.ConstraintName == "vehicle_units_location_id_fkey":
 		return ErrInvalidLocation
 	}

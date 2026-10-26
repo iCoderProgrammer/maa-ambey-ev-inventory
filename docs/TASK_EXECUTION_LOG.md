@@ -49,7 +49,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
-| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | NOT STARTED |
+| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend complete; frontend phase pending |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
@@ -2385,6 +2385,59 @@ Frontend phase: `ui/src/features/vehicles/{api/vehicleUnits.ts,hooks/useVehicleU
 
 #### Final status
 COMPLETE — D-04 backend (`25a5578`) and frontend phase committed locally, not pushed. D-05 not started.
+
+### D-05 — Duplicate vehicle identifier controls
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (user-requested backend-only session); frontend phase not started.
+  Chassis/frame only: motor/battery/charger policies are not approved (OQ-4, OQ-30, INV-003/004); separators OQ-26.
+- **Started:** 2026-10-26
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_05_duplicate-vehicle-identifier-controls.md
+- Git at start: `dev` at `ba7ca84` (local ahead of `origin/dev` = `4a5a9c0` by 3); uncommitted regression-audit fixes kept
+  out of D-05. Prior audit evidence (`report-pre-d05-addendum.md`): no open defect in the registration path.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units` with generated `chassis_normalised`, `RegisterFromReceiptUnit`; vehicles tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Duplicate chassis cannot be saved: unique index `vehicle_units_chassis_key` (normalised, all brands) + service check
+- [x] AC2 Including concurrent attempts: tested with PostgreSQL (2-way interleaved race and 8 parallel: exactly one unit)
+- [x] AC3 Friendly validation maps to the field: `DuplicateIdentifierError{Field: chassisNumber}` → 409 `DUPLICATE_IDENTIFIER`
+  with `details[].field` (request path); no data about the existing unit
+- [x] AC4 No bypass: no write route; direct SQL refused by the index; normalised column not writable
+- [ ] Motor/battery policies — not approved, not enforced (documented, ADR-019)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000014_vehicle_unit_identifier_uniqueness` (up/down): duplicate pre-check (fails without changing data),
+  unique `vehicle_units_chassis_key` replaces the lookup index; down restores it.
+- `internal/modules/vehicles`: early checks (same captured unit → `ErrAlreadyRegistered`; chassis → duplicate) and
+  mapping of exactly `vehicle_units_chassis_key`; `WriteDuplicateIdentifier` for the posting route (D-07);
+  `httpx.CodeDuplicateIdentifier`.
+- Tests: 7 new (vehicles 23 total). `make ci` exit 0; Go 417 tests (227 top-level) pass; OpenAPI unchanged.
+- Shared dev DB not migrated (still 12; would need 13 and 14).
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (no route returns the conflict until D-07; frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI change).
+
+#### Files changed
+`migrations/000014_vehicle_unit_identifier_uniqueness.{up,down}.sql`, `internal/modules/vehicles/{types,pgstore,http}.go`,
+`internal/modules/vehicles/{api_integration_test,duplicate_integration_test,http_test}.go`, `internal/httpx/response.go`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md` (ADR-019, OQ-4), this log, `docs/evidence/D-05/verification.txt`.
+
+#### Known issues / pending approvals
+- Motor/battery/charger uniqueness and its exception route (INV-003/004, OQ-4, OQ-30); separators (OQ-26).
+- D-03 drafts already refuse a chassis on another open/posted receipt; opening stock (G-07) will rely on the index.
+
+#### Final status
+IN PROGRESS — D-05 backend phase complete and committed locally (not pushed). D-05 frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

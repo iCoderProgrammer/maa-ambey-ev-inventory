@@ -10,9 +10,12 @@
 // posting (D-07) inside its transaction for an accepted unit of a POSTED goods
 // receipt, and the database refuses a unit whose receipt is not posted at
 // commit. Status and location change only through the stock movement service
-// (E-01, INV-009); until then the database refuses every update. Chassis/frame
-// and serial uniqueness policies are D-05; identifier formats per brand are
-// pending (OQ-4, OQ-26). No unit, identifier or grant is seeded.
+// (E-01, INV-009); until then the database refuses every update. A normalised
+// chassis/frame number belongs to one unit only (D-05: checked before the
+// insert and enforced by the vehicle_units_chassis_key index); motor, battery
+// and charger numbers have no approved uniqueness policy yet, and identifier
+// formats per brand are pending (OQ-4, OQ-26, OQ-30). No unit, identifier or
+// grant is seeded.
 package vehicles
 
 import (
@@ -165,4 +168,27 @@ var (
 	ErrReceiptNotPosted = errors.New("goods receipt is not posted")
 	// ErrInvalidLocation: the location does not exist.
 	ErrInvalidLocation = errors.New("unknown location")
+	// ErrDuplicateIdentifier is matched (errors.Is) by every *DuplicateIdentifierError.
+	ErrDuplicateIdentifier = errors.New("vehicle identifier already registered")
 )
+
+// Identifier fields a DuplicateIdentifierError can name (the JSON names of the
+// captured unit's identifiers). Only the chassis/frame number is unique so far:
+// motor, battery and charger numbers have no approved uniqueness policy (OQ-4, OQ-30).
+const FieldChassisNumber = "chassisNumber"
+
+// DuplicateIdentifierError means a unit's identifier is already registered on
+// another vehicle unit (D-05). It names the conflicting field and the caller's
+// own captured unit, never the existing vehicle: posting (D-07) maps it to the
+// field of the unit being posted.
+type DuplicateIdentifierError struct {
+	Field              string
+	GoodsReceiptUnitID string
+}
+
+func (e *DuplicateIdentifierError) Error() string {
+	return "vehicle identifier already registered: " + e.Field
+}
+
+// Is makes errors.Is(err, ErrDuplicateIdentifier) true.
+func (e *DuplicateIdentifierError) Is(target error) bool { return target == ErrDuplicateIdentifier }

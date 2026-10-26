@@ -47,8 +47,13 @@ type fixture struct {
 
 func setup(t *testing.T) fixture {
 	t.Helper()
+	return setupOn(t, dbtest.MigratedPool(t))
+}
+
+// setupOn builds the fixture on an already migrated pool.
+func setupOn(t *testing.T, pool *pgxpool.Pool) fixture {
+	t.Helper()
 	ctx := context.Background()
-	pool := dbtest.MigratedPool(t)
 	if _, err := database.ApplySeeds(ctx, pool, seeds.FS); err != nil {
 		t.Fatal(err)
 	}

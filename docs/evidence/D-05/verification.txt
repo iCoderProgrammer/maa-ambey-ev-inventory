@@ -1,0 +1,43 @@
+D-05 verification (BACKEND ONLY) — 2026-10-26 — base ba7ca84 (D-04 frontend, local; origin/dev = 4a5a9c0, local ahead 3);
+working tree also holds the uncommitted regression-audit fixes, which are not part of D-05. Prior audit evidence
+(docs/evidence/REGRESSION-AUDIT-2026-10-26/report-pre-d05-addendum.md): Playwright 73 passed / 5 skipped / 0 failed,
+no open defect in the registration path.
+
+== Environment ==
+Throwaway postgres:18-alpine on 127.0.0.1:5463 (random password, never printed); Go integration tests use scratch
+databases on it. Shared dev DB (:5436) and dev API (:8081) not touched.
+
+== Migration 000014_vehicle_unit_identifier_uniqueness ==
+cmd/migrate up -> 14; down 1 -> 13; up -> 14 (throwaway DB). Unique index vehicle_units_chassis_key on chassis_normalised
+replaces vehicle_units_chassis_idx; up stops over existing duplicates (lists their normalised values only, changes
+nothing); down restores the lookup index. internal/database migrations integration test (every step down and up): PASS.
+
+== Go (PATH with /snap/go/current/bin) ==
+make ci (throwaway DB): exit 0 — gofmt, go vet, go mod tidy, swagger-check (OpenAPI unchanged: no route returns the new
+conflict yet), ESLint, Prettier, tsc, Go tests with PostgreSQL, Vitest 24 files / 206 tests, builds.
+golangci-lint: not installed (skipped by the Makefile).
+go test -count=1 -json ./... (REQUIRE_INTEGRATION_TESTS=1): 19 packages, 417 tests (227 top-level) pass, 0 fail, 0 skip.
+internal/modules/vehicles 23 tests; new for D-05 (7):
+  TestDuplicateChassisIsRefusedInEveryBrandAndForm — "  CH-0001 " (same brand) and "Ch-0001" (Brand B) refused as
+    DUPLICATE (chassisNumber, the caller's own captured unit); error text names no existing unit, number, brand,
+    supplier or receipt; "CH 0001", "CH/0001", "CH0001" accepted (separators kept, OQ-26); units without chassis never
+    conflict; refused attempts left no history/audit row
+  TestTheDatabaseRefusesDuplicateChassisDirectly — direct INSERT of " ch-0001" -> 23505 vehicle_units_chassis_key;
+    writing chassis_normalised refused; a repeat of the same captured unit stays ErrAlreadyRegistered (not a duplicate)
+  TestConcurrentRegistrationsOfOneChassisLetExactlyOneThrough — A inserted, uncommitted; B passed the early check,
+    waited on the unique index (>= 250 ms) and failed with the same DuplicateIdentifierError after A committed:
+    1 succeeded, 1 refused; 1 unit; B's receipt stayed DRAFT
+  TestManyParallelRegistrationsOfOneChassis — 8 parallel registrations of CH-PAR in four forms: 1 succeeded, 7 refused
+    (DuplicateIdentifierError); 1 unit, 1 history row, 1 audit event, 1 posted receipt
+  TestUniquenessMigrationRefusesExistingDuplicates — at version 13 two units share CH-0001; migrate up fails naming
+    CH-0001; units unchanged; no unique index created
+  TestUniquenessMigrationRoundTrip — up / down / up: unique index, then lookup index, then unique index
+  TestDuplicateIdentifierResponse — 409 DUPLICATE_IDENTIFIER, details [{field: request path, message: "is already
+    registered"}]; unrelated errors untouched; no IDs in the body
+Existing D-04 tests (drafts never register, provenance FKs, INV-002 chassis after pending, cost, location scope,
+read-only API, immutability) and D-03 receiving tests: PASS.
+git diff --check: clean.
+
+== Not done (not approved) ==
+Motor/battery/charger uniqueness (INV-003, INV-004, OQ-4, OQ-30), separator rules (OQ-26), duplicate-serial exception
+route (INV-003). Browser: not applicable (backend only).
