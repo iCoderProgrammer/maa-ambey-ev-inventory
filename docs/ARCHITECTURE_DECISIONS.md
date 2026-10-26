@@ -420,6 +420,47 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-018 — Vehicle unit registry (D-04)
+
+- **Status:** Accepted (technical design; unit number format, cost basis, battery packs, identifier rules, location and
+  grants pending — OQ-4, OQ-24, OQ-26, OQ-28…OQ-30, RB-5).
+- **Schema (migration 000013):** `vehicle_units` — one row per physical scooter (INV-001): `unit_number`
+  (`MAE-VEH-000001…`, sequence), brand/model/variant via composite FKs (C-06), the 13 approved statuses (INV-005,
+  default `RECEIVED_PENDING_PDI`), chassis/frame, motor, battery and charger identifiers as captured with **generated**
+  `*_normalised` columns (`upper(btrim(x))`, the same rule as `goods_receipt_units.chassis_normalised`), optional
+  `location_id`, `source_type` (`GOODS_RECEIPT` only), supplier/PO/PO line/GRN/GRN line/captured unit references,
+  `received_date`, `unit_cost` + `cost_currency` (`INR`), `registered_by`, `version`. `vehicle_unit_events` is the
+  append-only history; each entry names its source document (type, id, number).
+- **References prove themselves by FK:** the PO is the supplier's, the PO line is the PO's and for this variant, the
+  receipt is against the PO, the receipt line is the receipt's and for the PO line, the captured unit is on the receipt
+  line (new composite unique keys on `purchase_orders`, `purchase_order_lines`, `goods_receipt_lines`,
+  `goods_receipt_units`). One captured unit → at most one vehicle unit (`UNIQUE goods_receipt_unit_id`).
+- **Only posted receipts create units:** a deferred constraint trigger checks at commit that the receipt is `POSTED`,
+  the captured unit `ACCEPTED` and the received date the receipt's — a draft (D-03) can never have a unit, and posting
+  (D-07) may register and mark the receipt posted in either order in one transaction. There is no create route:
+  `vehicles.RegisterFromReceiptUnit(ctx, tx, actor, requestID, receiptUnitID, locationID)` is the entry point for D-07,
+  reading every value from stored rows (variant, supplier, references, date, identifiers, the PO line's agreed cost),
+  writing the `REGISTERED` history entry and the `vehicle_unit.registered` audit event (cost left out) in the caller's
+  transaction; `vehicles.CommitError` maps the commit-time checks.
+- **Identifier rules (INV-002…INV-004):** a chassis/frame number is required for every status after
+  `RECEIVED_PENDING_PDI` (CHECK); nothing is mandatory before that (OQ-4). Separators are kept (OQ-26). No uniqueness
+  here: chassis uniqueness, motor/battery policies and the conflict error are D-05, which builds on the normalised
+  columns (non-unique lookup indexes for now).
+- **Changes:** a guard trigger refuses every UPDATE and DELETE of units and history. Status/location change only through
+  the stock movement service (E-01, INV-009) and identifier corrections need an approved flow (D-05); those tasks replace
+  the guard. No transition matrix is implemented here.
+- **Read API:** `GET /vehicle-units` (search unit number + normalised identifiers; filters status, brand, variant,
+  supplier, PO, receipt, location; paging) and `GET /vehicle-units/{id}` (source + history), both `vehicle_units.view`.
+  Location scope (B-07) as for attachments: a unit without a location is visible to every viewer; a unit at a location
+  needs it in scope (list filtered, detail 404, out-of-scope `locationId` filter 422).
+- **Cost:** `vehicle_units.cost.view` (new, separate from `catalogue.cost_price.view`, which covers catalogue price
+  lists); without it `unitCost`/`costCurrency` are null and `costHidden` true in list and detail.
+- **Permissions:** `vehicle_units.view`, `vehicle_units.cost.view` with **no grants**.
+- **Not here:** colour per unit (not captured on receipt), PDI fields (D-06), list filters beyond the above, ageing and
+  timeline (D-08/E-02), opening stock source (G-07), battery component history (OQ-30).
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -450,4 +491,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-25 | Goods receipt document types: `DELIVERY_CHALLAN`, `SUPPLIER_INVOICE`, `PHOTO`, `OTHER` (D-03 proposal). Which are required before posting? | D-03, D-07 |
 | OQ-26 | Chassis/frame normalisation: D-03 trims and upper-cases only. Which separators (spaces, `-`, `/`) may be ignored when comparing (INV-002 "permitted separators"), per brand? | D-03, D-04, D-05 |
 | OQ-27 | Over-receipt: D-03 counts the *received* quantity (accepted + rejected) against the PO and lets any holder of `goods_receipts.over_receipt` authorise it, including on their own draft. Should rejected units count, and who may authorise (owner only, maker-checker)? | D-03, D-07, RB-5, PO-003 |
+| OQ-28 | Internal vehicle unit number: D-04 uses `MAE-VEH-000001…` after the design specification example (`MAE-VEH-00042`). Confirm prefix, digits and whether it restarts per year or location. | D-04, D-09 |
+| OQ-29 | Vehicle unit cost basis (REP-003): D-04 records the PO line's agreed unit cost at registration. Should it be the supplier bill amount, include freight/landed costs, and who may see it (`vehicle_units.cost.view`)? | D-04, D-07, E-07, G-02, RB-5 |
+| OQ-30 | Batteries: one `battery_serial` per unit (as captured on receipts). Do any models carry several packs or swappable packs needing component history (INV-004, architecture "battery_units")? | D-04, D-05, D-06 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

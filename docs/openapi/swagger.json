@@ -6639,6 +6639,192 @@
                     }
                 }
             }
+        },
+        "/vehicle-units": {
+            "get": {
+                "description": "Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-units"
+                ],
+                "summary": "List vehicle units",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search unit number or identifier",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "ORDERED",
+                            "IN_TRANSIT",
+                            "RECEIVED_PENDING_PDI",
+                            "QUALITY_HOLD",
+                            "AVAILABLE",
+                            "DISPLAY",
+                            "RESERVED",
+                            "SERVICE_HOLD",
+                            "SOLD",
+                            "DELIVERED",
+                            "REJECTED",
+                            "RETURN_PENDING_INSPECTION",
+                            "RETURNED_TO_SUPPLIER"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "variantId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Supplier ID",
+                        "name": "supplierId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "purchaseOrderId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "goodsReceiptId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location ID (must be in the caller's scope)",
+                        "name": "locationId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/VehicleUnitPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (q, status, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-units/{id}": {
+            "get": {
+                "description": "The unit with its source (supplier, purchase order and line, goods receipt, line and captured unit, supplier reference, received date) and its append-only history; each history entry names its source document. The referenced records open through their own APIs and permissions. A unit at a location outside the caller's scope is 404. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-units"
+                ],
+                "summary": "Get a vehicle unit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/VehicleUnitDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -10091,6 +10277,406 @@
                 "version": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "VehicleUnit": {
+            "type": "object",
+            "properties": {
+                "batterySerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandId": {
+                    "type": "string"
+                },
+                "brandName": {
+                    "type": "string",
+                    "example": "Brand A"
+                },
+                "chargerSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNormalised": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "CH-0001"
+                },
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "CH-0001"
+                },
+                "costCurrency": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "INR"
+                },
+                "costHidden": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5f0c6f3e-8a52-4d7a-9a51-0d9e3c1b2a77"
+                },
+                "locationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "modelName": {
+                    "type": "string",
+                    "example": "Model 1"
+                },
+                "motorSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT"
+                    ],
+                    "example": "GOODS_RECEIPT"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ORDERED",
+                        "IN_TRANSIT",
+                        "RECEIVED_PENDING_PDI",
+                        "QUALITY_HOLD",
+                        "AVAILABLE",
+                        "DISPLAY",
+                        "RESERVED",
+                        "SERVICE_HOLD",
+                        "SOLD",
+                        "DELIVERED",
+                        "REJECTED",
+                        "RETURN_PENDING_INSPECTION",
+                        "RETURNED_TO_SUPPLIER"
+                    ],
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "supplierId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "unitCost": {
+                    "description": "UnitCost is the acquisition cost (excluding tax); null without vehicle_units.cost.view.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "95000.00"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variantId": {
+                    "type": "string"
+                },
+                "variantName": {
+                    "type": "string",
+                    "example": "Standard"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "VehicleUnitDetail": {
+            "type": "object",
+            "properties": {
+                "batterySerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandId": {
+                    "type": "string"
+                },
+                "brandName": {
+                    "type": "string",
+                    "example": "Brand A"
+                },
+                "chargerSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNormalised": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "CH-0001"
+                },
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "CH-0001"
+                },
+                "costCurrency": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "INR"
+                },
+                "costHidden": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/VehicleUnitEvent"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5f0c6f3e-8a52-4d7a-9a51-0d9e3c1b2a77"
+                },
+                "locationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "modelId": {
+                    "type": "string"
+                },
+                "modelName": {
+                    "type": "string",
+                    "example": "Model 1"
+                },
+                "motorSerial": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "source": {
+                    "$ref": "#/definitions/VehicleUnitSource"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT"
+                    ],
+                    "example": "GOODS_RECEIPT"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ORDERED",
+                        "IN_TRANSIT",
+                        "RECEIVED_PENDING_PDI",
+                        "QUALITY_HOLD",
+                        "AVAILABLE",
+                        "DISPLAY",
+                        "RESERVED",
+                        "SERVICE_HOLD",
+                        "SOLD",
+                        "DELIVERED",
+                        "REJECTED",
+                        "RETURN_PENDING_INSPECTION",
+                        "RETURNED_TO_SUPPLIER"
+                    ],
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "supplierId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "unitCost": {
+                    "description": "UnitCost is the acquisition cost (excluding tax); null without vehicle_units.cost.view.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "95000.00"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variantId": {
+                    "type": "string"
+                },
+                "variantName": {
+                    "type": "string",
+                    "example": "Standard"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "VehicleUnitEvent": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "REGISTERED"
+                    ],
+                    "example": "REGISTERED"
+                },
+                "actorId": {
+                    "type": "string"
+                },
+                "actorName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceId": {
+                    "type": "string"
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "example": "GRN-000001"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT"
+                    ],
+                    "example": "GOODS_RECEIPT"
+                },
+                "toStatus": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                }
+            }
+        },
+        "VehicleUnitPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/VehicleUnit"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "VehicleUnitSource": {
+            "type": "object",
+            "properties": {
+                "goodsReceiptId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "goodsReceiptLineId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "goodsReceiptNumber": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "GRN-000001"
+                },
+                "goodsReceiptUnitId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "purchaseOrderId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "purchaseOrderLineId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "purchaseOrderNumber": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "PO-000001"
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "example": "2026-10-23"
+                },
+                "supplierId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "DC-1234"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT"
+                    ],
+                    "example": "GOODS_RECEIPT"
                 }
             }
         },

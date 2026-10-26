@@ -23,6 +23,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/purchasing"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/receiving"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/suppliers"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/vehicles"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/server"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
 )
@@ -106,9 +107,10 @@ func run() error {
 	supplierHandler := suppliers.NewHandler(suppliers.NewService(suppliers.NewPGStore(pool), log), accessHandler, log)
 	purchaseOrderHandler := purchasing.NewHandler(purchasing.NewService(purchasing.NewPGStore(pool), log), accessHandler, log)
 	goodsReceiptHandler := receiving.NewHandler(receiving.NewService(receiving.NewPGStore(pool), log), accessHandler, log)
+	vehicleUnitHandler := vehicles.NewHandler(vehicles.NewService(vehicles.NewPGStore(pool), log), accessHandler, log)
 	log.Info("attachment storage ready", slog.String("driver", objects.Driver()), slog.Int64("max_bytes", cfg.AttachmentMaxBytes))
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, Version: version})
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

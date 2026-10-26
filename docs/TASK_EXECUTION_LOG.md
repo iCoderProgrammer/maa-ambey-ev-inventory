@@ -48,7 +48,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-01 | Supplier master | P0 | B-05, B-07, B-08 | COMPLETE |
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
-| D-04 | Vehicle unit registry | P0 | C-01, B-05 | NOT STARTED |
+| D-04 | Vehicle unit registry | P0 | C-01, B-05 | IN PROGRESS — backend complete; frontend phase pending |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | NOT STARTED |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
@@ -2296,6 +2296,75 @@ UI: `ui/src/features/receiving/*` (new), `ui/src/app/{routes,navigation}.ts(x)`,
 
 #### Final status
 COMPLETE — D-03 only. Not pushed. D-04 not started.
+
+### D-04 — Vehicle unit registry
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (user-requested backend-only session); frontend phase not started.
+  Mechanism only: no unit, identifier or grant exists anywhere; unit number format, cost basis, battery packs,
+  identifier rules and location pending (OQ-4, OQ-24, OQ-26, OQ-28…OQ-30, RB-5).
+- **Started:** 2026-10-26
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_04_vehicle-unit-registry.md
+- Git at start: `dev` at `e962ee6` (D-03, local, not pushed; `origin/dev` = `4a5a9c0`); working tree held the
+  uncommitted regression-audit fixes, kept out of D-04.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | golang-migrate baseline, `dbtest` scratch databases, migration round-trip test; database tests pass |
+| C-01 | COMPLETE | brand → model → variant with `models (id, brand_id)`, `variants (id, brand_id)`, `variants (id, model_id)` keys; catalogue tests pass |
+| (used) D-01…D-03, B-07, B-08 | COMPLETE | suppliers, POs, goods receipt units as source; location scope; `audit.Record` |
+
+#### Acceptance criteria
+- [x] AC1 Each vehicle is an individual unit: `vehicle_units` row, internal `unit_number`, variant/brand/model, status
+- [x] AC2 Identifier validation follows approved rules only: normalisation trim + upper case (INV-002, separators kept —
+  OQ-26); chassis required after `RECEIVED_PENDING_PDI` (INV-002 CHECK); nothing mandatory before; no uniqueness (D-05)
+- [x] AC3 Unit history links to source documents: supplier/PO/line/GRN/line/captured unit references (FK-consistent),
+  `vehicle_unit_events` naming the GRN
+- [x] AC4 Cost protected server-side: `vehicle_units.cost.view`, null + `costHidden` otherwise, never in audit summaries
+- [x] AC5 API contract and schema documented (ADR-018, API_CONVENTIONS "Vehicle units", OpenAPI) and tested
+- [x] AC6 No fake data or success: no seed, no create route; units only from a POSTED receipt's accepted unit (deferred DB check)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction). The frontend phase (types and hooks, Prompt B)
+is the next step.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000013_create_vehicle_units` (up/down): permissions `vehicle_units.view`, `vehicle_units.cost.view` (no
+  grants); sequence `MAE-VEH-000001`…; composite unique keys on `purchase_orders (id, supplier_id)`,
+  `purchase_order_lines (id, variant_id)`, `goods_receipt_lines (id, purchase_order_line_id)`,
+  `goods_receipt_units (id, goods_receipt_line_id)`; `vehicle_units` (INV-005 status CHECK, generated normalised
+  identifiers, composite FKs, `UNIQUE goods_receipt_unit_id`, lookup indexes); `vehicle_unit_events`; guard trigger (no
+  UPDATE/DELETE until E-01/D-05); deferred constraint trigger (receipt POSTED, unit ACCEPTED, same received date).
+- Module `internal/modules/vehicles` (types, validate, service, pgstore, http): `GET /vehicle-units`,
+  `GET /vehicle-units/{id}`; `RegisterFromReceiptUnit` + `CommitError` for D-07. Wired in `cmd/api`, `internal/server`.
+- Tests: 16 new (rules, HTTP without DB, PostgreSQL integration); receiving draft test now asserts no vehicle unit.
+- gofmt/vet clean. OpenAPI regenerated: 2 paths and 5 schemas added, nothing existing changed.
+- Shared dev DB **not** migrated (still at 12; dev API untouched). To apply: `make db-migrate-up` then restart the API.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (no UI consumer yet; frontend phase).
+- Checks: `make ci` exit 0 (throwaway DB). Go 19 packages, 410 tests (220 top-level) pass, 0 skip; Vitest 23 / 185.
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI change); runs with the frontend phase.
+
+#### Files changed
+`migrations/000013_create_vehicle_units.{up,down}.sql`, `internal/modules/vehicles/*` (new),
+`internal/modules/access/policy.go`, `internal/modules/receiving/api_integration_test.go`, `internal/server/server{,_test}.go`,
+`cmd/api/main.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md` (ADR-018, OQ-28…OQ-30), this log,
+`docs/evidence/D-04/verification.txt`.
+
+#### Known issues / pending approvals
+- No grants for `vehicle_units.*` (RB-5). No unit can exist yet: units come only from receipt posting (D-07), which
+  needs an approved PO (activated brand pending).
+- Chassis uniqueness, motor/battery policies and the conflict error are D-05; the lookup indexes are non-unique until then.
+- Status/location changes and their movements are E-01 (guard refuses all updates meanwhile); PDI fields D-06; list
+  ageing/colour/timeline D-08/E-02; opening stock source G-07.
+- Frontend phase must add `vehicle_units.view` / `vehicle_units.cost.view` to `ui/src/features/access/api/access.ts`.
+
+#### Final status
+IN PROGRESS — D-04 backend phase complete and committed locally (not pushed). D-04 frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

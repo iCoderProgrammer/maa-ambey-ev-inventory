@@ -331,6 +331,28 @@ stock (`stockPosted: false`); posting is D-07.
   longer receivable); 404; 422 `VALIDATION_FAILED`. No DELETE and no posting route. Audited:
   `goods_receipt.created|saved|over_receipt_authorised|cancelled|document_added`.
 
+## Vehicle units (D-04)
+
+Rules: ADR-018. Schema: migration 000013. Read-only: units are created only by receipt posting (D-07,
+`vehicles.RegisterFromReceiptUnit` in the posting transaction) and change only through the stock movement service (E-01).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /vehicle-units` | `vehicle_units.view` | `VehicleUnitPage`; newest first; `q` matches `unitNumber` and the normalised chassis/frame, motor, battery and charger identifiers (trimmed, upper-cased, substring); filters `status` (13 INV-005 values), `brandId`, `variantId`, `supplierId`, `purchaseOrderId`, `goodsReceiptId`, `locationId`; `page` ≥ 1, `limit` 1–100 (default 25) |
+| `GET /vehicle-units/{id}` | `vehicle_units.view` | `VehicleUnitDetail` = `VehicleUnit` + `source` (supplier, PO + line, GRN + line + captured unit, `supplierReference`, `receivedDate`) + `events` (append-only; each with `sourceType`, `sourceId`, `sourceReference` e.g. the GRN number) |
+
+- `VehicleUnit`: `id`, `unitNumber` (`MAE-VEH-000001`, format pending OQ-28), `status`, brand/model/variant ids and
+  names, `chassisNumber`/`chassisNormalised`, `motorSerial`, `batterySerial`, `chargerSerial` (all nullable: nothing is
+  mandatory while `RECEIVED_PENDING_PDI`), `locationId`/`locationCode`/`locationName` (nullable, OQ-24), `sourceType`
+  (`GOODS_RECEIPT`), `supplierId`/`supplierName`, `receivedDate`, `unitCost` (decimal string) + `costCurrency`
+  (`INR`) — both **null with `costHidden: true`** without `vehicle_units.cost.view` — `version`, timestamps.
+- Location scope: units without a location are visible to every viewer; a unit at a location needs it in the caller's
+  scope (list filtered; detail 404; a `locationId` filter outside the scope is 422 `VALIDATION_FAILED` on `locationId`).
+- Errors: 401, 403 `FORBIDDEN`, 404 `NOT_FOUND` (unknown/invalid id, or out of scope), 422 `VALIDATION_FAILED`
+  (`q`, `status`, the id filters, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
+- The referenced PO, receipt and receipt documents open through their own routes and permissions.
+- Audited (by posting, D-07): `vehicle_unit.registered` (summary without the cost).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

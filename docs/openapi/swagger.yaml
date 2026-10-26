@@ -2459,6 +2459,307 @@ definitions:
         example: 1
         type: integer
     type: object
+  VehicleUnit:
+    properties:
+      batterySerial:
+        type: string
+        x-nullable: true
+      brandId:
+        type: string
+      brandName:
+        example: Brand A
+        type: string
+      chargerSerial:
+        type: string
+        x-nullable: true
+      chassisNormalised:
+        example: CH-0001
+        type: string
+        x-nullable: true
+      chassisNumber:
+        example: CH-0001
+        type: string
+        x-nullable: true
+      costCurrency:
+        example: INR
+        type: string
+        x-nullable: true
+      costHidden:
+        type: boolean
+      createdAt:
+        type: string
+      id:
+        example: 5f0c6f3e-8a52-4d7a-9a51-0d9e3c1b2a77
+        type: string
+      locationCode:
+        example: SR1
+        type: string
+        x-nullable: true
+      locationId:
+        type: string
+        x-nullable: true
+      locationName:
+        type: string
+        x-nullable: true
+      modelId:
+        type: string
+      modelName:
+        example: Model 1
+        type: string
+      motorSerial:
+        type: string
+        x-nullable: true
+      receivedDate:
+        example: "2026-10-23"
+        type: string
+      sourceType:
+        enum:
+        - GOODS_RECEIPT
+        example: GOODS_RECEIPT
+        type: string
+      status:
+        enum:
+        - ORDERED
+        - IN_TRANSIT
+        - RECEIVED_PENDING_PDI
+        - QUALITY_HOLD
+        - AVAILABLE
+        - DISPLAY
+        - RESERVED
+        - SERVICE_HOLD
+        - SOLD
+        - DELIVERED
+        - REJECTED
+        - RETURN_PENDING_INSPECTION
+        - RETURNED_TO_SUPPLIER
+        example: RECEIVED_PENDING_PDI
+        type: string
+      supplierId:
+        type: string
+        x-nullable: true
+      supplierName:
+        type: string
+        x-nullable: true
+      unitCost:
+        description: UnitCost is the acquisition cost (excluding tax); null without
+          vehicle_units.cost.view.
+        example: "95000.00"
+        type: string
+        x-nullable: true
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+      updatedAt:
+        type: string
+      variantId:
+        type: string
+      variantName:
+        example: Standard
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  VehicleUnitDetail:
+    properties:
+      batterySerial:
+        type: string
+        x-nullable: true
+      brandId:
+        type: string
+      brandName:
+        example: Brand A
+        type: string
+      chargerSerial:
+        type: string
+        x-nullable: true
+      chassisNormalised:
+        example: CH-0001
+        type: string
+        x-nullable: true
+      chassisNumber:
+        example: CH-0001
+        type: string
+        x-nullable: true
+      costCurrency:
+        example: INR
+        type: string
+        x-nullable: true
+      costHidden:
+        type: boolean
+      createdAt:
+        type: string
+      events:
+        items:
+          $ref: '#/definitions/VehicleUnitEvent'
+        type: array
+      id:
+        example: 5f0c6f3e-8a52-4d7a-9a51-0d9e3c1b2a77
+        type: string
+      locationCode:
+        example: SR1
+        type: string
+        x-nullable: true
+      locationId:
+        type: string
+        x-nullable: true
+      locationName:
+        type: string
+        x-nullable: true
+      modelId:
+        type: string
+      modelName:
+        example: Model 1
+        type: string
+      motorSerial:
+        type: string
+        x-nullable: true
+      receivedDate:
+        example: "2026-10-23"
+        type: string
+      source:
+        $ref: '#/definitions/VehicleUnitSource'
+      sourceType:
+        enum:
+        - GOODS_RECEIPT
+        example: GOODS_RECEIPT
+        type: string
+      status:
+        enum:
+        - ORDERED
+        - IN_TRANSIT
+        - RECEIVED_PENDING_PDI
+        - QUALITY_HOLD
+        - AVAILABLE
+        - DISPLAY
+        - RESERVED
+        - SERVICE_HOLD
+        - SOLD
+        - DELIVERED
+        - REJECTED
+        - RETURN_PENDING_INSPECTION
+        - RETURNED_TO_SUPPLIER
+        example: RECEIVED_PENDING_PDI
+        type: string
+      supplierId:
+        type: string
+        x-nullable: true
+      supplierName:
+        type: string
+        x-nullable: true
+      unitCost:
+        description: UnitCost is the acquisition cost (excluding tax); null without
+          vehicle_units.cost.view.
+        example: "95000.00"
+        type: string
+        x-nullable: true
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+      updatedAt:
+        type: string
+      variantId:
+        type: string
+      variantName:
+        example: Standard
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  VehicleUnitEvent:
+    properties:
+      action:
+        enum:
+        - REGISTERED
+        example: REGISTERED
+        type: string
+      actorId:
+        type: string
+      actorName:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+      id:
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      sourceId:
+        type: string
+      sourceReference:
+        example: GRN-000001
+        type: string
+      sourceType:
+        enum:
+        - GOODS_RECEIPT
+        example: GOODS_RECEIPT
+        type: string
+      toStatus:
+        example: RECEIVED_PENDING_PDI
+        type: string
+    type: object
+  VehicleUnitPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/VehicleUnit'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  VehicleUnitSource:
+    properties:
+      goodsReceiptId:
+        type: string
+        x-nullable: true
+      goodsReceiptLineId:
+        type: string
+        x-nullable: true
+      goodsReceiptNumber:
+        example: GRN-000001
+        type: string
+        x-nullable: true
+      goodsReceiptUnitId:
+        type: string
+        x-nullable: true
+      purchaseOrderId:
+        type: string
+        x-nullable: true
+      purchaseOrderLineId:
+        type: string
+        x-nullable: true
+      purchaseOrderNumber:
+        example: PO-000001
+        type: string
+        x-nullable: true
+      receivedDate:
+        example: "2026-10-23"
+        type: string
+      supplierId:
+        type: string
+        x-nullable: true
+      supplierName:
+        type: string
+        x-nullable: true
+      supplierReference:
+        example: DC-1234
+        type: string
+        x-nullable: true
+      type:
+        enum:
+        - GOODS_RECEIPT
+        example: GOODS_RECEIPT
+        type: string
+    type: object
   attachments.FileType:
     properties:
       contentType:
@@ -6796,4 +7097,136 @@ paths:
       summary: Verify a variant
       tags:
       - catalogue
+  /vehicle-units:
+    get:
+      description: Newest first. q matches the unit number and the chassis/frame,
+        motor, battery and charger identifiers after normalisation (trimmed, upper-case;
+        part of a value is enough). Filters combine. Only units without a location
+        or at a location in the caller's scope are listed; a locationId outside the
+        scope is refused. unitCost and costCurrency are null, and costHidden true,
+        without vehicle_units.cost.view. Requires vehicle_units.view.
+      parameters:
+      - description: Search unit number or identifier
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle status
+        enum:
+        - ORDERED
+        - IN_TRANSIT
+        - RECEIVED_PENDING_PDI
+        - QUALITY_HOLD
+        - AVAILABLE
+        - DISPLAY
+        - RESERVED
+        - SERVICE_HOLD
+        - SOLD
+        - DELIVERED
+        - REJECTED
+        - RETURN_PENDING_INSPECTION
+        - RETURNED_TO_SUPPLIER
+        in: query
+        name: status
+        type: string
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Variant ID
+        in: query
+        name: variantId
+        type: string
+      - description: Supplier ID
+        in: query
+        name: supplierId
+        type: string
+      - description: Purchase order ID
+        in: query
+        name: purchaseOrderId
+        type: string
+      - description: Goods receipt ID
+        in: query
+        name: goodsReceiptId
+        type: string
+      - description: Location ID (must be in the caller's scope)
+        in: query
+        name: locationId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/VehicleUnitPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (q, status, brandId, variantId, supplierId,
+            purchaseOrderId, goodsReceiptId, locationId, page, limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List vehicle units
+      tags:
+      - vehicle-units
+  /vehicle-units/{id}:
+    get:
+      description: The unit with its source (supplier, purchase order and line, goods
+        receipt, line and captured unit, supplier reference, received date) and its
+        append-only history; each history entry names its source document. The referenced
+        records open through their own APIs and permissions. A unit at a location
+        outside the caller's scope is 404. unitCost and costCurrency are null, and
+        costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.
+      parameters:
+      - description: Vehicle unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/VehicleUnitDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a vehicle unit
+      tags:
+      - vehicle-units
 swagger: "2.0"
