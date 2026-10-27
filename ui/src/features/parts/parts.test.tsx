@@ -350,7 +350,7 @@ describe('SKU list', () => {
     expect(within(table).getByText('BRK-PAD-01')).toBeInTheDocument()
     expect(within(table).getByText('2.5')).toBeInTheDocument()
     expect(within(table).getByText('Quantity')).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/records no stock/)
+    expect(screen.getByRole('note')).toHaveTextContent(/never changes stock/)
     expect(screen.queryByRole('button', { name: 'Add SKU' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Supplier')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Compatible brand')).not.toBeInTheDocument()

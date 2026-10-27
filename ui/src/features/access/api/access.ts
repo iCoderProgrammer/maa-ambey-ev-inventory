@@ -81,6 +81,10 @@ export const Permission = {
   StockItemView: 'stock_items.view',
   StockItemManage: 'stock_items.manage',
   StockItemArchive: 'stock_items.archive',
+  /** Parts receipts and issues (E-04). No role holds these until the owner signs off. */
+  PartsView: 'stock.parts.view',
+  PartsReceive: 'stock.parts.receive',
+  PartsIssue: 'stock.parts.issue',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

@@ -57,7 +57,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
-| E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
+| E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
 | E-07 | Stock ageing calculations | P0 | D-04, D-07 | NOT STARTED |
@@ -2676,8 +2676,8 @@ COMPLETE — E-03 backend (`78aa5e0`) and frontend, committed locally (not pushe
 
 ### E-04 — Parts receipts and issues
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
-- **Started:** 2026-10-27
+- **Status:** COMPLETE (backend and frontend phases)
+- **Started:** 2026-10-27 · **Finished:** 2026-10-27
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_04_parts-receipts-and-issues.md
 - Git at start: `dev` at `3898301` = `origin/dev`, clean tree.
 
@@ -2700,7 +2700,11 @@ COMPLETE — E-03 backend (`78aa5e0`) and frontend, committed locally (not pushe
 - [ ] SERIAL-tracked parts not supported (refused, fail closed) until a serial register is approved (OQ-38)
 
 #### Stage 1 — UI
-Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+Backend phase: NOT APPLICABLE (backend-only session by instruction).
+Frontend phase: COMPLETE — `PartsStockPanel` on the SKU detail page: Stock card (balances per location), Receive
+stock / Issue stock dialogs (RHF + Zod; location from the user's assigned locations, quantity as text up to 3
+decimals, unit read-only from the SKU, supplier + challan for receipts, reason for issues), history with
+location/type filters and pagination; loading/empty/error/permission/serial/archived states; responsive table/cards.
 
 #### Stage 2 — Backend
 Result: COMPLETE
@@ -2718,23 +2722,42 @@ Result: COMPLETE
   `make ci` exit 0 (Vitest 268); golangci-lint not installed. Evidence: `docs/evidence/E-04/verification.txt`.
 
 #### Stage 3 — API integration
-Result: NOT APPLICABLE in this phase (frontend phase pending).
+Result: COMPLETE (frontend phase) — no mock adapter; typed client `ui/src/features/parts/api/partsStock.ts` +
+TanStack Query hooks for `GET /stock-items/{id}/balances`, `GET /stock-items/{id}/stock-movements`,
+`POST /stock-items/{id}/receipts`, `POST /stock-items/{id}/issues` with `Idempotency-Key` (frozen action, same key
+for an unchanged retry, new key for changed values, retry:false). Success only after the validated server answer;
+balances/history refetched. Errors mapped: INSUFFICIENT_STOCK (form kept, balance refreshed), TRACKING_NOT_SUPPORTED,
+archived, key reused, 401/403/404, validation, uncertain (network/5xx → "Send again unchanged").
+Checks: Vitest 29 files / 286 tests (18 new in `parts-stock.test.tsx`); tsc, ESLint (0 warnings), Prettier, build;
+`make ci` exit 0 on an isolated database (migration 17); `git diff --check` clean.
 
 #### Stage 4 — Browser testing
-Result: NOT APPLICABLE in this phase (no UI yet).
+Result: COMPLETE (frontend phase) — isolated stack (PostgreSQL container, API :8096, Vite :5185; test-only grants).
+Playwright `parts-stock.e2e.ts` + `parts.e2e.ts`: 8 passed (desktop + Pixel 7): receive, decimal validation, double
+click = one receipt, issue, over-issue refused with form kept, lost response retried with the same key counted once,
+history filter, no edit/delete, refresh persistence, no sideways scroll, serial SKU without forms, viewer read-only,
+no-grant user Access denied, no console errors. Chrome (user's browser): receive 5 (9 → 14), issue 50 refused,
+issue 4 (14 → 10), no console errors. Evidence: `docs/evidence/E-04/frontend-verification.txt`.
 
 #### Files changed
 `migrations/000017_parts_stock_movements.{up,down}.sql`, `internal/modules/stock/{parts.go,ledger.go,service.go,http.go}`,
 `internal/modules/stock/{parts_integration_test.go,http_test.go}`, `internal/modules/access/policy.go`,
 `internal/httpx/response.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`,
 `ui/src/features/stock/stock.test.tsx` (contract test), this log, `docs/evidence/E-04/verification.txt`.
+Frontend phase: `ui/src/features/access/api/access.ts`, `ui/src/features/parts/{PartsPages.tsx,parts.test.tsx,
+parts-stock.test.tsx}`, `ui/src/features/parts/{api/partsStock.ts,hooks/usePartsStock.ts,lib/stockErrors.ts,
+components/PartsStockPanel.tsx}`, `ui/e2e/parts-stock.e2e.ts`, `docs/DEVELOPMENT_SETUP.md`,
+`docs/evidence/E-04/frontend-verification.txt`.
 
 #### Known issues / pending approvals
 - OQ-34 units (no conversion), OQ-36 cost/price and batch/lot, OQ-37 issue reasons and non-supplier receipts, OQ-38
   serial register; RB-5 grants. Shared dev DB still version 12 (needs 13–17); not migrated.
+- No locations list API: forms offer the user's assigned locations only; a user with `locations.all` and no
+  assignment cannot submit (hint shown).
+- SERIAL-tracked parts: no receipt/issue until OQ-38 (AC unchecked by design, fail closed).
 
 #### Final status
-IN PROGRESS — E-04 backend phase complete, committed locally (not pushed). Frontend phase not started.
+COMPLETE — E-04 backend (`98a5207`) and frontend, committed locally (not pushed). E-05 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

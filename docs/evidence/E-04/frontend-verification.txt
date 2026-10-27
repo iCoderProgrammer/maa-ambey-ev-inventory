@@ -1,0 +1,68 @@
+E-04 Parts receipts and issues — FRONTEND verification (2026-10-27)
+=====================================================================
+
+Scope: React UI for parts receipts, issues, balances and history on the SKU detail page
+(/inventory/parts/:id). No Go, SQL, migration or OpenAPI change in this phase.
+
+Files
+-----
+- ui/src/features/access/api/access.ts            PartsView / PartsReceive / PartsIssue permission codes
+- ui/src/features/parts/api/partsStock.ts         typed client + zod schemas (balances, history, receipts, issues)
+- ui/src/features/parts/hooks/usePartsStock.ts    TanStack Query keys/hooks, permissions
+- ui/src/features/parts/lib/stockErrors.ts        error mapping (insufficient, serial, archived, key reused,
+                                                  signed out, forbidden, not found, invalid input, uncertain)
+- ui/src/features/parts/components/PartsStockPanel.tsx  Stock card, history, Receive/Issue dialogs
+- ui/src/features/parts/PartsPages.tsx            panel on SKU detail; master-data notice wording
+- ui/src/features/parts/parts.test.tsx            notice assertion
+- ui/src/features/parts/parts-stock.test.tsx      18 Vitest tests (new)
+- ui/e2e/parts-stock.e2e.ts                       Playwright flow (new)
+- docs/DEVELOPMENT_SETUP.md                       E2E grant notes for parts-stock
+
+Endpoints used (E-04 backend, unchanged)
+----------------------------------------
+GET  /api/v1/stock-items/{id}/balances
+GET  /api/v1/stock-items/{id}/stock-movements?locationId&type&page&limit
+POST /api/v1/stock-items/{id}/receipts   (Idempotency-Key)
+POST /api/v1/stock-items/{id}/issues     (Idempotency-Key)
+
+Permissions (UI gating only; the server decides)
+------------------------------------------------
+- stock.parts.view: Stock card + history. Without it the panel is not shown.
+- stock.parts.receive + suppliers.view: Receive stock (supplier must be chosen). Without suppliers.view the
+  button is replaced by a note.
+- stock.parts.issue: Issue stock.
+- Supplier names in history are null from the server without suppliers.view; the UI says so.
+- No grants were added anywhere except test-only grants on the disposable database (container e04f-pg).
+
+Idempotency / safety
+--------------------
+- One frozen action (body + UUID key) per decision; the same unchanged body in the same dialog reuses the key;
+  any changed field makes a new key. Mutations retry:false.
+- Network failure, timeout or 5xx: "may or may not have been recorded"; the button becomes "Send again
+  unchanged" (same key). Server replay is counted once (verified in Playwright with a lost response).
+- Double submit guarded (isPending); one POST.
+- Success shown only after the server answer validates (type, SKU, location, balance belongs to movement).
+- INSUFFICIENT_STOCK: form kept, balances refreshed, "Nothing was changed".
+- Quantities handled as text/BigInt thousandths (no floating point); > 0, up to 9 digits and 3 decimals.
+- UOM shown read-only from the SKU (no conversion, OQ-34). SERIAL SKUs: no forms, note shown (OQ-38).
+  Archived SKUs: no forms.
+
+Checks
+------
+- make ci (isolated DB postgres://e4:***@localhost:5476/e4, migration 17): exit 0
+  (swagger-check, gofmt, go vet, go mod tidy -diff, ESLint 0 warnings, Prettier, tsc, Go tests with DB,
+  Vitest 29 files / 286 tests, builds). golangci-lint not installed.
+- git diff --check: clean.
+- Playwright (isolated stack: API :8096, Vite :5185): parts-stock + parts e2e — 8 passed (desktop + Pixel 7).
+- Chrome (user's browser, Claude in Chrome), signed in as e2e.catalogue on a test SKU:
+  receive 5 PCS (DC-CHROME-1) -> balance 9 -> 14, new history row with supplier and reference;
+  issue 50 -> refused "There is not enough stock at this location ... Nothing was changed", form kept;
+  quantity changed to 4 -> issue recorded, balance 14 -> 10; no console errors.
+
+Known limitations / pending
+---------------------------
+- No locations list API: forms offer the user's assigned locations (/me locationScope). A user with
+  locations.all but no assignment gets a hint and cannot submit.
+- OQ-34 units, OQ-36 cost/batch, OQ-37 issue reasons and non-supplier receipts, OQ-38 serial register,
+  RB-5 grants (no production/shared-dev grants).
+- Shared dev DB still at migration 12; not migrated (by instruction).

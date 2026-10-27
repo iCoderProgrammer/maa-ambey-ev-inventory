@@ -33,6 +33,7 @@ import {
   CategoryFormDialog,
   StockItemFormDialog,
 } from './components/StockItemDialogs'
+import { PartsStockPanel } from './components/PartsStockPanel'
 import {
   useCategoryList,
   useStockItem,
@@ -93,8 +94,8 @@ function MasterDataNotice() {
       role="note"
       className="mb-4 rounded-card border border-border bg-neutral-subtle px-4 py-3 text-sm text-ink"
     >
-      This is the parts and accessories <strong>master list</strong>: it records no stock. Stock
-      receipts, issues and quantities come later.
+      This is the parts and accessories <strong>master list</strong>. Editing a SKU never changes
+      stock: quantities change only through recorded receipts and issues (on each SKU&rsquo;s page).
     </p>
   )
 }
@@ -453,6 +454,7 @@ function PartDetailBody({ id }: { id: string }) {
         )}
       </div>
       <div className="mt-6 flex flex-col gap-6">
+        <PartsStockPanel item={d} />
         <SuppliersCard item={d} />
         <CompatibilityCard item={d} />
       </div>

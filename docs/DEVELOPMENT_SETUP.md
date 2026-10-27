@@ -256,6 +256,9 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   through the API) with `E2E_CATALOGUE_*` (receives, without over-receipt), `E2E_PRICE_APPROVER_*` (authorises
   over-receipt) and `E2E_CATALOGUE_VIEWER_*` (read-only) and the goods receipt grants above. Set `E2E_EVIDENCE_DIR`
   to save desktop/mobile screenshots.
+  `e2e/parts-stock.e2e.ts` (E-04) uses `E2E_CATALOGUE_*` with `stock.parts.view/receive/issue`,
+  `stock_items.view/manage` and `suppliers.view/manage`, and `E2E_CATALOGUE_VIEWER_*` with `stock_items.view` and
+  `stock.parts.view`; both need a location in their scope (`cmd/access scope-add`). Throwaway database only.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.
