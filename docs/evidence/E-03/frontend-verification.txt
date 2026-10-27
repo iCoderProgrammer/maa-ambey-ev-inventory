@@ -1,0 +1,73 @@
+E-03 verification (FRONTEND) — 2026-10-27 — base 582b618 (dev = origin/dev at start), clean tree at start. No Go, SQL,
+migration or OpenAPI change.
+
+== Contract consumed (docs/openapi; API_CONVENTIONS "Spare part and accessory SKUs (E-03)") ==
+GET/POST /stock-item-categories, PATCH /stock-item-categories/{id}, POST /stock-item-categories/{id}/archive
+GET/POST /stock-items, GET/PATCH /stock-items/{id}, POST /stock-items/{id}/archive
+Option lists only through existing authorised APIs: GET /suppliers (suppliers.view), GET /brands and /models?brandId=
+(catalogue.view). No other endpoint; no stock, balance, movement, receipt/issue, price or reactivation call.
+
+== Files ==
+ui/src/features/parts/api/stockItems.ts        zod contracts (category, SKU, supplier link, compatibility, detail with
+                                                suppliersHidden refine), list params, client calls, SKU/UOM/level rules
+ui/src/features/parts/hooks/useStockItems.ts   query keys, list/detail queries, mutation (invalidate after success), perms
+ui/src/features/parts/lib/labels.ts            status/tracking labels, server path -> form path
+ui/src/features/parts/components/StockItemDialogs.tsx  SKU editor, archive (SKU, category), category editor
+ui/src/features/parts/PartsPages.tsx           /inventory/parts, /inventory/parts/:itemId, /inventory/parts/categories
+ui/src/features/parts/parts.test.tsx           21 tests
+ui/e2e/parts.e2e.ts                            3 tests x desktop/mobile
+ui/src/app/{routes.tsx,navigation.ts}          routes; nav item live with permission stock_items.view
+ui/src/features/access/api/access.ts           Permission.StockItemView / Manage / Archive (no grants)
+docs/DEVELOPMENT_SETUP.md                       E2E grants for the parts tests (throwaway DB only)
+
+== Behaviour ==
+- Permissions: page gate stock_items.view (detail keeps heading while denied); Add/Edit need stock_items.manage; Archive
+  needs stock_items.archive; supplier picker/filter/details only with suppliers.view (otherwise a note, and a PATCH never
+  sends suppliers); compatibility picker only with catalogue.view; nav item hidden without stock_items.view.
+- SKU code: trimmed, 1-40 of A-Z a-z 0-9 . _ / - (no spaces); duplicates in any case come back from the server as 409
+  and are shown on the field; separators significant. Code and tracking mode read-only on edit, with the reason.
+- UOM: free entry, format check only (1-10 letters/digits, starts with a letter), stored upper-case; hint says no
+  approved list exists (OQ-34 open).
+- Reorder level: up to 3 decimals for QUANTITY, whole for SERIAL (create and edit, using the stored mode); shown without
+  trailing zeros.
+- Suppliers: archived suppliers not offered for new links; pending ones labelled "(pending verification)"; removed rows
+  are ended by the server and shown as "Ended …" history; no delete call.
+- Compatibility: brand (from /brands, archived excluded) and optional model loaded per brand (/models?brandId=), so a
+  model of another brand cannot be chosen; server cross-brand/archived errors mapped to the row; "staff-entered, not an
+  approved manufacturer fitment" shown.
+- Edit sends only changed fields; "Nothing has changed" without a request. Stale version -> reload offer, entries kept.
+- Archive (SKU and category): confirmation dialog, reason required, effects listed, no reactivation; category archive
+  refused by the server while it has active SKUs -> server message shown, nothing changed.
+- Cache: nothing optimistic; every stock-items query invalidated after a confirmed mutation.
+
+== Defect found in the browser test and fixed ==
+Edit dialog showed the stored supplier, brand and model as empty ("Choose a supplier") because their options loaded
+after the form was filled (a native select cannot show a value without its option). Fix: the selects re-attach once
+their options have loaded. Regression test "shows the stored supplier, brand and model once their options have loaded"
+fails without the fix and passes with it.
+
+== Checks (ui/) ==
+Prettier PASS. ESLint PASS. tsc PASS. vite build PASS. Focused parts tests 21/21. Full Vitest 28 files / 268 tests.
+One make ci run failed on the new long create test hitting the 5 s timeout under load; the editor tests now have a
+15 s budget (about 1-2 s each alone). Another make ci run failed in the Go integration step (no Go change; output not
+captured; two later runs, incl. go test ./... directly, passed). Final make ci (throwaway DB): exit 0.
+golangci-lint not installed (skipped). git diff --check clean.
+
+== Browser ==
+Isolated stack: postgres:18-alpine :5474 (migrations 1..16 + seeds), API from this tree :8097 (PROPOSED grants,
+ATTACHMENT_LINK_TTL=30s), Vite :5184; test-only users (random password, not printed); disposable "Test …" brands,
+models, suppliers created by the tests.
+Playwright e2e/parts.e2e.ts: 6 passed (desktop + mobile).
+Full Playwright suite with the DEVELOPMENT_SETUP accounts/grants: 74 passed, 9 skipped (viewport-specific and the
+eligible-PO fixture, not set up), 1 failed — the attachments expired-link check, because the API had first been started
+without the documented ATTACHMENT_LINK_TTL=30s; after restarting with it, attachments + parts: 13 passed, 1 skipped.
+(The attachments test also "tampers" a signature by replacing its first character with A, which does nothing when it
+already starts with A — a ~1/64 test flaw, not changed here.)
+User-visible run in the user's Chrome (new tab, step by step): category validation, create, case-insensitive duplicate
+(409 on the field, entries kept); SKU validation (spaces, unit format, SERIAL fraction), create with trimmed code,
+upper-cased unit, pending supplier and brand/model (model list limited to the brand); duplicate CHR-01 vs chr-01
+refused; CHR.01 accepted; edit (read-only code/mode, SERIAL 2.5 refused, part number change ends the old link as
+history); archive without reason refused, then archived read-only; category archive refused with an active SKU; viewer
+read-only; user without grants denied and nav hidden; console clean. A "503" seen in the extension's network list
+never reached the API (it logged one detail request, 200): a request cancelled by the browser during navigation.
+Shared dev DB (:5436, version 12), dev API and Vite: not touched.

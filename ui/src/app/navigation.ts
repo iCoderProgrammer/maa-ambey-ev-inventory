@@ -74,8 +74,10 @@ export const navigation: NavSection[] = [
         label: 'Spare Parts & Accessories',
         path: '/inventory/parts',
         icon: Wrench,
-        backlog: ['E-03', 'E-04'],
-        summary: 'Quantity- or serial-tracked parts and accessories.',
+        backlog: [],
+        summary:
+          'SKU master for parts and accessories: categories, units, tracking mode, suppliers and compatibility.',
+        permission: 'stock_items.view',
       },
       {
         label: 'Stock Movements',

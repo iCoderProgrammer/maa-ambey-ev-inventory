@@ -222,6 +222,10 @@ for p in goods_receipts.view goods_receipts.manage; do
 make access ARGS="grant --role accountant --permission goods_receipts.view"
 for p in goods_receipts.view goods_receipts.manage goods_receipts.over_receipt; do
   make access ARGS="grant --role sales_executive --permission $p"; done
+# optional, for the spare parts and accessories tests (E-03)
+for p in stock_items.view stock_items.manage stock_items.archive; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission stock_items.view"
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \

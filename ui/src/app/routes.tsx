@@ -17,6 +17,7 @@ import {
   PurchaseOrdersPage,
 } from '@/features/purchasing/PurchaseOrderPages'
 import { GoodsReceiptDetailPage, GoodsReceiptsPage } from '@/features/receiving/GoodsReceiptPages'
+import { PartCategoriesPage, PartDetailPage, PartsPage } from '@/features/parts/PartsPages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
 import { NotFoundPage } from './NotFoundPage'
 import { PlannedModulePage } from './PlannedModulePage'
@@ -41,6 +42,9 @@ export const routes: RouteObject[] = [
               { index: true, element: <DashboardPage /> },
               { path: 'admin/users', element: <RolesPage /> },
               { path: 'documents', element: <DocumentsPage /> },
+              { path: 'inventory/parts', element: <PartsPage /> },
+              { path: 'inventory/parts/categories', element: <PartCategoriesPage /> },
+              { path: 'inventory/parts/:itemId', element: <PartDetailPage /> },
               { path: 'procurement/suppliers', element: <SuppliersPage /> },
               { path: 'procurement/suppliers/:supplierId', element: <SupplierDetailPage /> },
               { path: 'procurement/purchase-orders', element: <PurchaseOrdersPage /> },

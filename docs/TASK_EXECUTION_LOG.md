@@ -56,7 +56,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
-| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
+| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
@@ -2598,7 +2598,7 @@ movement timeline is E-02. D-06 not started (needs the PDI checklist and OQ-31).
 
 ### E-03 — Spare/accessory SKU master
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Status:** COMPLETE — backend phase (`78aa5e0`) and frontend phase with browser test (2026-10-27).
 - **Started:** 2026-10-27
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_03_spare-accessory-sku-master.md
 - Git at start: `dev` at `21a28c0` (local ahead of `origin/dev` = `2d2c2a5` by 2), clean tree.
@@ -2653,8 +2653,26 @@ Result: NOT APPLICABLE in this phase (no UI yet).
 - No stock, balance or movement for parts yet (E-04); `stock_movements.item_type` stays `VEHICLE_UNIT`.
 - Shared dev DB still version 12 (needs 13–16); not migrated.
 
+#### Frontend phase (2026-10-27; base `582b618`)
+- **Stage 1/3 — UI + integration:** `ui/src/features/parts/` — SKU list (search, status, category, tracking, supplier
+  and brand filters; paging), detail (suppliers with ended history, compatibility as staff-entered metadata), SKU editor
+  (code and tracking mode read-only on edit; UOM format only, OQ-34; reorder precision by mode; suppliers only with
+  `suppliers.view`, compatibility only with `catalogue.view`; only changed fields sent), archive dialogs with required
+  reason, categories page (create/edit/archive; refusal with active SKUs shown). Routes `/inventory/parts`,
+  `/inventory/parts/categories`, `/inventory/parts/:itemId`; nav item live with `stock_items.view`. Real API only; no
+  mock adapter in the production path; no stock, movement, price or reactivation call.
+- **Stage 4 — Browser:** PASS. Isolated stack (DB :5474 at 16, API :8097, Vite :5184). `e2e/parts.e2e.ts` 6 passed;
+  full Playwright 74 passed / 9 skipped / 1 failed (attachments expired-link check: API first started without the
+  documented `ATTACHMENT_LINK_TTL=30s`; with it, attachments + parts 13 passed, 1 skipped). Step-by-step run in the
+  user's Chrome found one defect — the edit dialog showed stored supplier/brand/model as empty while their options
+  loaded — fixed (selects re-attach after loading) with a regression test.
+- **Checks:** Prettier, ESLint, tsc, build PASS; Vitest 28 files / 268 tests; `make ci` exit 0 (earlier attempts: one
+  Vitest timeout under load — editor tests now 15 s budget; one unexplained Go integration failure that did not repeat).
+  golangci-lint not installed. Evidence: `docs/evidence/E-03/frontend-verification.txt`.
+- **Pending:** OQ-34 units, OQ-35 code correction/reactivation, OQ-36 cost/price and batch/lot, RB-5 grants.
+
 #### Final status
-IN PROGRESS — E-03 backend phase complete, committed locally (not pushed). Frontend phase not started.
+COMPLETE — E-03 backend (`78aa5e0`) and frontend, committed locally (not pushed). E-04 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

@@ -77,6 +77,10 @@ export const Permission = {
   VehicleUnitCostView: 'vehicle_units.cost.view',
   /** AVAILABLE <-> DISPLAY stock movements (E-01). No role holds it until the owner signs off. */
   VehicleUnitDisplayManage: 'vehicle_units.display.manage',
+  /** Spare part and accessory SKU master (E-03). No role holds these until the owner signs off. */
+  StockItemView: 'stock_items.view',
+  StockItemManage: 'stock_items.manage',
+  StockItemArchive: 'stock_items.archive',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */
