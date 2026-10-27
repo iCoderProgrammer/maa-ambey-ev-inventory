@@ -46,8 +46,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
 | C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | COMPLETE |
 | D-01 | Supplier master | P0 | B-05, B-07, B-08 | COMPLETE |
-| D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
-| D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
+| D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | COMPLETE |
+| D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | COMPLETE |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
@@ -2296,6 +2296,53 @@ UI: `ui/src/features/receiving/*` (new), `ui/src/app/{routes,navigation}.ts(x)`,
 
 #### Final status
 COMPLETE — D-03 only. Not pushed. D-04 not started.
+
+### REGRESSION-AUDIT-2026-10-26 — Full end-to-end regression audit (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-10-26 · Base `e962ee6` (D-03), clean tree. No product task started; D-04 not started.
+- **Scope:** every implemented feature B-01…D-03 (shell, auth, RBAC, audit, attachments, catalogue, isolation, pricing,
+  suppliers, purchase orders, goods receipt drafts) on desktop 1366×900, Pixel 7 and 320 px.
+- **Environment:** isolated throwaway stack only — postgres:18-alpine `:5460` (migrated to 12 + seeds), API built from this tree
+  on `:8099`, Vite `:5181`; test-only users, random password never printed; PROPOSED grants and the eligible-PO SQL
+  fixture on that database only. Shared dev stack (`:5173`/`:8081`/`:5436`) not touched. Everything removed afterwards.
+
+#### Results
+- Existing Playwright suite before fixes: 71 passed, 5 skipped (viewport-specific by design), 0 failed.
+- Exploratory: 74-operation deny-by-default sweep (anonymous 401 / no grant 403 / no CSRF 403 — all OK); input robustness
+  (no 5xx); auth probes (generic errors, throttle + Retry-After, cookie flags, session rotation on re-login); concurrency
+  (1 of 5 parallel PATCHes wins); audit append-only (UPDATE/DELETE/TRUNCATE refused); price overlap 409, cost prices
+  hidden from selling-only users; double-submit (one POST); keyboard and offline behaviour; pagination and search;
+  300-page crawl (roles × viewports) for headings, overflow, labels, console and 5xx.
+- Defects fixed (details, root causes and evidence: `docs/evidence/REGRESSION-AUDIT-2026-10-26/report.md`):
+  1. Denied PO/supplier/GRN detail pages lost their heading and breadcrumbs — `Gate` `header` prop (Low).
+  2. PO line cost-variance warning overflowed by 23 px at 320 px — wrapping warning badge (Low).
+  4. Dialog focus fell to `<body>` on close instead of the opener (WCAG 2.4.3) — `Dialog` restores focus (Medium).
+  5. Offline saves paused silently with Cancel disabled and were sent later on reconnect — mutations
+     `networkMode: 'always'`, failing at once with the existing network error, entries kept (Medium).
+  6. A page past the end showed "2451–43 of 43" — `Pagination` explains it and leads back (Low).
+  7. Status board showed D-02/D-03 NOT STARTED — rows corrected (docs).
+  Each code fix has a regression test that failed before the fix (Vitest ×7 new, e2e ×1 new + 2 extended).
+- After fixes: Playwright **73 passed, 5 skipped, 0 failed**; crawl 300 loads, 0 flagged; Vitest 23 files / 185 tests;
+  Go 18 packages, 394 tests (204 top-level) pass with PostgreSQL required; `make ci` exit 0; `git diff --check` clean.
+  `golangci-lint` not installed (skipped by the Makefile); no automated axe scanner available.
+- API 5xx in the run: 251, all client-aborted GETs (`context canceled`), no failed write — as in earlier evidence.
+- Re-run on a fresh throwaway stack (user request): Playwright 73 passed, 5 skipped, 0 failed; crawl 300 loads, 0 flagged;
+  focus-return and offline checks PASS; 245 API 5xx, all client-cancelled GETs. No new defects (report §11).
+- Pre-D-05 re-run (user request; HEAD `ba7ca84` + the uncommitted fixes; throwaway stack at migration 13 with a SQL
+  stand-in for posting): Playwright 73 passed, 5 skipped, 0 failed; crawl 29 routes × 6 personas × 3 viewports = 522
+  loads, 0 flagged; 84/84 operations deny by default; D-04 API smoke 31/31 (no D-04 screen exists); stock invariant held
+  (drafts created no vehicle unit, PO quantities unchanged); Vitest 206, Go 410, `make ci` exit 0. No new defects
+  (`report-pre-d05-addendum.md`).
+
+#### Not changed (observations / pending)
+- "Approved by User xxxxxxxx" on the PO card (no name lookup API yet — documented); 5xx logging of client aborts; JSON
+  responses without nosniff/frame headers (H-04); size limit wording in some 400s. Business blockers unchanged (RB-2,
+  RB-5, OQ-4, OQ-15, OQ-22…OQ-27, A-01 evidence, C-05).
+
+#### Files changed
+`ui/src/components/ui/{Dialog,Pagination}.tsx` (+ tests), `ui/src/app/queryClient.ts` (+ new test),
+`ui/src/features/{purchasing,suppliers,receiving}/*Pages.tsx` (+ tests), `ui/e2e/{purchase-orders,suppliers}.e2e.ts`,
+this log, `docs/evidence/REGRESSION-AUDIT-2026-10-26/`. No backend, migration, OpenAPI or seed change. Not committed or pushed.
 
 ### D-04 — Vehicle unit registry
 

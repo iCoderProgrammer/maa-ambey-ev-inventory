@@ -66,20 +66,36 @@ function usePerms() {
   }
 }
 
-/** Gate for both pages: suppliers.view, checked again by the API. */
-function Gate({ children }: { children: ReactNode }) {
+/** Gate for both pages: suppliers.view, checked again by the API.
+ * `header` keeps a detail page's heading and breadcrumbs while checking or denied. */
+function Gate({ children, header }: { children: ReactNode; header?: ReactNode }) {
   const { me, view } = usePerms()
-  if (me.isPending) return <LoadingState label="Checking your permissions…" />
+  if (me.isPending)
+    return (
+      <>
+        {header}
+        <LoadingState label="Checking your permissions…" />
+      </>
+    )
   if (me.isError && !me.data) {
     return (
-      <ErrorState
-        error={me.error}
-        title="Could not check your permissions"
-        onRetry={() => void me.refetch()}
-      />
+      <>
+        {header}
+        <ErrorState
+          error={me.error}
+          title="Could not check your permissions"
+          onRetry={() => void me.refetch()}
+        />
+      </>
     )
   }
-  if (!view) return <AccessDeniedState what="suppliers" />
+  if (!view)
+    return (
+      <>
+        {header}
+        <AccessDeniedState what="suppliers" />
+      </>
+    )
   return <>{children}</>
 }
 
@@ -281,7 +297,7 @@ function SuppliersList({ canAdd, onAdd }: { canAdd: boolean; onAdd: () => void }
 export function SupplierDetailPage() {
   const { supplierId = '' } = useParams()
   return (
-    <Gate>
+    <Gate header={<PageHeader title="Supplier" breadcrumbs={[...crumbs, { label: 'Supplier' }]} />}>
       <SupplierDetailBody id={supplierId} />
     </Gate>
   )

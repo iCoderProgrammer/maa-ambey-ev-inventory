@@ -454,6 +454,15 @@ describe('purchase order detail', () => {
     expect(screen.getByText('Awaiting approval')).toBeInTheDocument()
   })
 
+  it('keeps the heading and breadcrumbs when a detail link is denied without purchase_orders.view', async () => {
+    const spy = api()
+    renderApp('/procurement/purchase-orders/po1', { me: me([]) })
+    expect(await screen.findByText('Access denied')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Purchase order' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Purchase Orders' })).toBeInTheDocument()
+    expect(spy.mock.calls.some(([u]) => (u as string).includes('/purchase-order'))).toBe(false)
+  })
+
   it('shows not-found for an unknown PO', async () => {
     api((u) => (u.pathname === '/api/v1/purchase-orders/nope' ? err(404, 'NOT_FOUND') : undefined))
     renderApp('/procurement/purchase-orders/nope', { me: me([VIEW]) })

@@ -162,6 +162,15 @@ describe('goods receipt list', () => {
     expect(spy.mock.calls.some(([u]) => (u as string).includes('/goods-receipts'))).toBe(false)
   })
 
+  it('keeps the heading and breadcrumbs when a detail link is denied without goods_receipts.view', async () => {
+    const spy = api()
+    renderApp('/procurement/goods-receipts/g1', { me: me([]) })
+    expect(await screen.findByText('Access denied')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Goods receipt' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Goods Receipts' })).toBeInTheDocument()
+    expect(spy.mock.calls.some(([u]) => (u as string).includes('/goods-receipts'))).toBe(false)
+  })
+
   it('lists receipts with server totals and says drafts change no stock; viewers cannot create', async () => {
     api()
     renderApp('/procurement/goods-receipts', { me: me([VIEW]) })

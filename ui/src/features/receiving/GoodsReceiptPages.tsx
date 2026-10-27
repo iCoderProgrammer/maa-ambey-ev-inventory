@@ -66,20 +66,36 @@ function usePerms() {
   }
 }
 
-/** Gate for both pages: goods_receipts.view, checked again by the API. */
-function Gate({ children }: { children: ReactNode }) {
+/** Gate for both pages: goods_receipts.view, checked again by the API.
+ * `header` keeps a detail page's heading and breadcrumbs while checking or denied. */
+function Gate({ children, header }: { children: ReactNode; header?: ReactNode }) {
   const { me, view } = usePerms()
-  if (me.isPending) return <LoadingState label="Checking your permissions…" />
+  if (me.isPending)
+    return (
+      <>
+        {header}
+        <LoadingState label="Checking your permissions…" />
+      </>
+    )
   if (me.isError && !me.data) {
     return (
-      <ErrorState
-        error={me.error}
-        title="Could not check your permissions"
-        onRetry={() => void me.refetch()}
-      />
+      <>
+        {header}
+        <ErrorState
+          error={me.error}
+          title="Could not check your permissions"
+          onRetry={() => void me.refetch()}
+        />
+      </>
     )
   }
-  if (!view) return <AccessDeniedState what="goods receipts" />
+  if (!view)
+    return (
+      <>
+        {header}
+        <AccessDeniedState what="goods receipts" />
+      </>
+    )
   return <>{children}</>
 }
 
@@ -278,7 +294,11 @@ function ReceiptList({ canAdd, onAdd }: { canAdd: boolean; onAdd: () => void }) 
 export function GoodsReceiptDetailPage() {
   const { grnId = '' } = useParams()
   return (
-    <Gate>
+    <Gate
+      header={
+        <PageHeader title="Goods receipt" breadcrumbs={[...crumbs, { label: 'Goods receipt' }]} />
+      }
+    >
       <ReceiptDetailBody id={grnId} />
     </Gate>
   )

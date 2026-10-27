@@ -324,6 +324,9 @@ test.describe('purchase orders (D-02)', () => {
       page.getByText('Submitted', { exact: true }).filter({ visible: true }).first(),
     ).toBeVisible()
     await noSidewaysScroll(page)
+    // WCAG reflow width: the long variance warning wraps inside its card.
+    await page.setViewportSize({ width: 320, height: 640 })
+    await noSidewaysScroll(page)
     expect(problems).toEqual([])
   })
 })

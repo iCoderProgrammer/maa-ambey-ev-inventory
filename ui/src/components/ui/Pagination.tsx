@@ -21,6 +21,8 @@ export function Pagination({
   const pages = Math.max(1, Math.ceil(total / limit))
   const from = total === 0 ? 0 : (page - 1) * limit + 1
   const to = Math.min(total, page * limit)
+  // A stale link or a shrunk result can ask for a page past the end: say so and lead back.
+  const beyond = total > 0 && page > pages
   return (
     <nav
       aria-label="Pagination"
@@ -29,14 +31,16 @@ export function Pagination({
       <p aria-live="polite">
         {total === 0
           ? `0 ${noun[1]}`
-          : `${String(from)}–${String(to)} of ${String(total)} ${total === 1 ? noun[0] : noun[1]}`}
+          : beyond
+            ? `No ${noun[1]} on this page (${String(total)} in total)`
+            : `${String(from)}–${String(to)} of ${String(total)} ${total === 1 ? noun[0] : noun[1]}`}
       </p>
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"
           size="sm"
           onClick={() => {
-            onPage(page - 1)
+            onPage(beyond ? pages : page - 1)
           }}
           disabled={page <= 1}
           aria-label="Previous page"

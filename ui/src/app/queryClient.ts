@@ -52,7 +52,13 @@ export function createQueryClient(): QueryClient {
           return failureCount < 2
         },
       },
-      mutations: { retry: false },
+      mutations: {
+        retry: false,
+        // Send writes even when the browser reports offline: they fail at once with a network error
+        // the dialog shows (entries kept, Cancel enabled), instead of pausing with no explanation
+        // and being sent later, after the user may have given up or cancelled.
+        networkMode: 'always',
+      },
     },
   })
   return queryClient

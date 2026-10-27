@@ -74,20 +74,36 @@ function usePerms() {
   }
 }
 
-/** Gate for both pages: purchase_orders.view, checked again by the API. */
-function Gate({ children }: { children: ReactNode }) {
+/** Gate for both pages: purchase_orders.view, checked again by the API.
+ * `header` keeps a detail page's heading and breadcrumbs while checking or denied. */
+function Gate({ children, header }: { children: ReactNode; header?: ReactNode }) {
   const { me, view } = usePerms()
-  if (me.isPending) return <LoadingState label="Checking your permissions…" />
+  if (me.isPending)
+    return (
+      <>
+        {header}
+        <LoadingState label="Checking your permissions…" />
+      </>
+    )
   if (me.isError && !me.data) {
     return (
-      <ErrorState
-        error={me.error}
-        title="Could not check your permissions"
-        onRetry={() => void me.refetch()}
-      />
+      <>
+        {header}
+        <ErrorState
+          error={me.error}
+          title="Could not check your permissions"
+          onRetry={() => void me.refetch()}
+        />
+      </>
     )
   }
-  if (!view) return <AccessDeniedState what="purchase orders" />
+  if (!view)
+    return (
+      <>
+        {header}
+        <AccessDeniedState what="purchase orders" />
+      </>
+    )
   return <>{children}</>
 }
 
@@ -321,7 +337,11 @@ function PurchaseOrderList({ canAdd, onAdd }: { canAdd: boolean; onAdd: () => vo
 export function PurchaseOrderDetailPage() {
   const { poId = '' } = useParams()
   return (
-    <Gate>
+    <Gate
+      header={
+        <PageHeader title="Purchase order" breadcrumbs={[...crumbs, { label: 'Purchase order' }]} />
+      }
+    >
       <PurchaseOrderDetailBody id={poId} />
     </Gate>
   )
@@ -641,7 +661,8 @@ function LinesCard({
         ) : (
           <span className="flex flex-col gap-1">
             {l.warnings.map((w) => (
-              <Badge key={w} tone="warning">
+              // Sentence-length labels must wrap on narrow cards instead of overflowing them.
+              <Badge key={w} tone="warning" className="rounded-control whitespace-normal">
                 {warningLabels[w]}
               </Badge>
             ))}

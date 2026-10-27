@@ -54,6 +54,42 @@ test.describe('supplier master (D-01)', () => {
     await page.goto('/procurement/suppliers')
     await expect(page.getByText('Access denied')).toBeVisible()
     expect((await page.request.get('/api/v1/suppliers')).status()).toBe(403)
+    // A denied detail link keeps its heading and breadcrumbs.
+    await page.goto('/procurement/suppliers/00000000-0000-0000-0000-000000000000')
+    await expect(page.getByText('Access denied')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Supplier' })).toBeVisible()
+    expect(problems).toEqual([])
+  })
+
+  test('dialogs return focus to their opener; an offline save explains itself and sends nothing later', async ({
+    page,
+    context,
+  }) => {
+    test.skip(!hasAccount('catalogue'), 'needs E2E_CATALOGUE with supplier grants')
+    const problems = watchConsole(page)
+    await signIn(page, '/procurement/suppliers', 'catalogue')
+    const opener = page.getByRole('button', { name: 'Add supplier' }).first()
+    const dialog = page.getByRole('dialog', { name: 'Add supplier' })
+    await opener.click()
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(opener).toBeFocused()
+
+    const name = `E2E Offline Supplier ${Date.now().toString(36)}`
+    await opener.click()
+    await dialog.getByLabel(/Legal name/).fill(name)
+    await context.setOffline(true)
+    await dialog.getByRole('button', { name: 'Add supplier' }).click()
+    await expect(dialog.getByRole('alert')).toContainText('Cannot reach the server')
+    await expect(dialog.getByLabel(/Legal name/)).toHaveValue(name)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(opener).toBeFocused()
+    await context.setOffline(false)
+    await page.waitForTimeout(1500)
+    const res = await page.request.get(`/api/v1/suppliers?q=${encodeURIComponent(name)}`)
+    expect(((await res.json()) as { data: { total: number } }).data.total).toBe(0)
     expect(problems).toEqual([])
   })
 
@@ -117,7 +153,13 @@ test.describe('supplier master (D-01)', () => {
     await dialog
       .locator('input[type="file"]')
       .setInputFiles({ name: 'authorisation.pdf', mimeType: 'application/pdf', buffer: pdf })
-    await expect(dialog.getByText(/Uploaded|authorisation\.pdf/).first()).toBeVisible()
+    // Visible only: the uploaded file also appears as an <option> of the uploads select.
+    await expect(
+      dialog
+        .getByText(/Uploaded|authorisation\.pdf/)
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible()
     await dialog.getByRole('button', { name: 'Attach document' }).click()
     await expect(dialog).toHaveCount(0)
     const documents = page.getByRole(isMobile ? 'list' : 'table', { name: 'Documents' })

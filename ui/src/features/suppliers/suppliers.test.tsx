@@ -151,6 +151,15 @@ describe('supplier list', () => {
     expect(spy.mock.calls.some(([u]) => (u as string).includes('/suppliers'))).toBe(false)
   })
 
+  it('keeps the heading and breadcrumbs when a detail link is denied without suppliers.view', async () => {
+    const spy = api()
+    renderApp('/procurement/suppliers/s1', { me: me([]) })
+    expect(await screen.findByText('Access denied')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Supplier' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Suppliers' })).toBeInTheDocument()
+    expect(spy.mock.calls.some(([u]) => (u as string).includes('/suppliers'))).toBe(false)
+  })
+
   it('lists suppliers with status, says a record is not authorisation, and sends filters', async () => {
     const user = userEvent.setup()
     const spy = api()

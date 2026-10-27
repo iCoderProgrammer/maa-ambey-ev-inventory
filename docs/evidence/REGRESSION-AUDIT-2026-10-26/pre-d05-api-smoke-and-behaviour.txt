@@ -1,0 +1,194 @@
+== D-04 API smoke (isolated stack, migration 13) ==
+PASS owner (vehicle_units.view + cost.view, no location scope) lists only the no-location unit — ['MAE-VEH-000003']
+PASS owner sees cost
+PASS owner detail: source GRN/PO + REGISTERED event
+PASS inventory manager (view, scope AUDIT-L1) lists L1 + no-location units — ['MAE-VEH-000001', 'MAE-VEH-000003']
+PASS inventory manager cost hidden (null + costHidden, no amount in body)
+PASS inventory manager detail of in-scope L1 unit 200, cost hidden
+PASS inventory manager detail of out-of-scope L2 unit is 404 NOT_FOUND (concealed)
+PASS owner without scope: L2 unit 404 too
+PASS locationId outside scope -> 422 VALIDATION_FAILED on locationId
+PASS locationId in scope -> only L1 unit
+PASS accountant (view only, no scope) sees no-location unit, cost hidden
+PASS viewer (no vehicle grant) list -> 403
+PASS viewer (no vehicle grant) detail -> 403
+PASS user without grants list -> 403
+PASS user without grants detail -> 403
+PASS anonymous list -> 401
+PASS anonymous detail -> 401
+PASS search q='audit-ch-0001' (scoped user) -> 1 — 1
+PASS search q=' AUDIT-CH ' (scoped user) -> 1 — 1
+PASS search q='audit-mot' (scoped user) -> 1 — 1
+PASS search q='mae-veh' (scoped user) -> 2 — 2
+PASS search q='%' (scoped user) -> 0 — 0
+PASS search q='_' (scoped user) -> 0 — 0
+PASS invalid filters -> 422 with fields
+PASS non-UUID id -> 404
+PASS missing id -> 404
+PASS POST /vehicle-units -> 405 (read-only)
+PASS PUT /vehicle-units/7995306d-1260-4a10-bd90-e7de821e9dc4 -> 405 (read-only)
+PASS PATCH /vehicle-units/7995306d-1260-4a10-bd90-e7de821e9dc4 -> 405 (read-only)
+PASS DELETE /vehicle-units/7995306d-1260-4a10-bd90-e7de821e9dc4 -> 405 (read-only)
+PASS owner filters status + goodsReceiptId
+TOTAL 31 PASS 31 FAIL 0
+
+== Live responses parsed with frontend Zod contracts (temporary Vitest file, removed) ==
+8 passed (owner_list, im_list, im_filter_l1, acc_list, owner_filters as VehicleUnitPage; owner_detail, im_detail_l1 as VehicleUnitDetail; cost text owner ₹900.00 / scoped viewer hidden)
+
+== D-04 hook/schema tests ==
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+
+== Deny-by-default sweep (all OpenAPI operations) ==
+OK  GET    /access/roles                                      anon=401 noperm=403 nocsrf=-
+OK  GET    /attachments                                       anon=401 noperm=403 nocsrf=-
+OK  POST   /attachments                                       anon=401 noperm=403 nocsrf=403
+OK  GET    /attachments/limits                                anon=401 noperm=403 nocsrf=-
+OK  GET    /attachments/{id}                                  anon=401 noperm=403 nocsrf=-
+OK  GET    /attachments/{id}/link                             anon=401 noperm=403 nocsrf=-
+OK  GET    /brands                                            anon=401 noperm=403 nocsrf=-
+OK  POST   /brands                                            anon=401 noperm=403 nocsrf=403
+OK  GET    /brands/{id}                                       anon=401 noperm=403 nocsrf=-
+OK  PATCH  /brands/{id}                                       anon=401 noperm=403 nocsrf=403
+OK  POST   /brands/{id}/activate                              anon=401 noperm=403 nocsrf=403
+OK  GET    /brands/{id}/activation-readiness                  anon=401 noperm=403 nocsrf=-
+OK  POST   /brands/{id}/archive                               anon=401 noperm=403 nocsrf=403
+OK  PUT    /brands/{id}/authorisation                         anon=401 noperm=403 nocsrf=403
+OK  GET    /colours                                           anon=401 noperm=403 nocsrf=-
+OK  POST   /colours                                           anon=401 noperm=403 nocsrf=403
+OK  GET    /colours/{id}                                      anon=401 noperm=403 nocsrf=-
+OK  PATCH  /colours/{id}                                      anon=401 noperm=403 nocsrf=403
+OK  POST   /colours/{id}/activate                             anon=401 noperm=403 nocsrf=403
+OK  POST   /colours/{id}/archive                              anon=401 noperm=403 nocsrf=403
+OK  POST   /colours/{id}/verify                               anon=401 noperm=403 nocsrf=403
+OK  GET    /goods-receipts                                    anon=401 noperm=403 nocsrf=-
+OK  POST   /goods-receipts                                    anon=401 noperm=403 nocsrf=403
+OK  GET    /goods-receipts/{id}                               anon=401 noperm=403 nocsrf=-
+OK  PUT    /goods-receipts/{id}                               anon=401 noperm=403 nocsrf=403
+OK  POST   /goods-receipts/{id}/cancel                        anon=401 noperm=403 nocsrf=403
+OK  POST   /goods-receipts/{id}/documents                     anon=401 noperm=403 nocsrf=403
+OK  GET    /me                                                anon=401 noperm=200 nocsrf=-
+OK  GET    /models                                            anon=401 noperm=403 nocsrf=-
+OK  POST   /models                                            anon=401 noperm=403 nocsrf=403
+OK  GET    /models/{id}                                       anon=401 noperm=403 nocsrf=-
+OK  PATCH  /models/{id}                                       anon=401 noperm=403 nocsrf=403
+OK  POST   /models/{id}/activate                              anon=401 noperm=403 nocsrf=403
+OK  POST   /models/{id}/archive                               anon=401 noperm=403 nocsrf=403
+OK  POST   /models/{id}/verify                                anon=401 noperm=403 nocsrf=403
+OK  GET    /price-items                                       anon=401 noperm=403 nocsrf=-
+OK  POST   /price-items                                       anon=401 noperm=403 nocsrf=403
+OK  GET    /price-items/{id}                                  anon=401 noperm=403 nocsrf=-
+OK  PATCH  /price-items/{id}                                  anon=401 noperm=403 nocsrf=403
+OK  POST   /price-items/{id}/approve                          anon=401 noperm=403 nocsrf=403
+OK  POST   /price-items/{id}/cancel                           anon=401 noperm=403 nocsrf=403
+OK  GET    /price-lists                                       anon=401 noperm=403 nocsrf=-
+OK  POST   /price-lists                                       anon=401 noperm=403 nocsrf=403
+OK  GET    /price-lists/{id}                                  anon=401 noperm=403 nocsrf=-
+OK  PATCH  /price-lists/{id}                                  anon=401 noperm=403 nocsrf=403
+OK  POST   /price-lists/{id}/archive                          anon=401 noperm=403 nocsrf=403
+OK  GET    /prices/lookup                                     anon=401 noperm=403 nocsrf=-
+OK  GET    /purchase-order-settings                           anon=401 noperm=403 nocsrf=-
+OK  PUT    /purchase-order-settings                           anon=401 noperm=403 nocsrf=403
+OK  GET    /purchase-orders                                   anon=401 noperm=403 nocsrf=-
+OK  POST   /purchase-orders                                   anon=401 noperm=403 nocsrf=403
+OK  GET    /purchase-orders/{id}                              anon=401 noperm=403 nocsrf=-
+OK  PATCH  /purchase-orders/{id}                              anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/approve                      anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/cancel                       anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/lines                        anon=401 noperm=403 nocsrf=403
+OK  PATCH  /purchase-orders/{id}/lines/{lineId}               anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/lines/{lineId}/remove        anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/return                       anon=401 noperm=403 nocsrf=403
+OK  POST   /purchase-orders/{id}/submit                       anon=401 noperm=403 nocsrf=403
+OK  GET    /receivable-purchase-orders                        anon=401 noperm=403 nocsrf=-
+OK  GET    /supplier-brand-links                              anon=401 noperm=403 nocsrf=-
+OK  POST   /supplier-brand-links/{id}/end                     anon=401 noperm=403 nocsrf=403
+OK  POST   /supplier-brand-links/{id}/verify                  anon=401 noperm=403 nocsrf=403
+OK  GET    /suppliers                                         anon=401 noperm=403 nocsrf=-
+OK  POST   /suppliers                                         anon=401 noperm=403 nocsrf=403
+OK  GET    /suppliers/{id}                                    anon=401 noperm=403 nocsrf=-
+OK  PATCH  /suppliers/{id}                                    anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/archive                            anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/brand-links                        anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/contacts                           anon=401 noperm=403 nocsrf=403
+OK  PATCH  /suppliers/{id}/contacts/{contactId}               anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/contacts/{contactId}/remove        anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/documents                          anon=401 noperm=403 nocsrf=403
+OK  POST   /suppliers/{id}/verify                             anon=401 noperm=403 nocsrf=403
+OK  GET    /variants                                          anon=401 noperm=403 nocsrf=-
+OK  POST   /variants                                          anon=401 noperm=403 nocsrf=403
+OK  GET    /variants/{id}                                     anon=401 noperm=403 nocsrf=-
+OK  PATCH  /variants/{id}                                     anon=401 noperm=403 nocsrf=403
+OK  POST   /variants/{id}/activate                            anon=401 noperm=403 nocsrf=403
+OK  POST   /variants/{id}/archive                             anon=401 noperm=403 nocsrf=403
+OK  POST   /variants/{id}/verify                              anon=401 noperm=403 nocsrf=403
+OK  GET    /vehicle-units                                     anon=401 noperm=403 nocsrf=-
+OK  GET    /vehicle-units/{id}                                anon=401 noperm=403 nocsrf=-
+
+== Behaviour checks ==
+Add supplier: afterEscape=BUTTON# "Add supplier" afterCancel=BUTTON# "Add supplier"
+Add brand: afterEscape=BUTTON# "Add brand" afterCancel=BUTTON# "Add brand"
+New purchase order: afterEscape=BUTTON# "New purchase order" afterCancel=BUTTON# "New purchase order"
+offline: submit disabled false alert ["Cannot reach the server. Nothing was saved. Check your connection and try again."] kept Audit Cancelled 1793019167
+cancel closed dialog: true
+after reconnect url http://localhost:5181/procurement/suppliers
+created after cancel: 0
+brand create: POSTs sent=1 buttonDisabledWhilePending=true dialogOpen=0
+price list create: POSTs sent=1 buttonDisabledWhilePending=true dialogOpen=0
+keyboard: initialFocusInDialog=true focusTrapped=true escCloses=true focusReturnedTo=(see explore3)
+offline: dialogOpen=1 kept="Audit Offline mvp9bldj" alert=["Cannot reach the server. Nothing was saved. Check your connection and try again."]
+console/page errors: []
+Audit Offline suppliers created after reconnect: 0
+suppliers total 36
+a-page2 /procurement/suppliers?page=2 | 26–36 of 36 suppliers | Page 2 of 2 | first row: Audit Brand mvp9bldj
+b-search /procurement/suppliers?q=Audit+Page | 1–25 of 30 suppliers | Page 1 of 2 | first row: Audit Brand mvp9bldj
+c-quote /procurement/suppliers?q=O%27Brien+%26+Sons+100%25+_x_ | NO-RANGE | Page 1 of 1 | first row: Audit Brand mvp9bldj
+d-percent /procurement/suppliers?q=100%25 | NO-RANGE | Page 1 of 1 | first row: Audit Brand mvp9bldj
+e-underscore /procurement/suppliers?q=_x_ | NO-RANGE | Page 1 of 1 | first row: Audit Brand mvp9bldj
+f-none /procurement/suppliers?q=zzzz-nothing | NO-RANGE | NO-PAGE | first row: Audit Brand mvp9bldj
+g-page99 /procurement/suppliers?page=99 | NO-RANGE | Page 99 of 2 | first row: Audit Brand mvp9bldj
+h-pageabc /procurement/suppliers?page=abc | 1–25 of 36 suppliers | Page 1 of 2 | first row: Audit Brand mvp9bldj
+fix-page99 /procurement/suppliers?page=99 | NO-RANGE | Page 99 of 2 | first row: Audit Brand mvp9bldj
+No suppliers on this page (36 in total) Previous Page 99 of 2 Next
+fix-prev /procurement/suppliers?page=2 | 26–36 of 36 suppliers | Page 2 of 2 | first row: Audit Brand mvp9bldj
+ok    320 /admin/catalogue "Add brand" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /procurement/purchase-orders "New purchase order" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /procurement/goods-receipts "New goods receipt" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /procurement/suppliers/974b806d-a861-4d15-a23b-4e67c2920473 "Add contact" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /procurement/suppliers/974b806d-a861-4d15-a23b-4e67c2920473 "Add brand" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /admin/catalogue/brands/c4a4d35e-b76c-4238-b940-143162b3f7b1 "Add model" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+ok    320 /admin/catalogue/brands/c4a4d35e-b76c-4238-b940-143162b3f7b1 "Add price list" {"docOverflow":0,"dialogWidth":288,"dialogScrollX":0,"poking":[]}
+grn detail 320 overflow 0
+errors []
+oversize: [
+  'Accepted types and the size limit are proposals pending owner confirmation. Attaching files to goods receipts, PDI and sales records arrives with those modules.',
+  'JPG, PNG, WEBP, PDF · up to 10 MB each · or drop files here',
+  'The file is 11 MB; the limit is 10 MB.'
+]
+offline upload: [ 'offline.pdf\n15 B' ]
+errors []
+ref field DC-MMVP8VUKO
+alerts: ["Over-receipt: 4 received but only 3 left on this line (1 extra). Authorised by E2E Price Approver on 26 Oct 2026, 6:10 pm for up to 4: Supplier sent one extra unit; agreed by phone","Cannot reach the server. Nothing was saved. Check your connection and try again."]
+save enabled: true kept: AUDIT-OFFLINE-REF
+GRN server ref after offline save + reconnect: DC-MMVP8VUKO
+
+== Stock-safety snapshot before / after the Playwright suite ==
+migration | 13
+vehicle_units | 3
+vehicle_unit_events | 3
+po_received_quantity_sum | 0
+po_partially_or_received | 0
+grn_posted | 1
+grn_draft | 0
+grn_units_captured | 3
+stock_tables | 0
+--
+migration | 13
+vehicle_units | 3
+vehicle_unit_events | 3
+po_received_quantity_sum | 0
+po_partially_or_received | 0
+grn_posted | 1
+grn_draft | 2
+grn_units_captured | 7
+stock_tables | 0
