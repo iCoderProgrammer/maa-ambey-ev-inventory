@@ -621,6 +621,54 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-023 — Stock counts and adjustment approval (E-05)
+
+- **Status:** Accepted (technical design; approval thresholds, who approves, self-approval exceptions, vehicle
+  discrepancy corrections and grants pending — OQ-39, OQ-40, A-05, RB-5).
+- **A count is the adjustment request (PRD §5.3, LED-005, LED-006; System Architecture §5 "stock_counts,
+  stock_count_lines, stock_adjustments").** Migration 000018: `stock_counts` (number `SC-000001`, one location,
+  `DRAFT → SUBMITTED → APPROVED | REJECTED`, creator/submitter/decider with times, decision note/reason, version,
+  create and decision idempotency keys) and `stock_count_lines` (one per SKU or vehicle unit per count). The
+  "adjustment" is the posted ledger movement, linked from its line (`posted_movement_id`); no third table. Routes are
+  `/stock-counts…` (the architecture's `/stock-adjustments` names the same resource).
+- **Server-derived values:** when a line is recorded the server reads the expected quantity (balance at the count's
+  location, 0 if none) or the unit's status, and the balance/unit version; `variance` is a generated column
+  (observed − expected). A variance needs a reason (CHECK). The client cannot send expected values, variance, status
+  or actor.
+- **Stale counts are refused, not "corrected":** submit and approval compare each line's recorded version with the
+  ledger (approval under `FOR UPDATE` locks on every balance/unit). Any movement since → `STOCK_CHANGED_SINCE_COUNT`,
+  nothing posted; the counter re-records the line (draft) or the approver rejects. An empty balance row (version 1,
+  never moved) counts as "no row".
+- **Posting (approval, one transaction):** lock count → replay check → status/version → policy → separation of duties
+  → lock and re-check lines → per parts line with a variance insert one `COUNT_ADJUSTMENT` (STOCK_ITEM, expected →
+  observed, ≥ 0, `source_type STOCK_COUNT`, `source_id` = count, `source_reference` = number, reason = line's;
+  the E-04 apply trigger moves the balance) → link the line → mark APPROVED → audit. Guards at commit:
+  `stock_counts_posted_as_counted` (an APPROVED count has exactly its lines' movements, each from expected to
+  observed; other counts none), `stock_movements_count_approved` (a COUNT_ADJUSTMENT needs its approved count and
+  line), unique `stock_movements_count_adjustment_once (source_id, stock_item_id)`. Concurrent approvals queue on the
+  count row: one posts, a same-key repeat by the same approver replays, everything else is `INVALID_STATE`.
+- **No threshold (LED-005 "configurable value/quantity threshold" not approved, A-05):** `approval_policy` is
+  `APPROVER_REQUIRED` for every count (CHECK allows nothing else; an unknown policy fails closed). Nothing is approved
+  automatically, whatever its size; without a user who holds `stock.adjustment.approve` and took no part, counts stay
+  SUBMITTED and stock does not change.
+- **Separation of duties (LED-006, safe default until OQ-40):** the creator, the submitter and anyone who recorded a
+  line (or did so earlier, per the audit trail) never approve or reject (`SELF_APPROVAL_NOT_ALLOWED`, audited DENIED).
+  The database also refuses `decided_by` = creator or submitter (`stock_counts_no_self_decision`).
+- **Vehicle units:** a line says whether the unit (recorded at the count's location) was found. A discrepancy is a
+  recorded finding: approval writes no movement and never changes the unit — no approved movement exists for a
+  missing or found vehicle (OQ-33, OQ-39). E-01 transition rules are untouched.
+- **Parts:** QUANTITY-tracked, ACTIVE SKUs only (SERIAL → `TRACKING_NOT_SUPPORTED`, OQ-38); unit = SKU's (OQ-34).
+- **Permissions:** `stock.adjustment.view` (new), `stock.adjustment.create` (create, record, submit) and
+  `stock.adjustment.approve` (approve, reject) from 000004; **no grants**. Every read and write is limited to the
+  caller's location scope.
+- **History:** counts and lines are never deleted (guards); lines change only while DRAFT; a decided count never
+  changes. The E-04 receipts/issues history endpoint keeps its contract (adjustments are read through their count).
+- **Not here:** thresholds and their configuration screen, recounts/cancelling a draft, cycle-count scheduling,
+  valuation of variances, vehicle corrections, blind counts (hiding the expected quantity from counters).
+- **Rollback:** the down migration refuses while any count exists.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -662,4 +710,6 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-36 | Part cost and selling price (PRD "Spare/accessory item"): where are they recorded and approved (price lists as for vehicles, C-04?), and is batch/lot tracking needed besides quantity and serial? | E-03, E-04, later |
 | OQ-37 | Parts issues and receipts: is there an approved list of issue/consumption reasons (E-04 takes free text, required), and may parts be received from anything other than a supplier delivery (customer returns, transfers, opening stock — G-07)? | E-04, E-05, G-07 |
 | OQ-38 | Serial-tracked parts: what identifies a piece (format, uniqueness, who registers it) and how are pieces received/issued? Until decided, E-04 refuses stock movements for SERIAL SKUs. | E-04 |
+| OQ-39 | Vehicle count discrepancies: when a counted unit is missing (or a unit is found that is recorded elsewhere), what happens — investigation status, write-off/loss movement, transfer — who approves it, and may a unit be counted at a location other than its recorded one? E-05 records the finding only and changes no unit. | E-05, E-01, OQ-32, OQ-33 |
+| OQ-40 | Stock adjustment approval policy: is there a value/quantity threshold below which no approval is needed (LED-005), who approves (owner only? inventory manager?), may the owner self-approve in a small team, should counters see the expected quantity (blind counts), and should count numbers restart per year/location? E-05: every count needs an approver who took no part in it; numbers `SC-000001…`. | E-05, A-05, RB-5 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

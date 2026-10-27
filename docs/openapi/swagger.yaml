@@ -2198,6 +2198,231 @@ definitions:
         example: true
         type: boolean
     type: object
+  StockCount:
+    properties:
+      approvalPolicy:
+        enum:
+        - APPROVER_REQUIRED
+        type: string
+      countNumber:
+        example: SC-000001
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      createdByName:
+        type: string
+        x-nullable: true
+      decidedAt:
+        type: string
+        x-nullable: true
+      decidedBy:
+        type: string
+        x-nullable: true
+      decidedByName:
+        type: string
+        x-nullable: true
+      decisionNote:
+        description: 'DecisionNote: the approval note or the rejection reason.'
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      lineCount:
+        example: 3
+        type: integer
+      lines:
+        description: 'Lines: detail only (empty in lists).'
+        items:
+          $ref: '#/definitions/StockCountLine'
+        type: array
+      locationCode:
+        example: SR1
+        type: string
+      locationId:
+        type: string
+      locationName:
+        type: string
+      note:
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - REJECTED
+        type: string
+      submittedAt:
+        type: string
+        x-nullable: true
+      submittedBy:
+        type: string
+        x-nullable: true
+      submittedByName:
+        type: string
+        x-nullable: true
+      updatedAt:
+        type: string
+      varianceLines:
+        example: 1
+        type: integer
+      version:
+        example: 4
+        type: integer
+    type: object
+  StockCountApproveInput:
+    properties:
+      note:
+        type: string
+      version:
+        example: 4
+        type: integer
+    type: object
+  StockCountCreateInput:
+    properties:
+      locationId:
+        type: string
+      note:
+        type: string
+    type: object
+  StockCountLine:
+    properties:
+      expectedQuantity:
+        description: |-
+          Quantities as decimal strings; expected is what the ledger held when the
+          line was recorded, variance = observed - expected (server-computed).
+        example: "10.000"
+        type: string
+      expectedStatus:
+        example: AVAILABLE
+        type: string
+        x-nullable: true
+      found:
+        description: 'Found: vehicle lines only (observed 1 or 0).'
+        type: boolean
+        x-nullable: true
+      id:
+        type: string
+      itemName:
+        type: string
+        x-nullable: true
+      itemType:
+        enum:
+        - STOCK_ITEM
+        - VEHICLE_UNIT
+        type: string
+      observedQuantity:
+        example: "8.000"
+        type: string
+      outcome:
+        enum:
+        - PENDING
+        - NO_CHANGE
+        - POSTED
+        - DISCREPANCY_RECORDED
+        - NOT_POSTED
+        type: string
+      postedMovementId:
+        type: string
+        x-nullable: true
+      reason:
+        type: string
+        x-nullable: true
+      recordedAt:
+        type: string
+      recordedBy:
+        type: string
+      recordedByName:
+        type: string
+        x-nullable: true
+      sku:
+        example: BRK-PAD-01
+        type: string
+        x-nullable: true
+      stockChanged:
+        description: |-
+          StockChanged: the balance or unit changed after the line was recorded
+          (undecided counts only); such a count cannot be submitted or approved.
+        type: boolean
+      stockItemId:
+        description: Parts lines.
+        type: string
+        x-nullable: true
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+        x-nullable: true
+      uom:
+        example: PCS
+        type: string
+        x-nullable: true
+      variance:
+        example: "-2.000"
+        type: string
+      vehicleUnitId:
+        description: Vehicle lines.
+        type: string
+        x-nullable: true
+    type: object
+  StockCountLineInput:
+    properties:
+      found:
+        type: boolean
+      observedQuantity:
+        description: 'ObservedQuantity: decimal string >= 0, up to 3 decimals, in
+          the SKU''s unit.'
+        example: "8"
+        type: string
+      reason:
+        description: 'Reason: required when the observed value differs from the expected
+          one.'
+        example: Two pieces damaged and discarded
+        type: string
+      stockItemId:
+        type: string
+      uom:
+        example: PCS
+        type: string
+      vehicleUnitId:
+        type: string
+      version:
+        description: Version is the count's current version (required).
+        example: 1
+        type: integer
+    type: object
+  StockCountPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/StockCount'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  StockCountRejectInput:
+    properties:
+      reason:
+        example: 'Recount the shelf: the count sheet is incomplete'
+        type: string
+      version:
+        example: 4
+        type: integer
+    type: object
+  StockCountVersionInput:
+    properties:
+      version:
+        example: 3
+        type: integer
+    type: object
   StockDisplayInput:
     properties:
       note:
@@ -6638,6 +6863,444 @@ paths:
       summary: List purchase orders open for receipts
       tags:
       - goods-receipts
+  /stock-counts:
+    get:
+      description: 'Counts (adjustment requests) at the locations in the caller''s
+        scope, newest first, without lines. status=SUBMITTED is the approval queue.
+        Filters: status, locationId (must be in scope). Requires stock.adjustment.view.'
+      parameters:
+      - description: Status
+        enum:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - REJECTED
+        in: query
+        name: status
+        type: string
+      - description: Location ID (in the caller's scope)
+        in: query
+        name: locationId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCountPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (status, locationId, page, limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List stock counts
+      tags:
+      - stock-counts
+    post:
+      consumes:
+      - application/json
+      description: 'Creates a DRAFT count (number SC-000001…) at an active location
+        in the caller''s scope. Changes no stock. Idempotency-Key is required: the
+        same key and body by the same user returns the first count with 200 and Idempotent-Replayed:
+        true; the same key with another body is 409 IDEMPOTENCY_KEY_REUSED. Requires
+        stock.adjustment.create and X-CSRF-Token. Audited (stock_count.created).'
+      parameters:
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Location and optional note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockCountCreateInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Replay (Idempotent-Replayed: true)'
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (locationId, note, Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Start a stock count
+      tags:
+      - stock-counts
+  /stock-counts/{id}:
+    get:
+      description: 'The count with its lines: expected quantity/status (read from
+        the ledger when the line was recorded), observed, server-computed variance,
+        reason, who recorded it, stockChanged (the balance or unit moved since; undecided
+        counts only), outcome and the posted movement. A count at a location outside
+        the caller''s scope is 404. Requires stock.adjustment.view.'
+      parameters:
+      - description: Stock count ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a stock count
+      tags:
+      - stock-counts
+  /stock-counts/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: 'SUBMITTED -> APPROVED in one transaction: every line is locked
+        and re-checked against the ledger (409 STOCK_CHANGED_SINCE_COUNT if stock
+        moved: nothing is posted; reject it and recount), each parts line with a variance
+        posts one COUNT_ADJUSTMENT movement from the expected to the observed quantity
+        (the balance follows; audit stock_item.adjusted), vehicle discrepancies are
+        recorded only (no movement: no approved correction exists), and the decision
+        is audited (stock_count.approved). Never by anyone who created, counted or
+        submitted it (403 SELF_APPROVAL_NOT_ALLOWED, audited DENIED). Idempotency-Key
+        is required: the same approver, key and body returns the approved count with
+        200 and Idempotent-Replayed: true and posts nothing again; any other decided
+        count is 409 INVALID_STATE. Requires stock.adjustment.approve and X-CSRF-Token.'
+      parameters:
+      - description: Stock count ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Current version and an optional note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockCountApproveInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Approved, or a replay (Idempotent-Replayed: true)'
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT, INVALID_STATE (not submitted; archived SKU),
+            STOCK_CHANGED_SINCE_COUNT or IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, note, Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Approve a stock count and post its adjustments
+      tags:
+      - stock-counts
+  /stock-counts/{id}/lines:
+    post:
+      consumes:
+      - application/json
+      description: 'Records (or re-records) one line on a DRAFT count: stockItemId
+        + observedQuantity (>= 0, up to 3 decimals) + uom (the SKU''s unit; ACTIVE,
+        QUANTITY-tracked SKUs only — SERIAL is 409 TRACKING_NOT_SUPPORTED), or vehicleUnitId
+        (a unit recorded at the count''s location) + found. The server reads the expected
+        quantity/status from the ledger now and computes the variance; reason is required
+        when it is not zero. Changes no stock. version must be the count''s current
+        version. Requires stock.adjustment.create and X-CSRF-Token. Audited (stock_count.line_recorded).'
+      parameters:
+      - description: Stock count ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Counted item
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockCountLineInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT, INVALID_STATE (not a draft; archived SKU)
+            or TRACKING_NOT_SUPPORTED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, stockItemId, vehicleUnitId, observedQuantity,
+            uom, found, reason)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Record a counted item
+      tags:
+      - stock-counts
+  /stock-counts/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: SUBMITTED -> REJECTED with a required reason. Posts nothing; stock
+        is unchanged. Same separation of duties, idempotency and replay rules as approval.
+        Requires stock.adjustment.approve and X-CSRF-Token. Audited (stock_count.rejected).
+      parameters:
+      - description: Stock count ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Current version and the reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockCountRejectInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Rejected, or a replay (Idempotent-Replayed: true)'
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT, INVALID_STATE (not submitted) or IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, reason, Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Reject a stock count
+      tags:
+      - stock-counts
+  /stock-counts/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: 'DRAFT -> SUBMITTED. Needs at least one line, and every line must
+        still match the ledger (otherwise 409 STOCK_CHANGED_SINCE_COUNT naming the
+        lines: re-record them). Changes no stock. Every submitted count needs an approver
+        who took no part in it (no approval threshold is configured). Requires stock.adjustment.create
+        and X-CSRF-Token. Audited (stock_count.submitted).'
+      parameters:
+      - description: Stock count ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Current version
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockCountVersionInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockCount'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT, INVALID_STATE (not a draft, no lines) or
+            STOCK_CHANGED_SINCE_COUNT
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Submit a stock count for approval
+      tags:
+      - stock-counts
   /stock-item-categories:
     get:
       description: Search by name; filter by status. Each category shows its number

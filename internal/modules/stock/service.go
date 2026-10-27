@@ -18,6 +18,15 @@ type Repository interface {
 	PostParts(ctx context.Context, actor audit.Actor, scope access.Scope, req PartsRequest) (PartsResult, bool, error)
 	PartsBalances(ctx context.Context, itemID string, scopeIDs []string, all bool) ([]PartsBalance, error)
 	PartsHistory(ctx context.Context, f PartsHistoryFilter) (PartsPage, error)
+	// Stock counts (E-05).
+	CreateCount(ctx context.Context, actor audit.Actor, scope access.Scope, requestID string, in CountCreateInput, key string) (StockCount, bool, error)
+	RecordLine(ctx context.Context, actor audit.Actor, scope access.Scope, requestID, countID string, in CountLineInput) (StockCount, error)
+	SubmitCount(ctx context.Context, actor audit.Actor, scope access.Scope, requestID, countID string, in CountVersionInput) (StockCount, error)
+	DecideCount(ctx context.Context, actor audit.Actor, scope access.Scope, requestID, countID string, approve bool, version *int,
+		text *string, key string) (StockCount, bool, error)
+	GetCount(ctx context.Context, scope access.Scope, id string) (StockCount, error)
+	ListCounts(ctx context.Context, f CountListFilter) (CountPage, error)
+	RecordCountRefusal(ctx context.Context, actor audit.Actor, requestID, countID, action, reason string) error
 }
 
 // Service checks who may make the API's movements (again, after the route

@@ -58,7 +58,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
-| E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
+| E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
 | E-07 | Stock ageing calculations | P0 | D-04, D-07 | NOT STARTED |
 | F-01 | Customer master | P0 | B-06, B-07, B-08 | NOT STARTED |
@@ -2758,6 +2758,67 @@ components/PartsStockPanel.tsx}`, `ui/e2e/parts-stock.e2e.ts`, `docs/DEVELOPMENT
 
 #### Final status
 COMPLETE — E-04 backend (`98a5207`) and frontend, committed locally (not pushed). E-05 not started.
+
+### E-05 — Stock count and adjustment approval
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_05_stock-count-and-adjustment-approval.md
+- Git at start: `dev` at `43c250e` = `origin/dev` (E-04 frontend; `98a5207` E-04 backend in history), clean tree.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| E-01 | COMPLETE | `stock_movements` ledger, apply trigger, per-actor idempotency; stock tests pass |
+| B-07 | COMPLETE | `Require`/`Has`, `Scope`; `stock.adjustment.create/approve` in catalogue (000004), no grants |
+| B-08 | COMPLETE | `audit.Record` in the caller's transaction, DENIED outcome; audit tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Creating, recording and submitting a count change no balance and write no movement
+- [x] AC2 Pending and rejected counts never create a movement (also checked by the database at commit)
+- [x] AC3 Authorised approval posts each parts adjustment atomically and exactly once (replay, concurrency, unique index)
+- [x] AC4 Unauthorised approvals and self-approval (creator, submitter, line recorder) fail; audited DENIED
+- [x] AC5 Server computes expected values and variance; permissions, location scope, transitions, versions and
+  stock-changed-since-count enforced; no negative stock
+- [x] AC6 E-01 vehicle and E-04 parts behaviour unchanged (suites pass; E-04 history contract kept)
+- [ ] Approval threshold, approver role, self-approval exceptions (OQ-40) and vehicle corrections (OQ-39) pending
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000018_stock_counts` (up/down): `stock_counts`, `stock_count_lines` (guards, generated variance, reason
+  CHECK, no self-decision CHECK), ledger `COUNT_ADJUSTMENT` / `STOCK_COUNT`, one adjustment per SKU per count,
+  commit-time posting checks, permission `stock.adjustment.view` (no grants). Down refuses while counts exist.
+- `internal/modules/stock/counts.go`, `counts_service.go`, `counts_http.go` (new); routes `GET/POST /stock-counts`,
+  `GET /stock-counts/{id}`, `POST /stock-counts/{id}/lines|submit|approve|reject`; audit `stock_count.*` and
+  `stock_item.adjusted`; error code `STOCK_CHANGED_SINCE_COUNT`. E-04 parts history now filters to receipts/issues.
+- No threshold: `approval_policy` APPROVER_REQUIRED for every count; vehicle discrepancies recorded only.
+- Docs: ADR-023, OQ-39, OQ-40; API_CONVENTIONS "Stock counts and adjustment approval (E-05)"; OpenAPI regenerated.
+- Checks: 12 new tests (10 integration, 2 unit); Go 21 packages / 472 tests (282 top-level); concurrency tests
+  ×5; migration 18 down/up/down/up; `make ci` exit 0 (Vitest 286); golangci-lint not installed.
+  Evidence: `docs/evidence/E-05/backend-verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Files changed
+`migrations/000018_stock_counts.{up,down}.sql`, `internal/modules/stock/{counts.go,counts_service.go,counts_http.go,
+counts_integration_test.go,http.go,http_test.go,parts.go,service.go}`, `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log,
+`docs/evidence/E-05/backend-verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-40 approval threshold/approver/self-approval/blind counts/numbering; OQ-39 vehicle discrepancy handling; RB-5
+  grants. No cancel of a draft/submitted count and no line removal (re-record instead).
+- Shared dev DB still version 12 (needs 13–18); not migrated.
+
+#### Final status
+IN PROGRESS — E-05 backend phase complete, committed locally (not pushed). Frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

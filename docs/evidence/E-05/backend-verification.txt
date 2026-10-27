@@ -1,0 +1,96 @@
+E-05 Stock count and adjustment approval — BACKEND verification (2026-10-27)
+==========================================================================
+
+Git at start: dev at 43c250e = origin/dev (E-04 frontend), 98a5207 (E-04 backend) in history; clean tree.
+Dependencies verified in code and tests: E-01 ledger (stock_movements, apply trigger, per-actor idempotency),
+B-07 (access.Require/Has, Scope, deny by default; stock.adjustment.create/approve exist since 000004, no grants),
+B-08 (audit.Record in the caller's transaction, DENIED outcome). E-03/E-04 balances (stock_item_balances).
+
+Database (migration 000018_stock_counts, up/down)
+-------------------------------------------------
+- stock_counts: SC-000001 numbering, one location, DRAFT -> SUBMITTED -> APPROVED | REJECTED, approval_policy
+  APPROVER_REQUIRED (only value), created/submitted/decided by+at, decision note/reason, create and decision
+  idempotency keys + request hashes, version. CHECKs: per-status completeness, rejection reason,
+  stock_counts_no_self_decision (decided_by <> created_by/submitted_by). Guard trigger: no DELETE/TRUNCATE,
+  lifecycle edges only, decided counts immutable, version + 1.
+- stock_count_lines: STOCK_ITEM (uom, expected/observed numeric(12,3) >= 0) or VEHICLE_UNIT (expected 1, observed
+  0/1, expected_status); expected_version; generated variance; reason required when variance <> 0; posted_movement_id
+  (unique, parts lines only). Guard: no DELETE/TRUNCATE; edits only while DRAFT; posted_movement_id set once while
+  SUBMITTED.
+- Ledger: COUNT_ADJUSTMENT (STOCK_ITEM, after <> before, both >= 0), source STOCK_COUNT (source_id = count,
+  reference = number, reason required). All 000017 vehicle/parts rules unchanged. Unique
+  stock_movements_count_adjustment_once (source_id, stock_item_id).
+- Commit-time checks: stock_counts_posted_as_counted (APPROVED = exactly its parts-variance lines' movements,
+  expected -> observed; others none), stock_movements_count_approved (an adjustment needs its approved count/line).
+- Permission stock.adjustment.view (new). No grants.
+- Down refuses while any count exists. Verified on the isolated DB: 18 -> 17 -> 18 -> 17 -> 18 (cmd/migrate);
+  TestStockCountMigrationRoundTrip (up, 17, up; down refused over a count).
+
+API (OpenAPI regenerated; docs/API_CONVENTIONS.md "Stock counts and adjustment approval (E-05)")
+------------------------------------------------------------------------------------------------
+GET  /api/v1/stock-counts                  stock.adjustment.view     list (status, locationId, page, limit)
+GET  /api/v1/stock-counts/{id}             stock.adjustment.view     detail with lines
+POST /api/v1/stock-counts                  stock.adjustment.create   201 DRAFT; Idempotency-Key (replay 200)
+POST /api/v1/stock-counts/{id}/lines       stock.adjustment.create   record/re-record a line (DRAFT, version)
+POST /api/v1/stock-counts/{id}/submit      stock.adjustment.create   DRAFT -> SUBMITTED (version)
+POST /api/v1/stock-counts/{id}/approve     stock.adjustment.approve  SUBMITTED -> APPROVED, posts; Idempotency-Key
+POST /api/v1/stock-counts/{id}/reject      stock.adjustment.approve  SUBMITTED -> REJECTED (reason); Idempotency-Key
+New error code: 409 STOCK_CHANGED_SINCE_COUNT (details lines.<id>). Reused: SELF_APPROVAL_NOT_ALLOWED (403),
+VERSION_CONFLICT, INVALID_STATE, TRACKING_NOT_SUPPORTED, IDEMPOTENCY_KEY_REUSED (409), VALIDATION_FAILED (422).
+GET /stock-items/{id}/stock-movements (E-04) now explicitly lists PARTS_RECEIPT/PARTS_ISSUE only (contract kept).
+
+Behaviour
+---------
+- Expected quantity/status and the balance/unit version are read by the server when a line is recorded; variance is
+  computed by the database; reason required for a variance; client-sent expected/variance/status are 422.
+- Create, record, submit and reject change no stock and write no movement.
+- Approval (one transaction): lock count -> replay check -> status/version -> policy -> separation of duties ->
+  create/lock each balance (FOR UPDATE) / lock each unit -> re-check versions (STOCK_CHANGED_SINCE_COUNT, nothing
+  posted) -> one COUNT_ADJUSTMENT per parts line with a variance (trigger moves the balance) -> link line -> APPROVED
+  -> audit. Vehicle discrepancies: finding only, no movement, unit unchanged.
+- Separation of duties: creator, submitter, or anyone who recorded a line (also per audit history) cannot approve or
+  reject: 403, audited DENIED. DB CHECK also refuses decided_by = creator/submitter.
+- No threshold: every count needs an approver; without one it stays SUBMITTED (fail closed).
+- Idempotency: create per creator key; approve/reject per decider key + request hash (replay 200, reused 409).
+- Audit: stock_count.created/.line_recorded/.submitted/.approved/.rejected, stock_item.adjusted per movement;
+  DENIED for self-decision and stock changed since count.
+
+Tests (disposable PostgreSQL 18 container e05b-pg on 127.0.0.1:5477; dbtest scratch databases)
+------------------------------------------------------------------------------------------------
+New integration tests (internal/modules/stock/counts_integration_test.go):
+  TestCountApprovalPostsTheAdjustmentOnce, TestRejectedCountPostsNothing, TestCountPermissionsSelfApprovalAndScope,
+  TestStaleVersionsAndStockChangedSinceCount, TestCountLineValidationAndNoNegativeStock,
+  TestConcurrentApprovalsPostOnce (8x same key -> 1 movement; 8x two approvers -> 1 OK + 7 INVALID_STATE; approval
+  racing an issue -> consistent), TestVehicleDiscrepancyIsRecordedOnly, TestCountCreateIdempotency (6 parallel
+  creates, 1 row), TestDatabaseGuardsCounts, TestStockCountMigrationRoundTrip.
+New unit tests (http_test.go): TestCountRoutesDenyByDefault, TestCountInputIsCheckedBeforeTheDatabase.
+Concurrency tests repeated -count=5: all passed.
+Coverage of prompt §9: 1-4 (approval/reject/pending tests), 5 (replay), 6 (concurrent), 7 (permissions), 8 (self),
+9 (no approver stays SUBMITTED, no mutation), 10 (stale version/stock changed/invalid transitions), 11 (zero floor,
+negative refused by validation and DB CHECK), 12 (scope 404/422, list filtered), 13 (vehicle), 14 (audit + guards),
+15 (E-01/E-04 suites unchanged and passing; E-04 history contract).
+
+Commands and results
+--------------------
+- gofmt -l cmd internal: clean. go vet ./...: clean. go mod tidy -diff: clean. make swagger-check: clean.
+- golangci-lint: NOT INSTALLED — skipped (reported by make lint-backend).
+- REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./... (isolated DB): 21 packages ok, 9 without tests;
+  472 tests passed (282 top-level; stock package 41 top-level), 0 failed, 0 skipped.
+- make ci (DATABASE_URL/TEST_DATABASE_URL = isolated DB): exit 0 — lint (Go + ESLint + Prettier), typecheck,
+  Go integration tests, Vitest 29 files / 286 tests, builds.
+- UI contract tests against the regenerated OpenAPI (stock, parts, vehicles): 95 passed.
+- git diff --check: clean.
+- Note: midway the /snap/bin/go wrapper started exiting 0 with no output (snap refresh); one make ci run during that
+  window was discarded as invalid and every Go check above was re-run with /snap/go/current/bin/go first on PATH.
+- Shared development database (:5436) and dev API/UI untouched; not migrated.
+
+Known limitations / pending decisions
+-------------------------------------
+- OQ-40: approval threshold, who approves, owner self-approval, blind counts, count numbering — every count needs a
+  non-participant approver until decided. RB-5: no grants exist (dev/prod); test grants were in-memory only.
+- OQ-39: vehicle discrepancies (missing/found units) recorded only; no correction movement.
+- OQ-33 reversals, OQ-34 units, OQ-36 valuation/batch, OQ-38 serial SKUs (refused) unchanged.
+- No cancel/withdraw of a draft or submitted count (reject is the only exit for SUBMITTED); no line removal
+  (re-record to the expected value instead).
+- Adjustments are not listed in the E-04 SKU history endpoint (by design, contract kept); visible per count and in
+  the ledger; the movement timeline is E-02.

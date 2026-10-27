@@ -195,3 +195,86 @@ func TestPartsInputIsCheckedBeforeTheDatabase(t *testing.T) {
 		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
 	expectError(t, h.raw(http.MethodGet, "/api/v1/stock-items/not-a-uuid/balances", "", &s, nil), http.StatusNotFound, "NOT_FOUND")
 }
+
+func TestCountRoutesDenyByDefault(t *testing.T) {
+	h, s := movementHarness(t)
+	routes := []struct{ method, path, perm string }{
+		{http.MethodGet, "", access.PermAdjustmentView},
+		{http.MethodGet, "/" + someID, access.PermAdjustmentView},
+		{http.MethodPost, "", access.PermAdjustmentCreate},
+		{http.MethodPost, "/" + someID + "/lines", access.PermAdjustmentCreate},
+		{http.MethodPost, "/" + someID + "/submit", access.PermAdjustmentCreate},
+		{http.MethodPost, "/" + someID + "/approve", access.PermAdjustmentApprove},
+		{http.MethodPost, "/" + someID + "/reject", access.PermAdjustmentApprove},
+	}
+	all := []string{access.PermAdjustmentView, access.PermAdjustmentCreate, access.PermAdjustmentApprove}
+	for _, r := range routes {
+		path := "/api/v1/stock-counts" + r.path
+		if w := h.raw(r.method, path, `{}`, nil, nil); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s without session: %d", path, w.Code)
+		}
+		// The other count keys, parts and vehicle keys and every location grant nothing here.
+		var others []string
+		for _, p := range all {
+			if p != r.perm {
+				others = append(others, p)
+			}
+		}
+		h.grant(s, append(others, access.PermPartsView, access.PermPartsReceive, access.PermPartsIssue,
+			access.PermVehicleUnitDisplayManage, access.PermAllLocations)...)
+		expectError(t, h.raw(r.method, path, `{}`, &s, map[string]string{stock.IdempotencyHeader: "key-00000001"}),
+			http.StatusForbidden, "FORBIDDEN")
+	}
+	// No route deletes or edits a count or line, or sets stock directly.
+	h.grant(s, append(all, access.PermAllLocations)...)
+	for _, r := range []struct{ method, path string }{
+		{http.MethodDelete, "/stock-counts/" + someID},
+		{http.MethodPatch, "/stock-counts/" + someID},
+		{http.MethodPut, "/stock-counts/" + someID + "/lines"},
+		{http.MethodDelete, "/stock-counts/" + someID + "/lines"},
+		{http.MethodPost, "/stock-adjustments"},
+		{http.MethodPost, "/stock-items/" + someID + "/adjustments"},
+	} {
+		w := h.raw(r.method, "/api/v1"+r.path, `{"status":"APPROVED"}`, &s, nil)
+		if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s %s: %d", r.method, r.path, w.Code)
+		}
+	}
+}
+
+func TestCountInputIsCheckedBeforeTheDatabase(t *testing.T) {
+	h, s := movementHarness(t)
+	h.grant(s, access.PermAdjustmentView, access.PermAdjustmentCreate, access.PermAdjustmentApprove, access.PermAllLocations)
+	post := func(path, body, key string) httpx.ErrorBody {
+		return expectError(t, h.raw(http.MethodPost, "/api/v1/stock-counts"+path, body, &s,
+			map[string]string{stock.IdempotencyHeader: key}), http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	}
+	has := func(e httpx.ErrorBody, fields ...string) {
+		t.Helper()
+		for _, f := range fields {
+			if !slices.ContainsFunc(e.Details, func(d httpx.FieldError) bool { return d.Field == f }) {
+				t.Errorf("missing %s in %+v", f, e.Details)
+			}
+		}
+	}
+	has(post("", `{"locationId":"x"}`, "short"), "Idempotency-Key", "locationId")
+	line := "/" + someID + "/lines"
+	has(post(line, `{"stockItemId":"`+someID+`","observedQuantity":"-1"}`, ""), "version", "observedQuantity", "uom")
+	has(post(line, `{"version":1,"stockItemId":"`+someID+`","vehicleUnitId":"`+someID+`"}`, ""), "stockItemId")
+	has(post(line, `{"version":1,"vehicleUnitId":"`+someID+`","observedQuantity":"1"}`, ""), "found", "observedQuantity")
+	// The client cannot send expected values, the variance or a status.
+	for _, f := range []string{"expectedQuantity", "variance", "status", "postedMovementId"} {
+		e := post(line, `{"version":1,"stockItemId":"`+someID+`","observedQuantity":"1","uom":"PCS","`+f+`":"1"}`, "")
+		if e.Details[0].Field != f {
+			t.Errorf("%s accepted: %+v", f, e.Details)
+		}
+	}
+	has(post("/"+someID+"/submit", `{}`, ""), "version")
+	has(post("/"+someID+"/approve", `{"note":"ok"}`, "x"), "version", "Idempotency-Key")
+	has(post("/"+someID+"/reject", `{"version":2}`, "key-00000001"), "reason")
+	expectError(t, h.raw(http.MethodGet, "/api/v1/stock-counts?status=DONE&limit=0", "", &s, nil),
+		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	expectError(t, h.raw(http.MethodGet, "/api/v1/stock-counts/not-a-uuid", "", &s, nil), http.StatusNotFound, "NOT_FOUND")
+	expectError(t, h.raw(http.MethodPost, "/api/v1/stock-counts/not-a-uuid/approve", `{"version":1}`, &s,
+		map[string]string{stock.IdempotencyHeader: "key-00000001"}), http.StatusNotFound, "NOT_FOUND")
+}

@@ -543,7 +543,9 @@ func (s *PGStore) PartsHistory(ctx context.Context, f PartsHistoryFilter) (Parts
 	if err := itemExists(ctx, s.pool, f.ItemID); err != nil {
 		return PartsPage{}, err
 	}
-	where := ` WHERE m.stock_item_id = $1 AND ($2 OR m.to_location_id = ANY($3::uuid[]))
+	// Receipts and issues only (the E-04 contract); count adjustments are read
+	// through their stock counts (E-05) and the movement timeline (E-02).
+	where := ` WHERE m.stock_item_id = $1 AND m.movement_type IN ('PARTS_RECEIPT', 'PARTS_ISSUE') AND ($2 OR m.to_location_id = ANY($3::uuid[]))
 		AND ($4 = '' OR m.to_location_id::text = $4) AND ($5 = '' OR m.movement_type = $5)`
 	args := []any{f.ItemID, f.AllLocations, f.ScopeLocationIDs, f.LocationID, f.Type}
 	var total int

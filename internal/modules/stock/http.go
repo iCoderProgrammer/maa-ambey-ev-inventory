@@ -34,9 +34,9 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 	return &Handler{svc: svc, access: accessH, log: log}
 }
 
-// Register mounts the routes: the two moves no other workflow owns. There is no
-// route that writes an arbitrary movement or status, and none that edits or
-// deletes one; listing movements is E-02.
+// Register mounts the routes: the two moves no other workflow owns, parts
+// receipts/issues and stock counts. There is no route that writes an arbitrary
+// movement or status, and none that edits or deletes one; listing movements is E-02.
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	display := h.access.Require(access.PermVehicleUnitDisplayManage)
 	rg.POST("/vehicle-units/:id/put-on-display", display, h.PutOnDisplay)
@@ -47,6 +47,8 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	rg.GET("/stock-items/:id/stock-movements", partsView, h.PartsHistory)
 	rg.POST("/stock-items/:id/receipts", h.access.Require(access.PermPartsReceive), h.ReceiveParts)
 	rg.POST("/stock-items/:id/issues", h.access.Require(access.PermPartsIssue), h.IssueParts)
+	// Stock counts and adjustment approval (E-05).
+	h.registerCounts(rg)
 }
 
 func (h *Handler) actor(c *gin.Context) audit.Actor {

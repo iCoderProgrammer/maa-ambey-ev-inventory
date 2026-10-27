@@ -485,6 +485,53 @@ Rules: ADR-022. Schema: migration 000017 (`stock_item_balances`; `stock_movement
 - Audited in the same transaction: `stock_item.received`, `stock_item.issued` (movement, location, unit, quantity,
   balance from/to, supplier, reference, reason).
 
+## Stock counts and adjustment approval (E-05)
+
+Rules: ADR-023. Schema: migration 000018 (`stock_counts`, `stock_count_lines`; `stock_movements` `COUNT_ADJUSTMENT`
+rows). Package `internal/modules/stock` (`counts*.go`). A count is the adjustment request; stock changes only when a
+different person approves it.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /stock-counts` | `stock.adjustment.view` | `StockCountPage` (no lines), newest first; `status`, `locationId` (in scope), `page`, `limit`; `status=SUBMITTED` = approval queue |
+| `GET /stock-counts/{id}` | `stock.adjustment.view` | `StockCount` with `lines` |
+| `POST /stock-counts` | `stock.adjustment.create` | `StockCountCreateInput` (`locationId`, `note?`) → 201 `StockCount` (DRAFT); `Idempotency-Key` |
+| `POST /stock-counts/{id}/lines` | `stock.adjustment.create` | `StockCountLineInput` → `StockCount`; DRAFT only |
+| `POST /stock-counts/{id}/submit` | `stock.adjustment.create` | `StockCountVersionInput` → `StockCount` (SUBMITTED) |
+| `POST /stock-counts/{id}/approve` | `stock.adjustment.approve` | `StockCountApproveInput` (`version`, `note?`) → `StockCount` (APPROVED); `Idempotency-Key` |
+| `POST /stock-counts/{id}/reject` | `stock.adjustment.approve` | `StockCountRejectInput` (`version`, `reason`) → `StockCount` (REJECTED); `Idempotency-Key` |
+
+- Mutations need `X-CSRF-Token`; every mutation except create needs the count's current `version` (409
+  `VERSION_CONFLICT` otherwise). Counts at locations outside the caller's scope are 404 (creating one there is 422).
+- `StockCountLineInput`: `version` + either `stockItemId`, `observedQuantity` (decimal string ≥ 0, ≤ 3 decimals),
+  `uom` (= the SKU's unit) or `vehicleUnitId` (a unit recorded at the count's location), `found` (bool); `reason`
+  (≤ 300) is required when the observed value differs from the expected one. Re-recording the same item replaces the
+  line (DRAFT only). Unknown fields (`expectedQuantity`, `variance`, `status`, …) are 422.
+- `StockCount`: `id`, `countNumber` (`SC-000001`), `locationId/Code/Name`, `status` (`DRAFT`/`SUBMITTED`/`APPROVED`/
+  `REJECTED`), `approvalPolicy` (`APPROVER_REQUIRED`), `note`, `createdBy/Name/At`, `submittedBy/Name/At`,
+  `decidedBy/Name/At`, `decisionNote` (approval note or rejection reason), `lineCount`, `varianceLines`, `version`,
+  `updatedAt`, `lines`.
+- `StockCountLine`: `id`, `itemType` (`STOCK_ITEM`/`VEHICLE_UNIT`), `stockItemId`, `sku`, `itemName`, `uom` or
+  `vehicleUnitId`, `unitNumber`, `expectedStatus`, `found`; `expectedQuantity`, `observedQuantity`, `variance`
+  (decimal strings, 3 decimals; server-computed), `reason`, `stockChanged` (undecided counts: the balance/unit moved
+  since the line was recorded), `outcome` (`PENDING`, `NO_CHANGE`, `POSTED`, `DISCREPANCY_RECORDED`, `NOT_POSTED`),
+  `postedMovementId`, `recordedBy/Name/At`.
+- Approval posts one `COUNT_ADJUSTMENT` movement per parts line with a variance (expected → observed, source
+  `STOCK_COUNT` = the count, reference = count number, reason = the line's). Vehicle lines never move a unit.
+- Decisions: never by the creator, the submitter or anyone who recorded a line (403 `SELF_APPROVAL_NOT_ALLOWED`,
+  audited DENIED). Replay: the same approver, key and body → the decided count, 200, `Idempotent-Replayed: true`,
+  nothing posted again; same key with another body → 409 `IDEMPOTENCY_KEY_REUSED`; any other decision on a decided
+  count → 409 `INVALID_STATE`. Create replays the same way (per creator).
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`/`SELF_APPROVAL_NOT_ALLOWED`; 404 `NOT_FOUND`; 409 `VERSION_CONFLICT`,
+  `INVALID_STATE` (wrong status, no lines, archived SKU), `TRACKING_NOT_SUPPORTED` (SERIAL SKU),
+  `STOCK_CHANGED_SINCE_COUNT` (details `lines.<lineId>`: stock moved after those lines were counted; submit: re-record
+  them; approve: nothing posted, audited DENIED — reject and recount), `IDEMPOTENCY_KEY_REUSED`; 415; 422
+  `VALIDATION_FAILED`.
+- Audited in the same transaction: `stock_count.created`, `.line_recorded`, `.submitted`, `.approved`, `.rejected`,
+  and `stock_item.adjusted` per posted movement.
+- `GET /stock-items/{id}/stock-movements` (E-04) keeps listing receipts and issues only; adjustments are read through
+  their count (and the E-02 timeline later).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

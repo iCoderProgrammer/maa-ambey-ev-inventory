@@ -58,6 +58,8 @@ const (
 	// Parts stock (E-04): an issue larger than the balance; a SERIAL SKU (no serial register yet). 409.
 	CodeInsufficientStock    = "INSUFFICIENT_STOCK"
 	CodeTrackingNotSupported = "TRACKING_NOT_SUPPORTED"
+	// Stock counts (E-05): stock moved after a line was counted; details name the lines. 409.
+	CodeStockChanged = "STOCK_CHANGED_SINCE_COUNT"
 )
 
 // DataResponse is the success envelope. In swag annotations use
