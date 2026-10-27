@@ -10,8 +10,12 @@ test.describe('roles and permissions (B-07)', () => {
     await signIn(page)
     if (!isMobile) {
       const nav = page.getByRole('navigation', { name: 'Main' })
-      await expect(nav.getByRole('link', { name: /Catalogue & Brands/ })).toBeVisible()
+      await expect(nav.getByRole('link', { name: /Stock Movements/ })).toBeVisible()
+      await expect(nav.getByRole('link', { name: /Purchase Orders/ })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: /Goods Receipts/ })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: /Suppliers/ })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: /Users & Roles/ })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: /Catalogue & Brands/ })).toHaveCount(0)
     }
 
     await page.goto('/admin/users')

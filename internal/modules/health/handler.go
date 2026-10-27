@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 )
 
 // ServiceName identifies this API in health responses.

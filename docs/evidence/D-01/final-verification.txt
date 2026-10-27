@@ -1,0 +1,130 @@
+D-01 final verification — 2026-10-23 — commit f4034a2, clean tree (before these docs)
+
+== Git ==
+dev f4034a2 = origin/dev afafc00 + 1 (fast-forward). LibreOffice lock file prompt-pack/.~lock.TASK_REGISTRY.csv#
+not present at this time (nothing to preserve or touch). No uncommitted changes before the run.
+
+== Shared development API (:8081) ==
+The running process (go run from `make dev`, build f4034a2) was stopped (SIGTERM, graceful) and started again with
+`make dev-backend` (same .env, port 8081). Vite :5173 left running.
+GET /api/v1/health -> 200 {"status":"ok","version":"f4034a2"}
+GET /api/v1/ready  -> 200 {"status":"ready","checks":{"database":"up","migrations":"up"}}
+Dev API log after the run: 0 ERROR lines, 0 5xx.
+
+== Isolated throwaway stack (postgres:18-alpine :5449, fresh, migrated to v10 + seeds; API :8093 built from f4034a2
+   with RBAC_ALLOW_PROPOSED_GRANTS=true, ATTACHMENT_LINK_TTL=30s, LOGIN_MAX_FAILURES_PER_IP=1000,
+   RATE_LIMIT_RPS=100/BURST=200; Vite :5175 proxied to :8093; test-only users with a random password never printed;
+   PROPOSED grants on that database only, per DEVELOPMENT_SETUP "End-to-end browser tests"; all removed afterwards) ==
+Run 1: 60 passed, 5 skipped, 1 failed — B-09 "links are private, signed, short-lived" (desktop): expiry wait
+299677 ms > 35000 ms. Cause: stack started without ATTACHMENT_LINK_TTL=30s (setup omission, not a code fault).
+Stack recreated from scratch with the TTL; full suite re-run:
+Run 2 (npx playwright test, desktop 1366x900 + Pixel 7): exit 0 — 61 passed, 5 skipped (viewport-specific by design), 0 failed (3.9m)
+  ✓   1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓   2 [desktop] › e2e/access.e2e.ts:32:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓   3 [desktop] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓   4 [desktop] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓   5 [desktop] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  ✓   6 [desktop] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓   7 [desktop] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓   8 [desktop] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓   9 [desktop] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  10 [desktop] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  11 [desktop] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  12 [desktop] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  13 [desktop] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  14 [desktop] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  15 [desktop] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  16 [desktop] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  17 [desktop] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  18 [desktop] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  19 [desktop] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  20 [desktop] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  ✓  21 [desktop] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  ✓  22 [desktop] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  23 [desktop] › e2e/isolation.e2e.ts:59:3 › brand isolation (C-06) › cross-brand filters and requests are refused; stale links are cleaned
+  ✓  24 [desktop] › e2e/prices.e2e.ts:79:3 › price history (C-04) › draft, approve by someone else, supersede, and historical lookups stay stable
+  ✓  25 [desktop] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  26 [desktop] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  27 [desktop] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  28 [desktop] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  29 [desktop] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  ✓  30 [desktop] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  -  31 [desktop] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  32 [desktop] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied
+  ✓  33 [desktop] › e2e/suppliers.e2e.ts:60:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive
+  ✓  34 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓  35 [mobile] › e2e/access.e2e.ts:32:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓  36 [mobile] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓  37 [mobile] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓  38 [mobile] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  -  39 [mobile] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓  40 [mobile] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓  41 [mobile] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓  42 [mobile] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  43 [mobile] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  44 [mobile] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  45 [mobile] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  46 [mobile] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  47 [mobile] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  48 [mobile] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  49 [mobile] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  50 [mobile] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  51 [mobile] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  52 [mobile] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  53 [mobile] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  -  54 [mobile] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  -  55 [mobile] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  56 [mobile] › e2e/isolation.e2e.ts:59:3 › brand isolation (C-06) › cross-brand filters and requests are refused; stale links are cleaned
+  ✓  57 [mobile] › e2e/prices.e2e.ts:79:3 › price history (C-04) › draft, approve by someone else, supersede, and historical lookups stay stable
+  ✓  58 [mobile] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  59 [mobile] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  60 [mobile] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  61 [mobile] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  62 [mobile] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  -  63 [mobile] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  ✓  64 [mobile] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  65 [mobile] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied
+  ✓  66 [mobile] › e2e/suppliers.e2e.ts:60:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive
+Includes the updated C-03 viewer test (#19 desktop, #52 mobile) and both D-01 supplier tests on both viewports.
+
+== 5xx "context canceled" investigation ==
+Run 2 API log: 33 requests with 5xx, every one GET, every one paired with an ERROR whose cause ends in
+"context canceled" (session lookup 15, access lookup 7, catalogue 6, supplier detail 3, role matrix 2). Latency
+0.19–38.98 ms, far below REQUEST_TIMEOUT=15s (a timeout gives "deadline exceeded", not "canceled"). No mutation, no
+other ERROR line. Run 1: 26 such requests, same pattern (max 17 ms), no other cause.
+Conclusion: request contexts cancelled because the client went away (TanStack Query aborting on navigation/unmount,
+pages closed at test end, forwarded by the Vite proxy). The status is never delivered to a client. Same pattern
+recorded for C-06 (7) and D-01 (16) and spread across pre-D-01 modules (auth, access, catalogue) — not a D-01
+regression; no fix made. Observation only: the API logs client aborts as ERROR/5xx, which is log noise
+(cross-cutting; candidate for a separate task if wanted).
+
+== Checks ==
+Note: in this shell the snap wrapper /snap/bin/go returned exit 0 but printed nothing (so `gofmt -l` output could
+not be seen). Checks re-run with /snap/go/current/bin first on PATH (real go/gofmt):
+make ci exit 0: gofmt clean (0 files), go vet, go.mod tidy, swagger-check, eslint, prettier, tsc,
+  go test (PostgreSQL integration REQUIRED) 16 packages ok, Vitest 19 files / 156 tests, vite build, Go builds.
+  golangci-lint not installed (skipped by the Makefile).
+go test -count=1 -json ./... (TEST_DATABASE_URL = dev server, per-test scratch databases): 175 top-level /
+  365 incl. subtests pass, 0 skip, 0 fail. Supplier: TestSupplierCreateSearchAndDuplicates,
+  TestContactsKeepHistoryAndPrivacy, TestDocumentsUsePrivateAttachments, TestVerificationNeedsOwnEvidence,
+  TestMultiBrandRelationships, TestArchivePreservesHistory, TestViewerCannotChangeAnything,
+  TestSupplierRoutesDenyByDefault, TestSupplierInputValidation, TestGSTINNormalised; attachments
+  TestCanSeeLinkedAttachments — all PASS.
+git diff --check (tree) and git diff --check f4034a2^ f4034a2: clean.
+
+== Shared dev permissions and data (before == after) ==
+migration|10|false
+grants|viewer|access.roles.view PROPOSED
+user_roles|1|
+users|2|
+supplier_perms|suppliers.archive,suppliers.manage,suppliers.verify,suppliers.view|
+suppliers|0|
+supplier_contacts|0|
+supplier_documents|0|
+supplier_brand_links|0|
+brands|3|
+Commit f4034a2 adds only the four suppliers.* permission keys (no role_permissions/user_roles rows, no seeds
+changes, no supplier/contact/document/link rows). Test data is placeholder only ("Example Supplier", synthetic GSTIN).
+
+== Push ==
+make push PUSH_BRANCH=dev (as iCoderProgrammer over SSH, no force): afafc00..f4034a2 dev -> dev; origin/dev = f4034a2.

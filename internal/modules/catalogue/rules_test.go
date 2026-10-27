@@ -63,7 +63,7 @@ func TestBrandReadinessFailsClosed(t *testing.T) {
 	now := time.Now()
 	b := Brand{ID: someID, LifecycleStatus: StatusPending, AuthorisationStatus: AuthAuthorised,
 		ManufacturerLegalName: &s, AuthorisationReference: &ref, AuthorisationEvidenceID: &ev, VerifiedBy: &user, VerifiedAt: &now}
-	r := brandReadiness(brandFacts{Brand: b, HasActiveVariant: true})
+	r := brandReadiness(brandFacts{Brand: b, HasActiveVariant: true, HasApprovedPrice: true, HasSupplierLink: true})
 	if r.Ready {
 		t.Fatal("brand must not be ready while prerequisites from later tasks are missing")
 	}
@@ -72,7 +72,7 @@ func TestBrandReadinessFailsClosed(t *testing.T) {
 			t.Errorf("check %s: met=%v pending=%v; with all recordable evidence only pending checks should fail", c.Key, c.Met, c.Pending)
 		}
 	}
-	keys := blockedKeys(t, checkBrandActivation(brandFacts{Brand: b, HasActiveVariant: true}))
+	keys := blockedKeys(t, checkBrandActivation(brandFacts{Brand: b, HasActiveVariant: true, HasApprovedPrice: true, HasSupplierLink: true}))
 	if len(keys) != len(pendingChecks) {
 		t.Fatalf("unmet %v", keys)
 	}
@@ -157,5 +157,20 @@ func TestSourceDateTodayIsAcceptedInIndia(t *testing.T) {
 	in.SourceDate = "2026-10-15"
 	if err := validateVerify(&in, now); err == nil {
 		t.Fatal("future date accepted")
+	}
+}
+
+func TestApprovedPricesIsARealCheck(t *testing.T) {
+	r := brandReadiness(brandFacts{Brand: Brand{LifecycleStatus: StatusPending}, HasActiveVariant: true})
+	for _, c := range r.Checks {
+		if c.Key == "approved_prices" && (c.Met || c.Pending) {
+			t.Fatalf("approved_prices must be an unmet, non-pending check without a price: %+v", c)
+		}
+	}
+	r = brandReadiness(brandFacts{Brand: Brand{LifecycleStatus: StatusPending}, HasActiveVariant: true, HasApprovedPrice: true, HasSupplierLink: true})
+	for _, c := range r.Checks {
+		if c.Key == "approved_prices" && !c.Met {
+			t.Fatal("approved_prices not met with an approved price")
+		}
 	}
 }

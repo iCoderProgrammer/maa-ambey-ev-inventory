@@ -17,7 +17,7 @@ import (
 )
 
 // Permission keys. Every key must exist in the permissions table (migrations
-// 000004, 000006, 000008); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015, 000016); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -45,6 +45,34 @@ const (
 	PermCatalogueArchive  = "catalogue.archive"
 	PermBrandAuthorise    = "catalogue.brand.authorise"
 	PermBrandActivate     = "catalogue.brand.activate"
+	// Price history (C-04, migration 000009). Cost prices use PermCostPrice*.
+	PermPriceView    = "catalogue.price.view"
+	PermPriceManage  = "catalogue.price.manage"
+	PermPriceApprove = "catalogue.price.approve"
+	// Supplier master (D-01, migration 000010).
+	PermSupplierView    = "suppliers.view"
+	PermSupplierManage  = "suppliers.manage"
+	PermSupplierVerify  = "suppliers.verify"
+	PermSupplierArchive = "suppliers.archive"
+	// Purchase orders (D-02, migration 000011).
+	PermPurchaseOrderView     = "purchase_orders.view"
+	PermPurchaseOrderManage   = "purchase_orders.manage"
+	PermPurchaseOrderApprove  = "purchase_orders.approve"
+	PermPurchaseOrderCancel   = "purchase_orders.cancel"
+	PermPurchaseOrderSettings = "purchase_orders.settings.manage"
+	// Goods receipt drafts (D-03, migration 000012).
+	PermGoodsReceiptView        = "goods_receipts.view"
+	PermGoodsReceiptManage      = "goods_receipts.manage"
+	PermGoodsReceiptOverReceipt = "goods_receipts.over_receipt"
+	// Vehicle unit registry (D-04, migration 000013).
+	PermVehicleUnitView     = "vehicle_units.view"
+	PermVehicleUnitCostView = "vehicle_units.cost.view"
+	// Stock movements (E-01, migration 000015): AVAILABLE <-> DISPLAY.
+	PermVehicleUnitDisplayManage = "vehicle_units.display.manage"
+	// Spare part and accessory SKU master (E-03, migration 000016).
+	PermStockItemView    = "stock_items.view"
+	PermStockItemManage  = "stock_items.manage"
+	PermStockItemArchive = "stock_items.archive"
 )
 
 // AllPermissions lists every key the code knows.
@@ -54,7 +82,12 @@ var AllPermissions = []string{
 	PermAdjustmentCreate, PermAdjustmentApprove, PermInvoiceSettings, PermTaxSettings,
 	PermReportsExport, PermCustomersExport, PermAttachmentsUpload, PermAttachmentsView,
 	PermCatalogueView, PermCatalogueManage, PermCatalogueVerify, PermCatalogueActivate, PermCatalogueArchive,
-	PermBrandAuthorise, PermBrandActivate,
+	PermBrandAuthorise, PermBrandActivate, PermPriceView, PermPriceManage, PermPriceApprove,
+	PermSupplierView, PermSupplierManage, PermSupplierVerify, PermSupplierArchive,
+	PermPurchaseOrderView, PermPurchaseOrderManage, PermPurchaseOrderApprove, PermPurchaseOrderCancel, PermPurchaseOrderSettings,
+	PermGoodsReceiptView, PermGoodsReceiptManage, PermGoodsReceiptOverReceipt,
+	PermVehicleUnitView, PermVehicleUnitCostView, PermVehicleUnitDisplayManage,
+	PermStockItemView, PermStockItemManage, PermStockItemArchive,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

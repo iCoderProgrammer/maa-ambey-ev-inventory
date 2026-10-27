@@ -41,22 +41,22 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | B-09 | Private attachment service | P0 | B-04, B-05, B-07 | COMPLETE |
 | C-01 | Brand/model/variant database schema | P0 | B-05 | COMPLETE |
 | C-02 | Catalogue API and validation | P0 | C-01, B-07, B-08 | COMPLETE |
-| C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | NOT STARTED |
-| C-04 | Effective-dated price history | P0 | C-01, C-02 | NOT STARTED |
+| C-03 | Catalogue and brand management UI | P0 | C-02, B-03 | COMPLETE |
+| C-04 | Effective-dated price history | P0 | C-01, C-02 | COMPLETE |
 | C-05 | Seed verified multi-brand catalogue | P0 | A-01, C-01, C-02 | NOT STARTED |
-| C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | NOT STARTED |
-| D-01 | Supplier master | P0 | B-05, B-07, B-08 | NOT STARTED |
-| D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
-| D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
-| D-04 | Vehicle unit registry | P0 | C-01, B-05 | NOT STARTED |
-| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | NOT STARTED |
+| C-06 | Brand-specific rules and isolation tests | P0 | C-02, C-04, B-07 | COMPLETE |
+| D-01 | Supplier master | P0 | B-05, B-07, B-08 | COMPLETE |
+| D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | COMPLETE |
+| D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | COMPLETE |
+| D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
+| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
-| E-01 | Append-only stock movement API | P0 | D-04, B-08 | NOT STARTED |
+| E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
-| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | NOT STARTED |
+| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
@@ -92,6 +92,10 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 
 Discovery items A-01–A-06 (client inputs; documentation-only) are tracked in
 `prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/00_START_HERE/00_Client_Discovery_Prompts.md`.
+
+| Item | Title | Status |
+| --- | --- | --- |
+| A-01 | Launch brand roster and activation evidence | INCOMPLETE — roster documented (`docs/client-inputs/launch-brand-roster.md`); per-brand client evidence pending |
 
 ---
 
@@ -1616,6 +1620,1041 @@ test-only users and PROPOSED grants) removed afterwards; shared dev DB untouched
 
 #### Final status
 COMPLETE — C-02 only. C-03 not started.
+
+### C-03 — Catalogue and brand management UI
+
+- **Status:** COMPLETE (screens over the C-02 API; grants, supplier links, prices and approvals still pending)
+- **Started:** 2026-10-13 · **Finished:** 2026-10-13
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_03_catalogue-and-brand-management-ui.md
+- Git at start: `dev` = `origin/dev` = `20429e0` (C-01 `a7eb952` and C-02 `20429e0` already pushed; nothing to push).
+  Untracked `prompt-pack/.~lock.TASK_REGISTRY.csv#` (LibreOffice lock, not ours) left untouched.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-02 | COMPLETE | commit `20429e0`; catalogue API, typed client and hooks; final verification above (47 Playwright passed, `make ci` 0) |
+| B-03 | COMPLETE | app shell, navigation, PageHeader, Table, Dialog, Field, StateViews in `ui/src/components` |
+
+#### Acceptance criteria
+- [x] AC1 Brand list/editor and model/variant (and colour) screens manage the catalogue through the real C-02 API only
+- [x] AC2 Search, pagination, lifecycle/authorisation/verification badges; supplier relationship shown only from real data (readiness `supplier_link`, pending until D-01)
+- [x] AC3 Create/edit forms (React Hook Form + Zod mirroring server rules); archive confirmation with reason
+- [x] AC4 Choosing a brand filters model/variant options; cross-brand choices impossible in the UI, still rejected server-side
+- [x] AC5 No unverified item appears operationally active; warnings for unverified brand, specifications and prices
+- [x] AC6 Activation requires permission and a confirmation dialog stating the effect
+- [x] AC7 Loading, empty, no-results, validation, network, 401, 403, duplicate, invalid-state, activation-blocked and stale-version states
+- [x] AC8 Responsive (desktop + mobile) and accessible; Playwright on both viewports; `make ci` passes
+
+#### Stage 1 — UI
+Result: COMPLETE — built directly on the real C-02 typed client and hooks (the API already existed), so no mock
+adapter was needed or used.
+- Route `/admin/catalogue` (gated by `catalogue.view`; page header + Access denied otherwise) with tabs **Brands |
+  Models | Variants**; detail pages `/admin/catalogue/brands/:id`, `/models/:id`, `/variants/:id`.
+- Lists: server search (debounced), status/authorisation/verification/brand filters, server pagination, all kept in
+  the URL (refresh/back keep state); loading, empty (with permitted action), no-results, error with reference + retry,
+  403 → Access denied. Table on ≥ sm; stacked labelled list on phones (no sideways scrolling).
+- Badges: lifecycle, authorisation, confidence, and "Enabled / Not enabled for purchase & sales" taken only from the
+  server's `operational` flag — the UI never derives it, so nothing unverified looks operational.
+- Brand detail: authorisation card + **Record authorisation** dialog (status, legal name, reference, private evidence
+  document picked from the user's uploads or uploaded via the B-09 uploader); **activation readiness** straight from
+  the server checklist (met / not met / not available yet); **Supplier relationship** card shows only real data —
+  none exists until D-01, so it says so; **Specifications, prices and warranty** card states they are not recorded.
+- Model/variant detail: details, source & verification card (Unverified warning), brand context with its purchase/
+  sales badge, child lists (variants / colours with per-row actions).
+- Forms (React Hook Form + Zod mirroring server rules): add/edit brand, model, variant, colour; verify (confidence,
+  source link and/or document, date ≤ today); archive with optional reason; confirmations for activation stating the
+  effect. Edit is offered only while pending; actions appear only with their permission. Dialogs mount only while
+  open (fresh state each time), disable submit while pending, and show server errors: field-level VALIDATION_FAILED /
+  DUPLICATE, ACTIVATION_BLOCKED with the server's unmet requirements, VERSION_CONFLICT with "Reload latest version",
+  INVALID_STATE, 403, CSRF, network ("Nothing was saved"). 401 is handled globally (back to sign-in).
+- Brand → model: the Add-variant dialog and the Variants filter offer only the chosen brand's models (and never
+  archived brands/models); the request sends only `modelId`, the server derives the brand and still rejects mismatches.
+- Navigation: "Catalogue & Brands" is no longer "Planned"; the link needs `catalogue.view` like Users & Roles (tests
+  updated). Dashboard shortcut shows "Available / Open module" and no longer promises battery ratings or price history.
+- New shared component `components/ui/Pagination.tsx`; `Permission` gains the 7 catalogue keys. No new dependency.
+- Tests: `pages.test.tsx` (15) — access denied without call, server 403, list badges/operational, search + no
+  results + clear, empty and error states, create (client validation, server duplicate on the field, navigate only
+  after 201), brand→model cascade and archived brands excluded, server cross-brand refusal shown, variants filter
+  cascade, readiness/supplier/price gaps and disabled activation, permission-hidden actions, not found, activation
+  blocked list, stale-version reload, archive with reason, network loss.
+
+#### Stage 2 — Backend
+Result: NOT APPLICABLE — every list/detail/action the screens need exists in C-02 (checked against OpenAPI); no
+endpoint, migration or Go change was made. Not available and therefore not shown: verifier names (only "You" or a
+short user ID — there is no user lookup API), supplier links (D-01), spec values, prices (C-04).
+
+#### Stage 3 — API integration
+Result: COMPLETE — production path uses only `api/catalogue.ts` + `hooks/useCatalogue.ts` (added
+`useRefreshCatalogue` for stale-version reloads). Success is shown only after the server confirms; caches update only
+on success.
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack (details: `docs/evidence/C-03/browser-verification.txt`).
+- New `ui/e2e/catalogue-ui.e2e.ts` (desktop + Pixel 7): no-permission user has no link and gets Access denied; viewer
+  sees the real seeded roster as pending/unverified/not enabled with no edit actions and the readiness list; admin
+  creates a brand (client validation, then server), sees the duplicate on the field, adds a model, is refused
+  activation before verification (server reason shown), verifies, activates (edit disappears), adds a variant through
+  the brand→model cascade (only that brand's model offered), hits a real stale-version conflict from a second session
+  and reloads, archives the model with a reason (history kept, no new variants), cannot confirm brand activation,
+  refresh keeps server state, no sideways scroll, no console errors.
+- Screenshot review found and fixed: duplicated readiness text, stretched cards, mobile tables hiding statuses
+  (now a stacked list). First run 6/6; after fixes the full suite: **53 passed, 0 failed, 5 skipped** (by design).
+- API log: only `context canceled` lines from aborted browser requests (pre-existing behaviour, see C-02 verification).
+
+#### Checks (actual results)
+- `npx tsc -b`, ESLint (`--max-warnings=0`), Prettier: clean. First lint run failed (setState-in-effect resets,
+  `form.watch`, mixed exports, test string conversions) — fixed by mounting dialogs only while open, `useWatch`,
+  moving list helpers to `lib/listParams.ts`, render-time search sync; rerun clean.
+- Vitest: 16 files / **132 tests** passed (2 existing navigation assertions updated for the new permission gate).
+- `make ci`: exit 0 (13 Go packages ok with PostgreSQL, Vitest, lint, typecheck, swagger-check, builds;
+  golangci-lint not installed → skipped). `git diff --check` clean.
+
+#### Evidence
+`docs/evidence/C-03/browser-verification.txt`; screenshots `desktop-brands.png`, `desktop-brand-detail.png`,
+`desktop-add-variant-dialog.png`, `mobile-brands.png`, `mobile-model-detail.png`.
+
+#### Known issues / pending approvals
+- Nobody holds catalogue permissions on real databases until the owner approves grants (RB-5, OQ-2); screens show
+  Access denied until then.
+- Brand activation cannot succeed until supplier links (D-01), prices (C-04), warranty terms (RB-2) and identifier rules
+  (D-04) exist; the UI shows this from the server's readiness list.
+- No user-name lookup API: verifiers show as "You" or "User <id prefix>".
+- Spec values have no API yet; correction of active items / restoring archived ones pending (OQ-12).
+- Option pickers load up to 100 brands/models; enough for the current roster, revisit if catalogues grow.
+
+#### Final browser/regression verification (user-requested, 2026-10-13; verification only)
+- Commit `9609244`, clean tree; no code changed in this pass.
+- Shared dev stack (already running, used as-is): headless Chrome desktop + mobile — `/admin/catalogue` deep link
+  goes to sign-in, empty submit validated client-side, wrong credentials → 401 generic message, no horizontal
+  overflow, `/api/v1/brands` without session → 401, **0 console/page errors**. Dev DB permissions/data identical
+  before and after (1 PROPOSED grant, 0 catalogue grants, 3 brands, 0 models).
+- Isolated throwaway stack, full `npx playwright test` (desktop + Pixel 7): **53 passed, 0 failed, 5 skipped** (by
+  design). API ERROR lines (7 requests) all traced by request ID to `context canceled` — client aborts, no server failure.
+- `make ci` exit 0; `go test -json ./...` with PostgreSQL: 13 packages pass, 302 tests pass, 0 fail, 0 skipped;
+  Vitest 132/132. `git diff --check` clean. No bugs found; no fixes needed.
+- Evidence: `docs/evidence/C-03/final-verification.txt`.
+
+#### Manual verification by the user (2026-10-14)
+- Environment provided for it (2026-10-13): temporary throwaway stack — postgres:18-alpine :5449, API :8093 built from
+  `9609244`, UI http://localhost:5175 — with test-only accounts `e2e.catalogue` (PROPOSED grants for the 7 catalogue keys
+  and attachments), `e2e.catviewer` (`catalogue.view`) and `e2e.active` (no role), plus a suggested manual test script
+  (admin flow, stale version, viewer, no access, mobile).
+- **User's statement:** "C-03 manual testing is complete and working correctly, as verified by me."
+- Recorded as an overall user confirmation only. Which individual steps of the suggested script were exercised was not
+  reported, so no individual manual test case is claimed here.
+- Temporary environment removed afterwards (API, Vite :5175, container and its database, temporary password and upload
+  files). Normal development environment (:5173, :8081, DB :5436) and its database left untouched.
+
+#### Final status
+COMPLETE — C-03 only. C-04 not started.
+
+### C-04 — Effective-dated price history
+
+- **Status:** COMPLETE (mechanism; no price data, tax configuration or grants — OQ-15…OQ-18, RB-5)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_04_effective-dated-price-history.md
+- Git at start: `dev` = `origin/dev` = `f652169`; C-01 `a7eb952`, C-02 `20429e0`, C-03 `9609244` committed and pushed.
+  Untracked LibreOffice lock file left untouched.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-01 | COMPLETE | migration 000007, schema tests; commit `a7eb952` |
+| C-02 | COMPLETE | catalogue API, readiness check `approved_prices` pending for C-04; commit `20429e0` |
+(Also used: C-03 screens `9609244` for the price UI; B-07 permissions; B-08 audit.)
+
+#### Acceptance criteria
+- [x] AC1 Price lists and price items linked to brand, model and variant (brand context enforced by the database)
+- [x] AC2 Price type, amount, effective from/to, approval status/actor/time/reference, tax configuration reference
+- [x] AC3 Date ranges validated; overlapping approved periods refused (database exclusion + service check, concurrency-safe)
+- [x] AC4 Approved prices immutable except controlled supersession; no silent retroactive change
+- [x] AC5 Lookup of the price valid at a given time, test-covered including after supersession (old quotations stay stable)
+- [x] AC6 Permissions deny by default; cost prices only with cost permissions; no invented prices, tax rates or grants
+- [x] AC7 OpenAPI, typed client, hooks and UI (history with current/future/past, approval status, snapshot warning) with all states
+- [x] AC8 Backend, API, date-range, approval, concurrency and lookup tests; browser tests; `make ci`
+
+#### Stage 1 — UI
+Result: built after the backend (backend-first order requested), directly on the real API — no mock adapter.
+- Variant page **Price history** card (only with a price view permission): price list and type selectors (type switch
+  only for cost viewers), history table/phone list with Current / Future / Past / Draft / Cancelled badges computed
+  from server dates, amount in ₹, effective window, approver/time/reference, "Superseded"; snapshot warning ("never
+  changes existing quotations"). Actions by permission: Draft price, Edit/Cancel draft, Approve (hidden for one's own
+  draft), Change price (supersession draft). "Price valid at" lookup tool. Warning on drafts that start in the past.
+- Brand page **Price lists** card: list, Add price list, Archive (confirmation).
+- Dialogs (React Hook Form + Zod): draft/edit/supersede (amount string, local date-time → RFC 3339, end after start,
+  source note; tax treatment explained as not available), approve (reference, rules, snapshot notice), cancel draft,
+  create/archive list. Errors: PRICE_OVERLAP, APPROVAL_BLOCKED (server's unmet list), SELF_APPROVAL_NOT_ALLOWED,
+  retroactive start, DUPLICATE, VERSION_CONFLICT (reload), 403, network.
+- C-03 wording updated: prices now come only from approved history; phone lists hide empty fields.
+- Tests `features/pricing/pricing.test.tsx` (10): formatting/periods, hidden without permission (no request),
+  history badges + snapshot warning + selling-only requests, approve only others' drafts + overlap message,
+  approval blockers, draft validation + payload (decimal string, RFC 3339, supersedesId), lookup found/none,
+  cost behind type switch, no price list, price list duplicate.
+
+#### Stage 2 — Backend
+Result: COMPLETE.
+- Migration `000009_create_price_history` (up/down): `price_lists`, `price_items`, `btree_gist`, `variants (id, model_id)`
+  unique, 3 permission keys (no grants), immutability trigger, exclusion constraint, CHECKs (see ADR-013).
+- `internal/modules/pricing` (types, validate, rules, service, pgstore, http; 12 routes). `access.Handler.RequireAny`.
+  Catalogue readiness `approved_prices` is now a real check. New error codes: PRICE_OVERLAP, APPROVAL_BLOCKED,
+  SELF_APPROVAL_NOT_ALLOWED, PRICE_NOT_FOUND.
+- Tests: `http_test.go` (deny by default on all routes, cost permissions, 16 validation cases, approval rules, amount
+  normalisation) and `api_integration_test.go` on PostgreSQL: draft → self-approval refused (audited DENIED) →
+  approve; lookup before/at start; supersession ends the old period, historical lookup unchanged (old quotations
+  stable), boundary instants; overlap refused; no retroactive approval (and allowed under a simulated earlier clock);
+  unverified variant blocked; cross-brand refused by service and database; archived list keeps lookups; cost prices
+  hidden from selling-only users; approved rows immutable in SQL (42501), self-approval and tax reference refused by
+  CHECK (23514); **6 concurrent overlapping approvals → exactly 1 succeeds**; brand readiness counts only a current
+  approved price. Catalogue tests updated for the real `approved_prices` check.
+- Dev DB migrated 8 → 9 (`make db-migrate-up`; additive, no data, no grants).
+
+#### Stage 3 — API integration
+Result: COMPLETE — `features/pricing/api/pricing.ts` (Zod, decimal strings) + `hooks/usePricing.ts`; caches refresh
+only after the server confirms (prices and catalogue readiness).
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack (`docs/evidence/C-04/verification.txt`). New `e2e/prices.e2e.ts`
+(desktop + Pixel 7) with two people: price list, draft, drafter cannot approve, other person approves with
+reference, overlap refused, draft cancelled, controlled supersession, lookups (old instant ₹1,000 unchanged, later
+₹1,200, before any price "none"), retroactive approval refused, cost type switch only for cost viewers, no
+overflow, no console errors. Screenshot review fixes (button wrap, past-start hint, empty phone labels). Final full
+suite: **55 passed, 0 failed, 5 skipped** (by design). API errors only client `context canceled`.
+
+#### Checks (actual results)
+- `make ci` exit 0 (gofmt, vet, tidy, swagger-check, ESLint, Prettier, tsc, Go tests with PostgreSQL, Vitest, builds;
+  golangci-lint not installed → skipped). `go test -json ./...`: 14 packages pass, **330 tests** pass, 0 fail.
+  Vitest 17 files / **142 tests**. `git diff --check` clean.
+- Lint fixes during the task: hook exported from a component file moved to `hooks/usePricePermissions.ts`; two
+  always-true conditions removed; test string conversions.
+
+#### Evidence
+`docs/evidence/C-04/verification.txt`, `desktop-variant-prices.png`, `mobile-draft-dialog.png`.
+
+#### Known issues / pending approvals
+- No price data exists or is seeded; prices must come from the owner's approved source (RB-2).
+- OQ-15 price types and what the selling amount includes; OQ-16 backdating; OQ-17 maker-checker/approver/threshold;
+  OQ-18 tax treatment — `taxConfigurationId` stays empty until the accountant-approved configuration (F-10).
+- Nobody holds price permissions until the owner approves grants (RB-5).
+- Quotations that snapshot prices are F-02; lookup is the contract they will use.
+- Brand activation still blocked by supplier/warranty/identifier checks.
+
+#### Final browser/regression verification (user-requested, 2026-10-14; verification only)
+- Commit `2594848`, clean tree; no code changed.
+- **Dev environment finding (not a C-04 defect):** the running dev API (:8081, started 10:09, build `9609244` = C-03) is
+  stale — `/ready` not_ready (DB at 9, build expects 8) and price routes 404. Left untouched; restart `make dev-backend`
+  to pick up C-04. The current build `2594848` was run on side ports against the dev DB: `/ready` ready; headless Chrome
+  desktop + mobile: catalogue deep link → sign-in, client validation, wrong credentials → 401 generic message,
+  `/price-lists`, `/price-items`, `/prices/lookup`, `/brands` without session → 401, no overflow, **0 console errors**.
+  Dev DB identical before/after (0 catalogue/price grants, 0 price lists/items).
+- Isolated stack, full `npx playwright test` (desktop + Pixel 7): **55 passed, 0 failed, 5 skipped** (by design).
+  API errors (14 requests) all `context canceled` client aborts.
+- `make ci` exit 0; Go 14 packages / 330 tests pass; Vitest 142/142. No bugs found; no fixes.
+- Evidence: `docs/evidence/C-04/final-verification.txt`.
+
+#### Final status
+COMPLETE — C-04 only. C-05 not started.
+
+### A-01 — Record confirmed launch brands and activation evidence (discovery item; documentation only)
+
+- **Status:** INCOMPLETE — documentation done; **client evidence pending** (not COMPLETE)
+- **Started/updated:** 2026-10-14
+- **Source:** `prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/00_START_HERE/00_Client_Discovery_Prompts.md` §A-01;
+  Research Brief A-01; REQUIREMENTS_BASELINE §1. A-items are not in the 59-task registry; C-05 depends on A-01.
+- Git at start: `dev` = `origin/dev` = `44d880c`, clean apart from the untracked LibreOffice lock file (untouched).
+- Workflow: documentation only — no UI, backend, browser, seed, database or permission change (TASK_EXECUTION_WORKFLOW §4).
+
+#### Acceptance criteria (from the A-01 prompt)
+- [x] `docs/client-inputs/launch-brand-roster.md` records the roster (Lectrix EV, Ceeon India, Ujagar Electric) as client-confirmed
+- [x] Per brand: fields for legal supplier/manufacturer entity, supplier contact, authorisation reference/document,
+  catalogue source, verification status, approval owner, verification date, allowed purchase/sales status
+- [x] Roster selection stated not to be proof of authorisation; existence kept separate from operational eligibility
+- [x] Ujagar Electric and Saffron EV Group explicitly not assumed to be the same legal entity
+- [x] Nothing invented: every unavailable field reads `Pending — client evidence not supplied`
+- [ ] **Per-brand evidence collected** (legal entity, contact, authorisation document, catalogue source, approval
+  owner, verification date) — **not supplied by the client**; this is what keeps A-01 incomplete
+
+#### Done
+- `docs/client-inputs/launch-brand-roster.md`: confirmed facts; limits (roster ≠ authorisation; Ujagar ≠ Saffron
+  assumption); per-brand tables with all evidence pending and purchase/sales **Not allowed**; the application's
+  activation checklist and its current state; public references kept separate and labelled "not evidence"; how to
+  complete A-01.
+- Evidence `docs/evidence/A-01/brand-records-dev-db.txt`: read-only query — 3 roster brands PENDING_VERIFICATION /
+  UNVERIFIED, no legal name/reference/evidence/verifier, 0 models/variants/prices, 0 catalogue/price grants.
+- No change to `seeds/`, the database, permissions or code.
+
+#### Dependency check for C-05
+**Not satisfied.** C-05 depends on A-01, C-01, C-02. C-01 and C-02 are COMPLETE; A-01 is INCOMPLETE because no
+per-brand evidence has been supplied. Separately, C-05 ("seed verified multi-brand catalogue") also needs verified
+catalogue data (A-03 / RB-2), which is not supplied either. C-05 not started.
+
+#### Remaining blockers (client)
+For each of Lectrix EV, Ceeon India and Ujagar Electric: legal supplier/manufacturer entity and contact;
+dealer/stocking authorisation reference and document; catalogue source; approval owner (OQ-2); verification date.
+For Ujagar Electric: documented relationship (or none) to Saffron EV Group. Verified catalogue data: A-03.
+
+### C-06 — Brand-specific rules and isolation tests
+
+- **Status:** COMPLETE (for implemented features; supplier/warranty/identifier rules, exports, per-user brand scope pending)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/02_Catalogue_Brands/C_06_brand-specific-rules-and-isolation-tests.md
+- Git at start: `dev` at `7b35af7` (1 ahead of `origin/dev`: A-01 docs, unpushed). Lock file untouched. C-05 not started
+  (A-01 INCOMPLETE).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-02 | COMPLETE | `20429e0`; catalogue API + cross-brand refusals |
+| C-04 | COMPLETE | `2594848`; price history, lookup, composite brand FKs |
+| B-07 | COMPLETE | RBAC deny-by-default; location scope; brand scope per user pending (RB-5) |
+
+#### Gap analysis at start
+- Existing: cross-brand refusals on create/move (catalogue, price items), composite brand FKs, cost prices behind
+  cost permissions, no brand names in code (only `seeds/0001_initial_brands.sql`).
+- Gaps: contradictory cross-brand **filters** return silent empty lists (variants brandId+modelId, colours
+  brandId+variantId, price items brandId/priceListId/variantId); price **lookup** with a variant of another brand than
+  the list answers 404 instead of refusing; no end-to-end "arbitrary new brand" test; no Go-side scan for hardcoded brands.
+- Not implemented anywhere yet (documented, not fabricated): supplier mappings (D-01), warranty terms (RB-2),
+  identifier rules (D-04/OQ-4), export endpoints (G-05), per-user brand scope (RB-5).
+
+#### Acceptance criteria
+- [x] AC1 Cross-brand mismatch requests fail (writes, contradictory filters, price lookup) — API + PostgreSQL tests
+- [x] AC2 Brand filters stay scoped (catalogue lists, price lists/items, readiness) — isolation tests across 3+ brands
+- [x] AC3 An arbitrary new brand works end-to-end with data only; no brand name in Go or UI code (source scans)
+- [x] AC4 Unauthorised access denied; cost/authorisation details permission-based (API + UI)
+- [x] AC5 UI: brand choice constrains model/variant options; filters stay consistent (stale model filter dropped)
+- [x] AC6 Missing features (supplier, warranty, identifier rules, exports, per-user brand scope) documented as limitations
+- [x] AC7 Tests, lint, typecheck, builds, `make ci`, browser test of the changed UI
+
+#### Stage 1 — UI
+Result: COMPLETE. `VariantsPage` checks the brand of a `modelId` filter (by ID, not the 100-item option list) and drops
+a model of another brand from the URL before calling the API (stale/edited links no longer error). Tests
+`features/catalogue/isolation.test.tsx` (5): stale cross-brand model filter dropped and never sent; matching pair kept;
+brand change clears the model and offers only that brand's models; price lists requested with the variant's own brand;
+arbitrary brand name from data with activation warning, authorisation editing/enabling and price sections gated by
+permission. (Existing: brand→model pickers C-03, cost-price gating C-04.)
+
+#### Stage 2 — Backend
+Result: COMPLETE. No migration.
+- `catalogue/pgstore.go`: `filterBrandMatches` — `GET /variants` (brandId+modelId) and `GET /colours`
+  (brandId+variantId) refuse cross-brand pairs and unknown parents with 422.
+- `pricing/pgstore.go`: `checkFilterBrands` — `GET /price-items` (brandId/priceListId/variantId) and `GET /prices/lookup`
+  (list vs variant) refuse cross-brand mismatches and unknown IDs with 422.
+- OpenAPI descriptions updated (`make swagger`, swagger-check ok). ADR-014.
+- New test package `internal/isolation` (real catalogue + pricing routes, real sessions, PostgreSQL): arbitrary new brand
+  end to end (catalogue, price list, approved price, lookup, listing) with data only; cross-brand writes, filters,
+  lookup, supersession and DB inserts (23503) refused; filters scoped across 3 brands (models, variants, colours,
+  price lists, price items, search) with SELLING+COST prices; readiness uses only the brand's own price; archiving one
+  brand leaves another; unauthorised/no-session/selling-only/authorisation-permission denials; source scan for brand
+  names (read from the seed) in Go/SQL/UI code. Mutation check: without the store changes the cross-brand test fails.
+- Existing C-02 integration test updated: cross-brand variant filter now expects 422 (was an empty 200).
+
+#### Stage 3 — API integration
+Result: COMPLETE — no client change needed beyond the Variants filter guard; the UI never sends mismatched pairs.
+
+#### Stage 4 — Browser testing
+Result: COMPLETE on an isolated throwaway stack. New `e2e/isolation.e2e.ts` (desktop + Pixel 7): two arbitrary brands;
+stale link `?brandId=B&modelId=<A model>` becomes `?brandId=B`, only B's variant listed, no error; model filter offers
+only B's model; signed-in API calls for cross-brand variant filter, price items and lookup → 422, cross-brand variant
+create → 422; brand filters return only that brand's rows; no console errors. Full suite: **57 passed, 0 failed,
+5 skipped** (by design). API errors only client `context canceled`.
+
+#### Checks (actual results)
+`make ci` exit 0; `go test -json ./...` with PostgreSQL: 15 packages / **336 tests** pass, 0 fail; Vitest 18 files /
+**147 tests**; `git diff --check` clean. One first-run failure: the C-02 test asserting the old empty-200 filter
+behaviour — updated to the intended 422.
+
+#### Evidence
+`docs/evidence/C-06/verification.txt`.
+
+#### Known limitations / unresolved dependencies
+- Supplier mappings (D-01), warranty terms (RB-2), identifier rules (D-04, OQ-4): not implemented; not fabricated;
+  each needs brand-scoped resolution + isolation tests in its task.
+- Export endpoints (G-05): none exist, so there are no export queries to test yet.
+- Per-user brand scope (RB-5): not modelled — any holder of a catalogue/price view permission sees all brands. Needs the
+  owner's decision on whether staff are limited to brands.
+- C-05 still blocked (A-01 INCOMPLETE; verified catalogue data A-03/RB-2 not supplied).
+
+#### Final browser/regression verification (user-requested, 2026-10-14; verification only)
+- Commit `43be033`, clean tree; no code changed.
+- Dev environment: running dev API (:8081) is the C-04 build `2594848`, ready on DB v9; it needs a `make dev-backend`
+  restart to serve C-06's 422 behaviour. Left untouched. Current build `43be033` on side ports against the dev DB:
+  `/ready` ready; headless Chrome desktop + mobile: catalogue deep link → sign-in, client validation, wrong credentials
+  → 401 generic message, price/catalogue routes (incl. a brand+model filter) without session → 401, no overflow,
+  **0 console errors**. Dev DB identical before/after.
+- Isolated stack, full `npx playwright test` (desktop + Pixel 7): **57 passed, 0 failed, 5 skipped** (by design).
+  API errors (7 requests) all `context canceled` client aborts.
+- `make ci` exit 0; Go 15 packages / 336 tests pass; Vitest 147/147. No bugs found; no fixes.
+- Evidence: `docs/evidence/C-06/final-verification.txt`.
+
+#### Final status
+COMPLETE — C-06 only. No other task started.
+
+### D-01 — Supplier master
+
+- **Status:** COMPLETE (mechanism; no supplier data, document-type sign-off or grants — OQ-19, OQ-20, RB-5)
+- **Started:** 2026-10-14 · **Finished:** 2026-10-14
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_01_supplier-master.md
+- Git at start: A-01 `7b35af7`, C-06 `43be033` and C-06 verification docs `afafc00` pushed (`dev` = `origin/dev`);
+  only the untracked LibreOffice lock file remains (untouched).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | migration framework; migrations at 9 |
+| B-07 | COMPLETE | deny-by-default RBAC, `Require/RequireAny` |
+| B-08 | COMPLETE | `audit.Record` in transactions |
+(Also used: B-09 private attachments for supplier documents; C-01/C-02 brands; C-02 readiness `supplier_link` pending.)
+
+#### Acceptance criteria
+- [x] AC1 Supplier schema/API: legal name, trade name, GSTIN when applicable, address, status, contacts, document references
+- [x] AC2 Searchable list with status (and brand) filter; detail with contact and document sections
+- [x] AC3 Multiple brands per supplier; relationships validated server-side; verification needs evidence; a supplier record is not authorisation
+- [x] AC4 Archive preserves history; nothing referenced is hard-deleted; contacts soft-removed; links ended, not deleted
+- [x] AC5 Supplier documents via private attachments; download only with supplier + attachment permissions
+- [x] AC6 Deny by default; audit of sensitive changes; duplicate/conflict/stale handling
+- [x] AC7 UI list/detail/forms with loading/empty/validation/duplicate/network/401/403 states, desktop + mobile
+- [x] AC8 Tests (backend, API, permission, multi-brand, duplicate, archive), Playwright, `make ci`
+
+
+#### Stage 1 — UI
+Result: COMPLETE (built against the typed API client; no production mock adapter)
+- The backend was built in the same task before the screens, so the UI used the real client from the start; Vitest
+  stubs `fetch` in tests only. `ui/src/features/suppliers/`: `api/suppliers.ts`, `hooks/useSuppliers.ts`,
+  `lib/labels.ts`, `components/{SupplierDialogs,SupplierBadges,SupplierRelationshipCard}.tsx`, `SupplierPages.tsx`.
+- Routes `/procurement/suppliers`, `/procurement/suppliers/:supplierId`; nav "Suppliers" (needs `suppliers.view`,
+  no longer "planned"). List: search, status filter, table on desktop / stacked list on phones, "not proof of dealership
+  authorisation" note. Detail: identity + verification, contacts (add/edit/remove, removed kept), documents (upload in
+  dialog via private attachments, signed download), brand relationships (add, verify with evidence, end), archive with
+  confirmation. Loading/empty/validation/duplicate-on-field/network/401/403/404/stale-version states.
+- Brand detail: "Supplier relationship" card shows real links to `suppliers.view` holders, otherwise only whether the
+  server counts one as current. Tests that used Suppliers as the example planned module now use Purchase Orders.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000010_create_suppliers` (up/down): permissions `suppliers.view|manage|verify|archive` (no grants);
+  `suppliers`, `supplier_contacts`, `supplier_documents`, `supplier_brand_links`; CHECKs (GSTIN, PIN, verified needs
+  evidence), composite FKs (evidence must be the same supplier's document), partial unique indexes (case-insensitive
+  legal name, GSTIN, one active primary contact, one open link per supplier + brand), trigger `supplier_history_guard`.
+- Module `internal/modules/suppliers` (types, validate, service, pgstore, http), 14 routes (API_CONVENTIONS "Suppliers").
+  Transactions + row locks + `version` (409 `VERSION_CONFLICT`); audit `supplier.*` without phone/email.
+- `attachments.canSee`: owner type `supplier` needs `attachments.view` + `suppliers.view`.
+- Catalogue readiness `supplier_link` is a real check (verified current link to a verified supplier).
+- Design: ADR-015; open questions OQ-19 (document types), OQ-20 (who verifies / maker-checker).
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 14 endpoints used through TanStack Query; nothing shown as saved before the server confirms; server field
+  errors mapped to form fields; cache invalidation of supplier detail, lists and brand readiness/links.
+- `make ci` PASS: gofmt, go vet, 175 Go tests (PostgreSQL integration required, 0 skipped), eslint, tsc,
+  Vitest 156/156, vite build, Go builds. OpenAPI regenerated (additive).
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5449 v10, API :8093, Vite :5175, test-only users, PROPOSED grants on that
+  database only; removed afterwards). `e2e/suppliers.e2e.ts` 4/4 (desktop + Pixel 7). Full suite: 59 passed,
+  5 skipped by design, 2 failed — the C-03 viewer test still expected the old "supplier master, D-01" placeholder;
+  assertion updated to the real card; `e2e/catalogue-ui.e2e.ts` re-run 6/6 PASS.
+- Console clean; API log 5xx only client-aborted requests ("context canceled").
+- Evidence: `docs/evidence/D-01/verification.txt`, `desktop-supplier-detail.png`, `mobile-suppliers.png`.
+
+#### Final verification (2026-10-23)
+Result: PASS — commit `f4034a2` pushed to `origin/dev` (fast-forward `afafc00..f4034a2`, no force).
+- Shared dev API :8081 restarted with `make dev-backend` (build `f4034a2`): `/api/v1/health` 200, `/api/v1/ready` 200
+  (database up, migrations up). Its log after the run: 0 ERROR, 0 5xx.
+- Full Playwright suite on a fresh isolated throwaway stack (PostgreSQL :5449 v10, API :8093, Vite :5175, test-only
+  users, PROPOSED grants on that database only; removed afterwards), desktop + Pixel 7: **61 passed, 5 skipped (by
+  design), 0 failed**, including the updated C-03 viewer test and both D-01 supplier tests on both viewports. A first
+  run had 1 failure (B-09 link-expiry test) because the stack was started without `ATTACHMENT_LINK_TTL=30s`; stack
+  recreated with it and the whole suite re-run.
+- 5xx `context canceled`: 33 requests (run 2), all GET, latency ≤ 39 ms (timeout is 15 s), each cause
+  `context canceled` — client-aborted requests (query aborts on navigation, pages closed). Same pattern in earlier
+  tasks and pre-D-01 modules; not a regression, no fix. Logging client aborts as ERROR/5xx is noise only.
+- `make ci` exit 0 (Go run via `/snap/go/current/bin` because the `/snap/bin/go` wrapper printed no output in this
+  shell): gofmt clean, vet, swagger-check, lint, typecheck, 16 Go packages ok, Vitest 156/156, builds.
+  `go test -json`: 175 top-level / 365 incl. subtests pass, 0 skip; all 10 supplier tests + `TestCanSeeLinkedAttachments`
+  pass. `git diff --check` clean.
+- Shared dev DB before == after: migration 10, one grant (`viewer → access.roles.view` PROPOSED), 1 user-role,
+  0 suppliers/contacts/documents/links, 3 brands. Commit adds permission keys only — no grants, seeds or supplier data.
+- Evidence: `docs/evidence/D-01/final-verification.txt`.
+
+#### Known issues / pending approvals
+- No supplier, contact, document or relationship data supplied — none seeded or invented. Any supplier stays
+  `PENDING_VERIFICATION` until someone with `suppliers.verify` records evidence.
+- `suppliers.*` permissions have no grants (RB-5); verifier/maker-checker OQ-20; document types OQ-19.
+- **The shared dev database is now at migration 10.** The dev API was restarted with this build on 2026-10-23 and
+  reports ready. Shared dev permissions were not changed.
+- API logs client-aborted requests as ERROR with 500/503 (`context canceled`); cross-cutting log noise, not fixed here.
+
+#### Final status
+COMPLETE — D-01 only, verified and pushed (`f4034a2`). D-02 not started.
+
+### D-02 — Purchase order lifecycle
+
+- **Status:** COMPLETE (mechanism; no PO data, grants, approvers or threshold — OQ-21…OQ-24, RB-5)
+- **Started:** 2026-10-23 · **Finished:** 2026-10-23
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_02_purchase-order-lifecycle.md
+- Git at start: D-01 `f4034a2` and its verification docs `6dff525` pushed (`dev` = `origin/dev`), clean tree.
+  Order: backend first (new API/schema, prompt execution note), then UI on the real API.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-07 | COMPLETE | deny-by-default `Require`, `Access.Has`; access tests pass |
+| C-02 | COMPLETE | brand/model/variant with composite brand FKs, lifecycle + brand activation gate; catalogue tests pass |
+| C-04 | COMPLETE | `price_items` COST type, approved/immutable rows, supersession; pricing tests pass |
+| D-01 | COMPLETE | suppliers + verified `supplier_brand_links`; final verification `6dff525`; supplier tests pass |
+
+#### Acceptance criteria
+- [x] AC1 PO number generation, supplier, creator, expected date, line items (brand/model/variant, quantity, agreed cost), status history
+- [x] AC2 Transitions validated server-side (DRAFT → SUBMITTED → APPROVED, return to draft, cancel); later states reserved for D-03
+- [x] AC3 Brand/model/variant compatibility and archived/cross-brand refusal server-side; supplier verified with a current link to each brand before submit/approve
+- [x] AC4 Line costs/prices are snapshots: catalogue COST snapshot never changes after later price approvals; lines frozen after submission
+- [x] AC5 Totals and remaining quantities computed by the server; client totals/statuses rejected
+- [x] AC6 Unauthorised approvals fail (no permission, own PO); threshold config only with owner sign-off; none configured → every PO needs an approver
+- [x] AC7 Concurrency (versions, row locks), duplicate protection (one line per variant, Idempotency-Key), audit, no hard delete
+- [x] AC8 UI list/create/edit/detail/line editor/submit/approve/history with warnings (price variance, partial, over-receipt) and all states, desktop + mobile, real API
+- [x] AC9 Tests (unit, Go integration, Vitest, Playwright desktop + mobile), `make ci`
+
+#### Stage 1 — UI
+Result: COMPLETE (built after the backend, directly on the typed API client; no production mock adapter)
+- `ui/src/features/purchasing/`: `api/purchaseOrders.ts` (Zod contracts, 13 calls; create sends an `Idempotency-Key`
+  kept for the dialog's lifetime), `hooks/usePurchaseOrders.ts`, `lib/labels.ts` (status/event/warning labels,
+  `describePOError`), `components/PurchaseOrderDialogs.tsx` (create/edit header, line editor with brand → model →
+  variant from the catalogue API and optional cost list, remove line, submit, approve, return, cancel, approval
+  settings), `PurchaseOrderPages.tsx` (list with search/status/brand filters, server totals, received/remaining,
+  approval policy note; detail with order/totals cards, server blockers, lines with snapshot/variance/partial/over-receipt
+  warnings, status history, actions from the server's `actions`).
+- Routes `/procurement/purchase-orders`, `/procurement/purchase-orders/:poId`; nav "Purchase Orders" now needs
+  `purchase_orders.view` (no longer planned). Shared: PO check keys added to `checkLabel`; `ActionErrorBox` list keys
+  made unique (several blockers can share a key). Tests that used Purchase Orders as the example planned module now use
+  Goods Receipts & PDI.
+- States: loading, empty, no results, validation (client + server field errors), duplicate, submission/approval
+  blocked with the server's checks, self-approval, stale version (reload), invalid state, 401/403 (gate + messages),
+  404, network errors; success only after the server confirms (cache replaced by the server's detail).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000011_create_purchase_orders` (up/down): permissions `purchase_orders.view|manage|approve|cancel|settings.manage`
+  (no grants); sequence `purchase_order_number_seq` (`PO-000001` …); `purchase_order_settings` (one row, threshold NULL =
+  not configured; a threshold needs a sign-off reference — CHECK); `purchase_orders` (status CHECK incl. later D-03 states,
+  submitted/approved/cancelled pairs, approval basis `APPROVER` / `BELOW_THRESHOLD`, CHECK approver ≠ creator/submitter,
+  per-user unique idempotency key); `purchase_order_lines` (composite FKs brand/model/variant and price list ↔ brand,
+  one line per variant, quantity 1–10000, unit cost > 0, COST snapshot columns); `purchase_order_events` (append-only,
+  ordered by identity `seq`). Trigger `purchase_order_history_guard`: no PO delete, events immutable, lines change only
+  while DRAFT (afterwards only `received_quantity`, for D-03).
+- Module `internal/modules/purchasing` (types, validate, rules, service, pgstore, http): 13 routes (see API_CONVENTIONS
+  "Purchase orders"). Submit/approve lock the PO, share-lock supplier/brand/model/variant and settings, re-check
+  prerequisites (supplier VERIFIED, current VERIFIED link per brand, brand ACTIVE + AUTHORISED, model/variant ACTIVE,
+  ≥1 line, expected date not past). Self-approval 403 `SELF_APPROVAL_NOT_ALLOWED`, blocked 409 `SUBMISSION_BLOCKED` /
+  `APPROVAL_BLOCKED`; refused approvals audited DENIED. Catalogue cost snapshots visible only with
+  `catalogue.cost_price.view`. New error code `SUBMISSION_BLOCKED`.
+- Tests: `rules_test.go` (transitions, prerequisites, approval requirement, warnings, action hints), `http_test.go`
+  (deny by default per route, input validation, no DB), `api_integration_test.go` (numbering/totals/remaining, client
+  totals refused, cross-brand/archived/duplicates, snapshots unchanged after supersession + redaction + DB freeze,
+  transitions/self-approval/stale/approval re-check/cancel/history/DB guards, return-to-draft and edit, threshold
+  settings incl. first-time supplier, concurrent approvals, idempotent parallel creates, parallel line adds, deny by default).
+- `go vet` clean, gofmt clean; full `go test` with PostgreSQL: all packages pass after applying migration 11 to the dev DB
+  (`TestDevelopmentSchemaIsCurrent` needs it). OpenAPI regenerated: 10 new paths, existing paths/definitions unchanged.
+- Shared dev DB migrated to 11 (schema, 5 permission keys, the empty settings row; no grants, no PO data). Dev API :8081
+  restarted with this build: `/ready` ready.
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 13 endpoints used through TanStack Query; supplier, brand/model/variant and cost price lists come from their APIs
+  (selects disabled with an explanation when the user lacks `suppliers.view` / `catalogue.view`).
+- Vitest 20 files / 165 tests (9 new: deny without view, list totals/policy/filters, create validation + one
+  idempotency key across a failed and a successful attempt, blockers + SUBMISSION_BLOCKED, visible snapshot + variance,
+  line cascade + client validation + duplicate, approve only after the server confirms, self-approval + stale version,
+  not found). `make ci` exit 0 (Go run via `/snap/go/current/bin`); Go 17 packages / 190 top-level / 380 tests pass.
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5449 v11, API :8093, Vite :5175, test-only users, PROPOSED grants and an
+  eligible PO fixture inserted by SQL on that database only; removed afterwards). `e2e/purchase-orders.e2e.ts`
+  6/6 (desktop + Pixel 7) after one test-locator fix (mobile matched the hidden desktop cell; the page was right).
+  Full suite: **67 passed, 5 skipped (by design), 0 failed**.
+- Console clean; API 5xx only client-aborted GETs (`context canceled`, ≤ 17 ms). Dev DB permissions/data unchanged.
+- Evidence: `docs/evidence/D-02/verification.txt`, `desktop-po-detail.png`, `mobile-po-list.png`.
+
+#### Files changed
+Backend: `migrations/000011_create_purchase_orders.{up,down}.sql`, `internal/modules/purchasing/*` (new),
+`internal/modules/access/policy.go`, `internal/httpx/response.go`, `internal/server/server.go` (+ test), `cmd/api/main.go`,
+`docs/openapi/*`. UI: `ui/src/features/purchasing/*` (new), `ui/src/app/{routes,navigation}.ts(x)`,
+`ui/src/features/access/api/access.ts`, `ui/src/features/catalogue/{lib/presentation.ts,components/ActionErrorBox.tsx}`,
+tests (`App`, `AppShell`, `access`), `ui/e2e/{purchase-orders,access,shell}.e2e.ts`. Docs: ADR-016, OQ-21…OQ-24,
+API_CONVENTIONS "Purchase orders", DEVELOPMENT_SETUP e2e grants, this log, `docs/evidence/D-02/`.
+
+#### Known issues / pending approvals
+- `purchase_orders.*` permissions have no grants (RB-5). Approvers, maker-checker exceptions and the threshold are
+  pending (OQ-21): no threshold → every PO needs an approver who did not create or submit it.
+- **No PO can be submitted in a real database yet:** submission needs an activated brand, and brand activation still
+  has pending checks (warranty terms RB-2, identifier rules D-04/OQ-4). The approval flow was verified only with a
+  test fixture inserted into the throwaway database.
+- PO number format (OQ-22), variance tolerance (OQ-23), delivery location (OQ-24) and tax treatment (F-10) pending.
+  Amounts exclude tax. Receiving (`PARTIALLY_RECEIVED`, `RECEIVED`, over-receipt override) is D-03.
+- The shared dev DB is now at migration 11; dev API restarted on this build.
+
+#### Final status
+COMPLETE — D-02 only. Not pushed. D-03 not started.
+Pushed later on instruction (fast-forward, no force): `origin/dev` = `4a5a9c0` (2026-10-23).
+
+### D-03 — Goods receipt draft workflow
+
+- **Status:** COMPLETE (draft mechanism; no receipt data or grants; identifier rules, document types and over-receipt
+  policy pending — OQ-4, OQ-25…OQ-27, RB-5)
+- **Started:** 2026-10-23 · **Finished:** 2026-10-23
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_03_goods-receipt-draft-workflow.md
+- Git at start: D-02 `4a5a9c0` pushed (`dev` = `origin/dev`), clean tree. Order: backend first (new API/schema), then UI
+  on the real API.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-02 | COMPLETE | approved POs, `purchase_order_lines.received_quantity` reserved for receipts; purchasing tests pass |
+| B-09 | COMPLETE | private attachments, owner linking once, signed links, `canSee` fail-closed; attachment tests pass |
+| C-01 | COMPLETE | brand → model → variant schema; catalogue tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Draft GRN linked to an approved PO (`APPROVED`/`PARTIALLY_RECEIVED`), numbered, idempotent create, no future date
+- [x] AC2 Partial deliveries: per PO line received / accepted / rejected, discrepancy note; several drafts per PO
+- [x] AC3 Remaining quantity validated server-side against posted quantities and other open drafts, under a PO row lock
+- [x] AC4 Over-receipt needs `goods_receipts.over_receipt` and a reason (else 409/403, audited DENIED); authorisation stored
+- [x] AC5 Per-unit capture (condition, chassis/frame, motor, battery, charger, note); duplicate chassis refused per receipt
+  and across open/posted receipts and shown per unit; missing identifiers and repeated serials shown as warnings
+- [x] AC6 Supplier documents via the private attachment service; access needs `attachments.view` + `goods_receipts.view`
+- [x] AC7 Drafts change no stock: no vehicle unit/movement, PO received quantities, status and version untouched (tested)
+- [x] AC8 Audit, no hard delete, invalid transitions refused, stale versions refused (DB history guard)
+- [x] AC9 UI: list, PO chooser, stepper (lines → units → documents → review), Save draft separate from (unavailable) Post
+  receipt, all states, desktop + mobile, real API
+- [x] AC10 Tests: Go unit + PostgreSQL integration, Vitest, Playwright desktop + mobile, `make ci`
+
+#### Stage 1 — UI
+Result: COMPLETE (built after the backend, directly on the typed API client; no production mock adapter)
+- `ui/src/features/receiving/`: `api/goodsReceipts.ts` (Zod contracts, 7 calls; create sends an `Idempotency-Key` kept for
+  the dialog), `hooks/useGoodsReceipts.ts`, `lib/labels.ts` (labels, server field path → form path, `describeGRNError`),
+  `components/ReceiptDialogs.tsx` (new receipt with receivable PO chooser, cancel with reason, attach document with
+  upload), `components/ReceiptEditor.tsx` (stepper, React Hook Form + Zod: accepted = received − rejected, units with
+  scanner-style focus, immediate duplicate-chassis check, over-receipt warning and reason field only for authorised
+  users, review with disabled "Post receipt"; saves against the version it loaded and offers "Reload latest version";
+  entries kept on every refusal), `GoodsReceiptPages.tsx` (list, detail, read-only view, documents, history, and a
+  "Goods receipts" card with "Receive goods" on the PO page).
+- Routes `/procurement/goods-receipts`, `/procurement/goods-receipts/:grnId`; nav "Goods Receipts" needs
+  `goods_receipts.view` (no longer planned); dashboard shortcut marked available. Tests that used Goods Receipts as the
+  example planned module now use Stock Movements.
+- States: loading, empty, no results, validation, over-receipt (409/403), duplicates per unit, stale version, invalid
+  state (PO closed), 401/403, 404, network errors, attachment upload/download failures; success only after the server
+  confirms.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000012_create_goods_receipts` (up/down): permissions `goods_receipts.view|manage|over_receipt` (no grants);
+  sequence `GRN-000001`…; `goods_receipts`, `goods_receipt_lines`, `goods_receipt_units`, `goods_receipt_documents`,
+  `goods_receipt_events`; `UNIQUE (id, purchase_order_id)` added on `purchase_order_lines` for the composite FK; trigger
+  `goods_receipt_history_guard`. `POSTED` + posting columns reserved for D-07.
+- Module `internal/modules/receiving` (types, validate, rules, service, pgstore, http): 7 routes (API_CONVENTIONS
+  "Goods receipts"). Attachments `canSee` gains owner `goods_receipt`. New codes `OVER_RECEIPT_REQUIRES_OVERRIDE`,
+  `OVER_RECEIPT_NOT_AUTHORISED`.
+- Tests: `rules_test.go`, `http_test.go` (deny by default per route, CSRF, validation, no delete/post route),
+  `api_integration_test.go` (partial draft changes no PO/stock state, other drafts + posted counted, override refused /
+  forbidden + DENIED audit / authorised / kept / dropped, cancel frees quantity, duplicate chassis across drafts + DB
+  constraints, concurrent saves cannot both take the last units, idempotent create, states, history guard, document
+  linking and attachment authorisation through the real attachment service), attachments `cansee_test.go`.
+- gofmt/vet clean. OpenAPI regenerated: 5 new paths, 17 new schemas, existing ones unchanged.
+- Shared dev DB migrated to 12 (schema + 3 permission keys only; no grants, no receipts; snapshot before/after). Dev API
+  :8081 restarted on this build: `/ready` ready.
+
+#### Stage 3 — API integration
+Result: COMPLETE
+- All 7 endpoints through TanStack Query; receipt mutations refresh receipts, receivable POs and purchase orders.
+- Vitest 21 files / 178 tests (13 new). Go 18 packages / 204 top-level / 394 tests pass (PostgreSQL). `make ci` exit 0.
+
+#### Stage 4 — Browser testing
+Result: PASS
+- Isolated throwaway stack (PostgreSQL :5451 at migration 12, API :8095, Vite :5177, test-only users, PROPOSED grants and
+  the eligible PO fixture on that database only). `e2e/goods-receipts.e2e.ts` 4/4 (desktop + Pixel 7) after one
+  test-locator fix (search not yet filtered on mobile). Full suite: **71 passed, 5 skipped (by design), 0 failed**.
+- Console clean; API 5xx only client-aborted GETs (`context canceled`, 67, all GET). Dev DB unchanged.
+- Evidence: `docs/evidence/D-03/verification.txt`, `desktop-grn-draft.png`, `mobile-grn-draft.png`.
+
+#### Files changed
+Backend: `migrations/000012_create_goods_receipts.{up,down}.sql`, `internal/modules/receiving/*` (new),
+`internal/modules/attachments/{service.go,cansee_test.go,http_test.go}`, `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `internal/server/server.go` (+ test), `cmd/api/main.go`, `docs/openapi/*`.
+UI: `ui/src/features/receiving/*` (new), `ui/src/app/{routes,navigation}.ts(x)`, `ui/src/features/access/api/access.ts`,
+`ui/src/features/purchasing/PurchaseOrderPages.tsx`, `ui/src/features/dashboard/DashboardPage.tsx`, tests (`App`,
+`AppShell`, `access`), `ui/e2e/{goods-receipts,access,shell}.e2e.ts`. Docs: ADR-017, OQ-25…OQ-27, API_CONVENTIONS
+"Goods receipts", DEVELOPMENT_SETUP e2e grants, this log, `docs/evidence/D-03/`.
+
+#### Known issues / pending approvals
+- `goods_receipts.*` have no grants (RB-5). Who may authorise over-receipt, whether rejected units count, and
+  maker-checker are pending (OQ-27).
+- Identifier rules per brand (formats, mandatory serials, motor/battery uniqueness, separators) are pending (OQ-4,
+  OQ-26): identifiers are optional in drafts; checks against registered vehicles come with D-04/D-05 and posting (D-07).
+- Document type list is a proposal (OQ-25). Receipts have no location yet (OQ-24).
+- No receipt can be made in a real database yet: it needs an approved PO, which needs an activated brand (D-02 note).
+- Posting, PDI and stock are D-06/D-07/E-01; nothing here changes stock.
+
+#### Final status
+COMPLETE — D-03 only. Not pushed. D-04 not started.
+
+### REGRESSION-AUDIT-2026-10-26 — Full end-to-end regression audit (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-10-26 · Base `e962ee6` (D-03), clean tree. No product task started; D-04 not started.
+- **Scope:** every implemented feature B-01…D-03 (shell, auth, RBAC, audit, attachments, catalogue, isolation, pricing,
+  suppliers, purchase orders, goods receipt drafts) on desktop 1366×900, Pixel 7 and 320 px.
+- **Environment:** isolated throwaway stack only — postgres:18-alpine `:5460` (migrated to 12 + seeds), API built from this tree
+  on `:8099`, Vite `:5181`; test-only users, random password never printed; PROPOSED grants and the eligible-PO SQL
+  fixture on that database only. Shared dev stack (`:5173`/`:8081`/`:5436`) not touched. Everything removed afterwards.
+
+#### Results
+- Existing Playwright suite before fixes: 71 passed, 5 skipped (viewport-specific by design), 0 failed.
+- Exploratory: 74-operation deny-by-default sweep (anonymous 401 / no grant 403 / no CSRF 403 — all OK); input robustness
+  (no 5xx); auth probes (generic errors, throttle + Retry-After, cookie flags, session rotation on re-login); concurrency
+  (1 of 5 parallel PATCHes wins); audit append-only (UPDATE/DELETE/TRUNCATE refused); price overlap 409, cost prices
+  hidden from selling-only users; double-submit (one POST); keyboard and offline behaviour; pagination and search;
+  300-page crawl (roles × viewports) for headings, overflow, labels, console and 5xx.
+- Defects fixed (details, root causes and evidence: `docs/evidence/REGRESSION-AUDIT-2026-10-26/report.md`):
+  1. Denied PO/supplier/GRN detail pages lost their heading and breadcrumbs — `Gate` `header` prop (Low).
+  2. PO line cost-variance warning overflowed by 23 px at 320 px — wrapping warning badge (Low).
+  4. Dialog focus fell to `<body>` on close instead of the opener (WCAG 2.4.3) — `Dialog` restores focus (Medium).
+  5. Offline saves paused silently with Cancel disabled and were sent later on reconnect — mutations
+     `networkMode: 'always'`, failing at once with the existing network error, entries kept (Medium).
+  6. A page past the end showed "2451–43 of 43" — `Pagination` explains it and leads back (Low).
+  7. Status board showed D-02/D-03 NOT STARTED — rows corrected (docs).
+  Each code fix has a regression test that failed before the fix (Vitest ×7 new, e2e ×1 new + 2 extended).
+- After fixes: Playwright **73 passed, 5 skipped, 0 failed**; crawl 300 loads, 0 flagged; Vitest 23 files / 185 tests;
+  Go 18 packages, 394 tests (204 top-level) pass with PostgreSQL required; `make ci` exit 0; `git diff --check` clean.
+  `golangci-lint` not installed (skipped by the Makefile); no automated axe scanner available.
+- API 5xx in the run: 251, all client-aborted GETs (`context canceled`), no failed write — as in earlier evidence.
+- Re-run on a fresh throwaway stack (user request): Playwright 73 passed, 5 skipped, 0 failed; crawl 300 loads, 0 flagged;
+  focus-return and offline checks PASS; 245 API 5xx, all client-cancelled GETs. No new defects (report §11).
+- Pre-D-05 re-run (user request; HEAD `ba7ca84` + the uncommitted fixes; throwaway stack at migration 13 with a SQL
+  stand-in for posting): Playwright 73 passed, 5 skipped, 0 failed; crawl 29 routes × 6 personas × 3 viewports = 522
+  loads, 0 flagged; 84/84 operations deny by default; D-04 API smoke 31/31 (no D-04 screen exists); stock invariant held
+  (drafts created no vehicle unit, PO quantities unchanged); Vitest 206, Go 410, `make ci` exit 0. No new defects
+  (`report-pre-d05-addendum.md`).
+
+#### Not changed (observations / pending)
+- "Approved by User xxxxxxxx" on the PO card (no name lookup API yet — documented); 5xx logging of client aborts; JSON
+  responses without nosniff/frame headers (H-04); size limit wording in some 400s. Business blockers unchanged (RB-2,
+  RB-5, OQ-4, OQ-15, OQ-22…OQ-27, A-01 evidence, C-05).
+
+#### Files changed
+`ui/src/components/ui/{Dialog,Pagination}.tsx` (+ tests), `ui/src/app/queryClient.ts` (+ new test),
+`ui/src/features/{purchasing,suppliers,receiving}/*Pages.tsx` (+ tests), `ui/e2e/{purchase-orders,suppliers}.e2e.ts`,
+this log, `docs/evidence/REGRESSION-AUDIT-2026-10-26/`. No backend, migration, OpenAPI or seed change. Not committed or pushed.
+
+### D-04 — Vehicle unit registry
+
+- **Status:** COMPLETE — backend phase (`25a5578`) and frontend phase (typed API client, hooks, permission keys; the
+  vehicle screens are D-08). Run as two user-requested sessions.
+  Mechanism only: no unit, identifier or grant exists anywhere; unit number format, cost basis, battery packs,
+  identifier rules and location pending (OQ-4, OQ-24, OQ-26, OQ-28…OQ-30, RB-5).
+- **Started:** 2026-10-26 · **Finished:** 2026-10-26
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_04_vehicle-unit-registry.md
+- Git at start: `dev` at `e962ee6` (D-03, local, not pushed; `origin/dev` = `4a5a9c0`); working tree held the
+  uncommitted regression-audit fixes, kept out of D-04.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | golang-migrate baseline, `dbtest` scratch databases, migration round-trip test; database tests pass |
+| C-01 | COMPLETE | brand → model → variant with `models (id, brand_id)`, `variants (id, brand_id)`, `variants (id, model_id)` keys; catalogue tests pass |
+| (used) D-01…D-03, B-07, B-08 | COMPLETE | suppliers, POs, goods receipt units as source; location scope; `audit.Record` |
+
+#### Acceptance criteria
+- [x] AC1 Each vehicle is an individual unit: `vehicle_units` row, internal `unit_number`, variant/brand/model, status
+- [x] AC2 Identifier validation follows approved rules only: normalisation trim + upper case (INV-002, separators kept —
+  OQ-26); chassis required after `RECEIVED_PENDING_PDI` (INV-002 CHECK); nothing mandatory before; no uniqueness (D-05)
+- [x] AC3 Unit history links to source documents: supplier/PO/line/GRN/line/captured unit references (FK-consistent),
+  `vehicle_unit_events` naming the GRN
+- [x] AC4 Cost protected server-side: `vehicle_units.cost.view`, null + `costHidden` otherwise, never in audit summaries
+- [x] AC5 API contract and schema documented (ADR-018, API_CONVENTIONS "Vehicle units", OpenAPI) and tested
+- [x] AC6 No fake data or success: no seed, no create route; units only from a POSTED receipt's accepted unit (deferred DB check)
+
+#### Stage 1 — UI
+Result: COMPLETE (frontend phase, Prompt B scope: types and API hooks; no screen — D-08 builds the list/detail).
+- No existing screen needs vehicle units: D-03 drafts hold *captured* units, which are not registered vehicles; units
+  appear only after posting (D-07). So no page, form or speculative component was added.
+- `ui/src/features/vehicles/api/vehicleUnits.ts`: Zod contracts (`VehicleUnit`, `VehicleUnitDetail` with `source` and
+  `events`, page), the 13 statuses as in OpenAPI, `costHidden` refinement (a hidden cost never carries an amount),
+  `listVehicleUnits`, `getVehicleUnit`; read-only, no write call. `hooks/useVehicleUnits.ts`: `vehicleUnitKeys`,
+  `useVehicleUnitList`, `useVehicleUnit`, `useVehicleUnitPerms`. `lib/presentation.ts`: `unitCostText` (hidden →
+  "Recorded (not visible to you)", never ₹0; amount only when sent and permitted) and
+  `describeVehicleUnitReadError` (401/403/404/422/network → safe states; 404 never reveals an out-of-scope unit).
+- `Permission.VehicleUnitView` / `VehicleUnitCostView` added to the access contract.
+- Vitest: `vehicles.test.tsx` 21 tests (parameters, keys, hooks, no retry/fallback on 403/404/422, no write call,
+  cost display, error states, permission keys, OpenAPI contract). Lint, Prettier, typecheck clean.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000013_create_vehicle_units` (up/down): permissions `vehicle_units.view`, `vehicle_units.cost.view` (no
+  grants); sequence `MAE-VEH-000001`…; composite unique keys on `purchase_orders (id, supplier_id)`,
+  `purchase_order_lines (id, variant_id)`, `goods_receipt_lines (id, purchase_order_line_id)`,
+  `goods_receipt_units (id, goods_receipt_line_id)`; `vehicle_units` (INV-005 status CHECK, generated normalised
+  identifiers, composite FKs, `UNIQUE goods_receipt_unit_id`, lookup indexes); `vehicle_unit_events`; guard trigger (no
+  UPDATE/DELETE until E-01/D-05); deferred constraint trigger (receipt POSTED, unit ACCEPTED, same received date).
+- Module `internal/modules/vehicles` (types, validate, service, pgstore, http): `GET /vehicle-units`,
+  `GET /vehicle-units/{id}`; `RegisterFromReceiptUnit` + `CommitError` for D-07. Wired in `cmd/api`, `internal/server`.
+- Tests: 16 new (rules, HTTP without DB, PostgreSQL integration); receiving draft test now asserts no vehicle unit.
+- gofmt/vet clean. OpenAPI regenerated: 2 paths and 5 schemas added, nothing existing changed.
+- Shared dev DB **not** migrated (still at 12; dev API untouched). To apply: `make db-migrate-up` then restart the API.
+
+#### Stage 3 — API integration
+Result: COMPLETE (frontend phase) — the typed client calls the real routes; no mock adapter, no production fixture.
+- `GET /vehicle-units` and `GET /vehicle-units/{id}` through `apiRequest` + Zod; hooks with stable keys (empty
+  parameters dropped), `keepPreviousData` for paging; refused reads (403/404/422) are not retried (queryClient
+  defaults) and nothing falls back to a wider request. No mutation exists.
+- Contract test compares the Zod fixtures field for field and the status enum with the committed OpenAPI
+  (`docs/openapi/swagger.json`). Not exercised against a live D-04 API: no screen consumes it yet.
+- Checks: `make ci` exit 0 (throwaway DB). Go 19 packages, 410 tests (220 top-level) pass, 0 skip; Vitest 23 / 185.
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE — neither phase adds or changes a screen (types, API calls and hooks only; Prompt B scope).
+Browser tests come with the first screen that uses these hooks (D-08). No Playwright run was made for D-04.
+
+#### Files changed
+`migrations/000013_create_vehicle_units.{up,down}.sql`, `internal/modules/vehicles/*` (new),
+`internal/modules/access/policy.go`, `internal/modules/receiving/api_integration_test.go`, `internal/server/server{,_test}.go`,
+`cmd/api/main.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md` (ADR-018, OQ-28…OQ-30), this log,
+`docs/evidence/D-04/verification.txt`.
+Frontend phase: `ui/src/features/vehicles/{api/vehicleUnits.ts,hooks/useVehicleUnits.ts,lib/presentation.ts,vehicles.test.tsx}`
+(new), `ui/src/features/access/api/access.ts`, `docs/API_CONVENTIONS.md` (client line), this log,
+`docs/evidence/D-04/frontend-verification.txt`.
+
+#### Known issues / pending approvals
+- No grants for `vehicle_units.*` (RB-5). No unit can exist yet: units come only from receipt posting (D-07), which
+  needs an approved PO (activated brand pending).
+- Chassis uniqueness, motor/battery policies and the conflict error are D-05; the lookup indexes are non-unique until then.
+- Status/location changes and their movements are E-01 (guard refuses all updates meanwhile); PDI fields D-06; list
+  ageing/colour/timeline D-08/E-02; opening stock source G-07.
+- Shared dev DB still at migration 12: the D-04 API answers only after `make db-migrate-up` and an API restart there.
+
+#### Final status
+COMPLETE — D-04 backend (`25a5578`) and frontend phase committed locally, not pushed. D-05 not started.
+
+### D-05 — Duplicate vehicle identifier controls
+
+- **Status:** IN PROGRESS — backend phase COMPLETE; frontend phase COMPLETE (2026-10-27). Live `DUPLICATE_IDENTIFIER`
+  integration is blocked until a route returns it (receipt posting, D-07).
+  Chassis/frame only: motor/battery/charger policies are not approved (OQ-4, OQ-30, INV-003/004); separators OQ-26.
+- **Started:** 2026-10-26
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_05_duplicate-vehicle-identifier-controls.md
+- Git at start: `dev` at `ba7ca84` (local ahead of `origin/dev` = `4a5a9c0` by 3); uncommitted regression-audit fixes kept
+  out of D-05. Prior audit evidence (`report-pre-d05-addendum.md`): no open defect in the registration path.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units` with generated `chassis_normalised`, `RegisterFromReceiptUnit`; vehicles tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Duplicate chassis cannot be saved: unique index `vehicle_units_chassis_key` (normalised, all brands) + service check
+- [x] AC2 Including concurrent attempts: tested with PostgreSQL (2-way interleaved race and 8 parallel: exactly one unit)
+- [x] AC3 Friendly validation maps to the field: `DuplicateIdentifierError{Field: chassisNumber}` → 409 `DUPLICATE_IDENTIFIER`
+  with `details[].field` (request path); no data about the existing unit
+- [x] AC4 No bypass: no write route; direct SQL refused by the index; normalised column not writable
+- [ ] Motor/battery policies — not approved, not enforced (documented, ADR-019)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000014_vehicle_unit_identifier_uniqueness` (up/down): duplicate pre-check (fails without changing data),
+  unique `vehicle_units_chassis_key` replaces the lookup index; down restores it.
+- `internal/modules/vehicles`: early checks (same captured unit → `ErrAlreadyRegistered`; chassis → duplicate) and
+  mapping of exactly `vehicle_units_chassis_key`; `WriteDuplicateIdentifier` for the posting route (D-07);
+  `httpx.CodeDuplicateIdentifier`.
+- Tests: 7 new (vehicles 23 total). `make ci` exit 0; Go 417 tests (227 top-level) pass; OpenAPI unchanged.
+- Shared dev DB not migrated (still 12; would need 13 and 14).
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (no route returns the conflict until D-07; frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI change).
+
+#### Files changed
+`migrations/000014_vehicle_unit_identifier_uniqueness.{up,down}.sql`, `internal/modules/vehicles/{types,pgstore,http}.go`,
+`internal/modules/vehicles/{api_integration_test,duplicate_integration_test,http_test}.go`, `internal/httpx/response.go`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md` (ADR-019, OQ-4), this log, `docs/evidence/D-05/verification.txt`.
+
+#### Known issues / pending approvals
+- Motor/battery/charger uniqueness and its exception route (INV-003/004, OQ-4, OQ-30); separators (OQ-26).
+- D-03 drafts already refuse a chassis on another open/posted receipt; opening stock (G-07) will rely on the index.
+
+#### Frontend phase (2026-10-27; base `2679542`)
+- **UI:** `normaliseChassis` / `VehicleErrorCode` / identifier field names in `ui/src/features/vehicles/lib/identifiers.ts`;
+  the receipt editor's in-draft check uses it. `describeGRNError` maps 409 `DUPLICATE_IDENTIFIER` to the unit's
+  identifier field only when the path names an identifier of an existing line/unit (range-checked `isField`), otherwise a
+  general message; generic field text, entries kept, no retry, no "saved", other 409s unchanged. No link to the existing
+  unit: the answer carries no identifier of it and there is no unit detail route (D-08).
+- **Integration:** no route returns the conflict yet (no posting route; vehicle unit API read-only) → live check BLOCKED
+  BY D-07. No new endpoint, no mock success, no duplicate-check call.
+- **Checks:** Prettier, ESLint, tsc, build PASS; Vitest 26 files / 232 tests (+26: `identifiers.test.ts`,
+  `duplicateIdentifier.test.tsx`, API responses mocked); `make ci` exit 0 on a throwaway DB; golangci-lint not installed.
+- **Browser:** headed Chrome on a throwaway stack (migration 14): `goods-receipts.e2e.ts` 4 passed (desktop + mobile);
+  afterwards 0 vehicle units, PO received quantities unchanged. Live duplicate-identifier flow NOT RUN (no route).
+- Files: `ui/src/features/vehicles/lib/identifiers.ts`, `ui/src/features/vehicles/identifiers.test.ts`,
+  `ui/src/features/receiving/{lib/labels.ts,components/ReceiptEditor.tsx,duplicateIdentifier.test.tsx}`,
+  `docs/API_CONVENTIONS.md`, this log, `docs/evidence/D-05/frontend-verification.txt`. Shared dev DB still 12, untouched.
+
+#### Browser test in the user's Chrome (2026-10-27)
+Throwaway stack (DB :5465 migration 14, API :8098 from this tree, Vite :5183), e2e.catalogue. Receipt editor:
+in-draft case/space repeat blocked before sending (0 PUT); separator variant kept distinct and saved (PUT 200);
+chassis on another draft (other case) -> one PUT 409 mapped to the unit field, entries kept, no retry; corrected value
+saved and persisted after reload. No console errors; vehicle_units 0; only 5xx = 2 client-aborted GETs. Live
+DUPLICATE_IDENTIFIER still NOT RUN (needs D-07). Evidence: `docs/evidence/D-05/browser-chrome-2026-10-27.txt`.
+
+#### Final status
+IN PROGRESS — D-05 backend and frontend phases complete, committed locally (not pushed). Remaining: exercise the
+conflict against the real posting route once D-07 exists.
+
+### E-01 — Append-only stock movement API
+
+- **Status:** COMPLETE — backend phase (2026-10-27, `9efe1cf`) and frontend phase (typed movement contracts and hooks,
+  no screen; 2026-10-27).
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_01_append-only-stock-movement-api.md
+- Git at start: `dev` at `2d2c2a5` = `origin/dev`, clean tree. D-06 was stopped before coding because it needs E-01.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units` + guard trigger (000013), `RegisterFromReceiptUnit`; vehicles tests pass |
+| B-08 | COMPLETE | `audit.Record` in the caller's transaction; audit append-only tests pass |
+
+#### Acceptance criteria
+- [x] AC1 All qualifying changes create exactly one movement: registration writes its RECEIPT movement in the same
+  transaction; every status change is one movement inserted by `stock.MoveUnit`; the unit changes only by that insert
+  (trigger) and must equal its latest movement at commit (`vehicle_units_ledger_reconciles`)
+- [x] AC2 Movements cannot be edited/deleted via ordinary APIs: no such route; UPDATE/DELETE/TRUNCATE refused by the
+  database; direct unit updates/deletes still refused (also with the trigger's marker set)
+- [x] AC3 Idempotency tested: replay, key reuse, 8-way concurrent same key, concurrent key across units, retries after
+  failures
+- [ ] Transitions needing policy (not implemented): PENDING_PDI -> REJECTED, QUALITY_HOLD -> AVAILABLE, REJECTED onward
+  (OQ-31); reservation/sale edges (F-04/F-07); SERVICE_HOLD/returns; transfers (OQ-32); reversals (OQ-33)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction; E-01 has no screen — its frontend phase is
+typed contracts/hooks).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000015_create_stock_movements` (up/down): `stock_movements` (append-only; transition CHECK = approved edges
+  RECEIPT, PDI_PASS, QUALITY_HOLD, REJECT, DISPLAY_ON, DISPLAY_OFF; quantities 0/1; source GOODS_RECEIPT|STAFF_ACTION;
+  unique `(actor_id, idempotency_key)`, one RECEIPT per unit; reversal link present but kept empty), apply trigger (locks
+  unit, checks "before", sets status/location/version), narrowed D-04 guard (only that trigger's update), commit-time
+  reconciliation trigger, backfill of RECEIPT movements for existing units, permission `vehicle_units.display.manage`
+  (no grants).
+- `internal/modules/stock` (new): `RecordReceipt`, `MoveUnit`, `Replay` (tx-aware domain), `Service.Display`, `PGStore`,
+  Gin routes `POST /vehicle-units/{id}/put-on-display` and `/take-off-display` (version + Idempotency-Key required),
+  audit `vehicle_unit.moved`. `vehicles.RegisterFromReceiptUnit` writes the RECEIPT movement; audit names `movementId`.
+  `httpx.CodeIdempotencyKeyReused`. Server/API wiring. OpenAPI regenerated.
+- Docs: ADR-020, OQ-31…OQ-33 (`docs/ARCHITECTURE_DECISIONS.md`), "Stock movements (E-01)" incl. D-06/D-07 integration
+  (`docs/API_CONVENTIONS.md`).
+- Checks: 17 new stock tests; Go 20 packages / 434 tests (244 top-level) pass with PostgreSQL required; migration
+  up/down/up; `make ci` exit 0 (Vitest 232); gofmt/vet clean; swagger-check PASS; golangci-lint not installed (skipped).
+  Details: `docs/evidence/E-01/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (no UI consumer yet; frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE (no screen in E-01).
+
+#### Files changed
+`migrations/000015_create_stock_movements.{up,down}.sql`, `internal/modules/stock/*` (new), `internal/modules/vehicles/
+{pgstore,types,http}.go`, `internal/modules/vehicles/duplicate_integration_test.go` (v13 explicit),
+`internal/modules/receiving/api_integration_test.go` (tripwire now asserts no movements), `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `internal/server/{server,server_test}.go`, `cmd/api/main.go`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log, `docs/evidence/E-01/verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-31 PDI dispositions (blocks D-06's REJECT rule), OQ-32 transfers, OQ-33 corrections; grants (RB-5).
+- `ui/src/features/access/api/access.ts` does not list `vehicle_units.display.manage` yet (frontend phase).
+- Shared dev DB still version 12 (needs 13–15); not migrated.
+
+#### Frontend phase (2026-10-27; base `9efe1cf`)
+- **Scope:** typed contracts and hooks only (no screen, no timeline — E-02). `ui/src/features/stock/`:
+  `api/stockMovements.ts` (zod `StockMovement`, `StockUnitState`, `StockMoveResult`; `newDisplayAction` /
+  `sendDisplayAction` for `POST /vehicle-units/{id}/put-on-display` and `/take-off-display`), `hooks/useStockMovements.ts`
+  (`useDisplayMove`, `useStockMovementPerms`), `lib/errors.ts` (`describeDisplayMoveError`);
+  `Permission.VehicleUnitDisplayManage` in `features/access/api/access.ts` (no grant anywhere).
+- **Idempotency:** one frozen `DisplayAction` (with its key) per user decision; retrying resends the same action (same
+  key, path, body); the hook never makes a key; no automatic mutation retries.
+- **Errors/cache:** stale version, invalid state and key reuse are told apart; network/5xx/timeout = unknown outcome
+  (retry the same action); nothing optimistic; vehicle-unit lists and details refetched after success, stale version,
+  wrong state or an unreadable 2xx.
+- **Checks:** Prettier, ESLint, tsc, build PASS; stock tests 15/15; Vitest 27 files / 247 tests; `make ci` exit 0 on a
+  fresh throwaway DB (removed). One earlier full Vitest run hit a 5 s timeout in the unchanged D-05
+  `duplicateIdentifier.test.tsx` under load (passed alone and on rerun). golangci-lint not installed.
+  Browser: NOT APPLICABLE (no screen). Evidence: `docs/evidence/E-01/frontend-verification.txt`.
+
+#### Final status
+COMPLETE — E-01 backend (`9efe1cf`) and frontend phases, committed locally (not pushed). No screen in E-01; the
+movement timeline is E-02. D-06 not started (needs the PDI checklist and OQ-31).
+
+### E-03 — Spare/accessory SKU master
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_03_spare-accessory-sku-master.md
+- Git at start: `dev` at `21a28c0` (local ahead of `origin/dev` = `2d2c2a5` by 2), clean tree.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | migration framework, scratch-database tests pass |
+| D-01 | COMPLETE | `suppliers` (PENDING_VERIFICATION/VERIFIED/ARCHIVED); supplier tests pass |
+| B-07 | COMPLETE | deny-by-default `Require`/`Has`; permission catalogue test passes with the 3 new keys |
+
+#### Acceptance criteria
+- [x] AC1 SKU uniqueness and required fields enforced: `stock_items_sku_key` on the upper-cased code (archived included),
+  checked first, decided by the index under races (8 parallel creates → 1); required fields and formats in the
+  service and as named CHECKs
+- [x] AC2 Compatibility is brand-aware: brand + optional model via composite FK `(model_id, brand_id)`; unknown,
+  cross-brand and archived refused; brands from data
+- [x] AC3 Archived SKUs preserve history: archive (never delete), archived rows frozen by trigger, code stays taken,
+  links/compatibility kept, readable; supplier links ended not deleted
+- [ ] Pending decisions: unit-of-measure list (OQ-34), SKU code correction / reactivation (OQ-35), part cost/price and
+  batch/lot tracking (OQ-36); grants (RB-5)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000016_create_stock_items` (up/down): `stock_item_categories`, `stock_items`, `stock_item_suppliers`,
+  `stock_item_compatibility`; history guard (no delete/truncate, archived rows frozen, SKU code and tracking mode
+  immutable, links change only by ending); reference check under share locks (active category, item, supplier, brand,
+  model; no archiving a category with active SKUs); permissions `stock_items.view/manage/archive` (no grants).
+- `internal/modules/stockitems` (new): 9 routes (`/stock-item-categories` list/create/patch/archive, `/stock-items`
+  list/create/get/patch/archive), audit `stock_item_category.*` / `stock_item.*`; suppliers need `suppliers.view` to
+  set and to see, compatibility needs `catalogue.view` to set. Server/API wiring; OpenAPI regenerated (additions only).
+- Docs: ADR-021, OQ-34…OQ-36, API_CONVENTIONS "Spare part and accessory SKUs (E-03)".
+- Checks: 14 new tests; Go 21 packages / 448 tests (258 top-level) pass with PostgreSQL required; migration
+  up/down/up; `make ci` exit 0 (Vitest 247); golangci-lint not installed. Evidence: `docs/evidence/E-03/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Files changed
+`migrations/000016_create_stock_items.{up,down}.sql`, `internal/modules/stockitems/*` (new),
+`internal/modules/access/policy.go`, `internal/server/{server,server_test}.go`, `cmd/api/main.go`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log, `docs/evidence/E-03/verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-34 units of measure, OQ-35 SKU corrections/reactivation, OQ-36 part cost/price and batch/lot; RB-5 grants.
+- No stock, balance or movement for parts yet (E-04); `stock_movements.item_type` stays `VEHICLE_UNIT`.
+- Shared dev DB still version 12 (needs 13–16); not migrated.
+
+#### Final status
+IN PROGRESS — E-03 backend phase complete, committed locally (not pushed). Frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

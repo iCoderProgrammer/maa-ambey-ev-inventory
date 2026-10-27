@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth/authtest"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth/authtest"
 )
 
 // These tests run without a database: the repository is nil, so any request

@@ -11,7 +11,9 @@
 //
 // Later modules (goods receipt, PDI …) link attachments to their records and
 // must add their own owner check to canSee before linked attachments become
-// visible; until then linked attachments are denied (fail closed).
+// visible; until then linked attachments are denied (fail closed). Supplier
+// documents (owner "supplier", D-01) need suppliers.view; goods receipt
+// documents (owner "goods_receipt", D-03) need goods_receipts.view.
 package attachments
 
 import (
@@ -32,8 +34,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 )
 
 // Errors returned by the service. The HTTP layer maps them to status codes.
@@ -138,12 +140,20 @@ func canSee(a access.Access, att Attachment) bool {
 	if att.LocationID != "" && !a.Scope.Allows(att.LocationID) {
 		return false
 	}
-	if att.OwnerType == "" {
+	switch att.OwnerType {
+	case "":
 		return att.UploadedBy == a.UserID
+	case "supplier":
+		// Supplier documents (D-01): visible to whoever may view suppliers.
+		return a.Has(access.PermSupplierView)
+	case "goods_receipt":
+		// Delivery documents and photos (D-03): visible to whoever may view goods receipts.
+		return a.Has(access.PermGoodsReceiptView)
+	default:
+		// Other owners need their module's check, which none provides yet.
+		// Deny rather than guess.
+		return false
 	}
-	// Linked attachments need the owning module's check, which no module
-	// provides yet. Deny rather than guess.
-	return false
 }
 
 // UploadInput is one file to store.

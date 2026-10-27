@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 )
 
 // RequestIDHeader carries the correlation ID in requests and responses.

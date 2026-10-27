@@ -1,0 +1,61 @@
+D-04 verification (BACKEND ONLY) — 2026-10-26 — base e962ee6 (D-03, local, not pushed); working tree also holds the
+uncommitted regression-audit fixes (UI files, docs/TASK_EXECUTION_LOG.md, docs/evidence/REGRESSION-AUDIT-2026-10-26/),
+which are not part of D-04.
+
+== Environment ==
+Throwaway postgres:18-alpine container on 127.0.0.1:5461 (random password, never printed); every Go integration test
+uses its own scratch database on it. Shared development database (:5436) and dev API (:8081) not touched (not migrated).
+
+== Migration 000013_create_vehicle_units ==
+go run ./cmd/migrate up -> 13; down 1 -> 12; up -> 13 (throwaway DB). vehicle_units empty; permissions
+vehicle_units.view, vehicle_units.cost.view present; no grants. internal/database migrations integration test steps
+every migration down and up again: PASS.
+
+== Go (PATH with /snap/go/current/bin) ==
+make ci (DATABASE_URL/TEST_DATABASE_URL = throwaway server): exit 0 — gofmt clean, go vet, go mod tidy, swagger-check,
+ESLint, Prettier, tsc, Go tests with PostgreSQL, Vitest 23 files / 185 tests, Go + Vite builds.
+golangci-lint not installed (skipped by the Makefile).
+go test -count=1 -json ./... with REQUIRE_INTEGRATION_TESTS=1: 19 packages ok; 410 tests (220 top-level) pass,
+0 fail, 0 skip. New in internal/modules/vehicles (16):
+  rules_test: TestNormaliseIdentifierTrimsAndUpperCasesOnly (separators kept, OQ-26),
+    TestStatusesAreTheApprovedListAndMatchTheDatabase (INV-005 = Go list = DB CHECK), TestValidateList,
+    TestCostIsRemovedWithoutCostPermission (catalogue.cost_price.view does not unlock it)
+  http_test (no database): TestVehicleUnitRoutesDenyByDefault (401 without session; 403 without vehicle_units.view,
+    even with cost/GRN/PO/catalogue-cost permissions), TestVehicleUnitsAreReadOnly (POST/PUT/PATCH/DELETE 405),
+    TestVehicleUnitInputIsCheckedBeforeTheDatabase (422 fields; non-UUID id 404; out-of-scope locationId 422)
+  api_integration_test (PostgreSQL):
+    TestRegisteredUnitIsRepresentedWithItsSources — unit registered before the receipt is marked POSTED in the same
+      transaction; MAE-VEH-\d{6}; brand/model/variant/cost from the PO line; identifiers + normalised; location;
+      source supplier/PO/line/GRN/line/captured unit/supplier reference/date; REGISTERED history naming the GRN;
+      audit event vehicle_unit.registered without the cost; out-of-scope reader 404, in-scope 200
+    TestDraftReceiptsNeverHaveVehicleUnits — draft: 0 units, PO received quantity unchanged; register from a DRAFT or
+      CANCELLED receipt refused at commit (ErrReceiptNotPosted) leaving no unit/history/audit row; REJECTED unit,
+      unknown/invalid unit id, unknown location, CLI actor refused
+    TestACapturedUnitBecomesOneVehicleUnitEvenConcurrently — second registration ErrAlreadyRegistered; 6 parallel
+      registrations of one captured unit -> exactly 1 ok, 5 ErrAlreadyRegistered; 1 unit, 1 history row
+    TestReferencesCannotCrossRecordsOrBrands — DB refuses: variant/model of another brand, variant other than the PO
+      line's, supplier other than the PO's, PO line of another PO, receipt of another PO, receipt line for another PO
+      line, captured unit of another line/receipt, missing receipt reference, unknown source, zero cost, other
+      currency, invented status, AVAILABLE without chassis (INV-002) — each by its named constraint
+    TestIdentifiersAreOptionalOnReceiptAndNormalised — a unit with no identifiers registers (nothing mandatory before
+      PDI, OQ-4); DB normalised columns = NormaliseIdentifier(stored value); search case/space-insensitive, partial,
+      across chassis/motor/battery/charger/unit number; % and _ match literally
+    TestCostIsServerSidePermissioned — list + detail without vehicle_units.cost.view: unitCost null, costHidden true,
+      amounts absent from the body; with it: shown; no vehicle_units.view: 403
+    TestLocationScopeAppliesToUnits — scoped user sees L1 + no-location units, L2 detail 404, L2 filter 422;
+      locations.all sees all; user without locations sees only no-location units
+    TestListFiltersCombine — brand, variant, supplier, PO, receipt, status, q + brand, paging
+    TestUnitsAndHistoryCannotChangeOrBeDeleted — UPDATE status/location/chassis/cost, DELETE, history UPDATE/DELETE
+      all refused (42501); status unchanged
+  receiving: TestPartialDraftReceiptChangesNoStock now asserts saving drafts through the D-03 API creates no vehicle
+    unit or history row (its tripwire for the vehicle_units table was replaced by this check). PASS.
+  access: TestPermissionCatalogueMatchesDatabase with the two new keys: PASS. server tests with the new routes: PASS.
+
+== OpenAPI ==
+make swagger: added /vehicle-units, /vehicle-units/{id} and VehicleUnit, VehicleUnitDetail, VehicleUnitEvent,
+VehicleUnitPage, VehicleUnitSource; no existing path or definition changed (compared with HEAD).
+
+== Browser ==
+Not applicable to this backend-only phase (no UI change). Playwright runs with the D-04 frontend phase.
+
+git diff --check: clean.

@@ -1,0 +1,47 @@
+E-03 verification (BACKEND ONLY) — 2026-10-27 — base 21a28c0 (dev; local ahead of origin/dev by 2: 9efe1cf, 21a28c0),
+clean tree at start. No frontend change.
+
+== Dependencies ==
+B-05 COMPLETE (migrations, dbtest scratch databases), D-01 COMPLETE (suppliers, statuses PENDING_VERIFICATION /
+VERIFIED / ARCHIVED), B-07 COMPLETE (deny-by-default access.Require / Access.Has). Also used: C-01/C-02 brands/models
+with models (id, brand_id) key; B-08 audit.Record in the caller's transaction. E-01 untouched (stock_movements stays
+VEHICLE_UNIT only).
+
+== Environment ==
+Throwaway postgres:18-alpine container e03-pg on 127.0.0.1:5472 (random password, never printed), migrated 1..16.
+Shared dev DB (:5436, version 12), dev API and Vite not touched.
+
+== Migration 000016_create_stock_items ==
+cmd/migrate on the throwaway DB: up 16 -> down 15 -> up 16 -> down 15 -> up 16 (after the trigger fix), all clean.
+TestStockItemMigrationRoundTrip (scratch DB): tables, 3 permissions and triggers present after up, all gone after
+migrating to 15, identical after up again.
+Found and fixed while testing: PL/pgSQL resolved NEW.sku for every table in one combined condition (500 on category
+updates); the guard now reads each table's columns only in its own branch.
+
+== Tests: internal/modules/stockitems (14, all PASS) ==
+No DB: TestStockItemRoutesDenyByDefault (9 routes: 401, 403 with no grant and with the other stock_items keys plus
+neighbouring keys), TestNoDeleteOrStockRoutes, TestItemInputIsCheckedBeforeTheDatabase (26 create cases incl. sku
+format, tracking mode, uom, reorder level, SERIAL fraction, duplicate entries, client-set status/createdBy; patch of
+sku/trackingMode/status refused; archive needs version+reason; list filters), TestLinksNeedTheLinkedRecordsPermission,
+TestNormalisationAndWholeNumbers.
+PostgreSQL: TestCategoriesAreUniqueEditableAndArchivedSafely, TestItemIsCreatedWithSuppliersAndCompatibilityAndNoStock
+(0 stock movements), TestSKUCodesAreUniqueInEveryFormAndUnderRaces (case/space variants 409; separators distinct;
+direct SQL duplicate -> stock_items_sku_key; 8 parallel creates -> 1 created, 7 DUPLICATE), TestDatabaseRefusesInvalidItems,
+TestSupplierLinksAreValidatedAndKeptAsHistory (unknown/archived supplier per entry, nothing left behind; replace ends
+links; direct edit/delete of links 42501), TestCompatibilityIsBrandAware (unknown brand/model, model of another brand,
+archived brand/model; direct SQL cross-brand -> stock_item_compatibility_model_brand_fk; brand added later works;
+nothing seeded), TestArchivedItemsKeepTheirHistory (archive permission, readable, not in ACTIVE list, no change, code
+stays taken, no delete/update/truncate/new link at DB level, sku/tracking mode immutable even directly),
+TestUpdatesFollowTheRulesAndPermissions, TestStockItemMigrationRoundTrip.
+
+== Quality gates ==
+gofmt: clean (after aligning struct fields in the test). go vet: PASS. golangci-lint: NOT INSTALLED (skipped; not passed).
+OpenAPI regenerated (make swagger); compared with HEAD: 14 definitions and 6 paths added, none removed or changed;
+swagger-check PASS (lint-backend).
+Full Go suite with PostgreSQL required: 21 packages ok, 448 tests (258 top-level), 0 failed, 0 skipped — includes the
+D-01 supplier, C-01/C-02 catalogue, B-07 access (permission catalogue matches the database), B-08 audit, D-04/D-05
+vehicle and E-01 stock suites.
+make ci (throwaway DB): exit 0 — Go + UI lint, tsc, Go integration, Vitest 27 files / 247 tests, build. (First attempt
+stopped on gofmt; fixed.)
+git diff --check: clean.
+Frontend / browser: NOT RUN (backend-only phase).

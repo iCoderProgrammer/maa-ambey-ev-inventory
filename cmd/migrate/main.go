@@ -27,8 +27,8 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 func main() {

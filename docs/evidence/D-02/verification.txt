@@ -1,0 +1,120 @@
+D-02 verification — 2026-10-23 — base 6dff525 (D-01 + its verification docs), working tree with D-02
+
+== Go (make ci with /snap/go/current/bin first on PATH; the /snap/bin/go wrapper prints no output in this shell) ==
+make ci exit 0: gofmt clean, go vet, go.mod tidy, swagger-check, eslint, prettier, tsc, Vitest, vite build, Go builds
+(golangci-lint not installed; skipped by the Makefile).
+go test -count=1 -json ./... (PostgreSQL integration REQUIRED, per-test scratch databases): 17 packages ok,
+190 top-level / 380 incl. subtests pass, 0 skip, 0 fail.
+internal/modules/purchasing: rules_test (transitions, prerequisites, approval requirement, warnings, action hints),
+http_test (deny by default per route and per permission, input validation, no DB), api_integration_test:
+TestNumberingTotalsAndRemaining, TestBrandCompatibilityAndArchivedRefused, TestPriceSnapshotsDoNotChange,
+TestTransitionsAndApprovals, TestReturnToDraftAndEdit, TestApprovalThresholdSettings, TestConcurrencyAndIdempotency
+(2 approvers racing -> exactly one 200; 6 parallel creates with one Idempotency-Key -> one PO, one 201; 5 parallel line
+adds on one version -> one 201, rest 409), TestDenyByDefault — all PASS.
+git diff --check clean.
+
+== UI ==
+Vitest 20 files / 165 tests PASS (9 new in features/purchasing). Lint, Prettier, typecheck clean. Build OK.
+
+== OpenAPI ==
+make swagger: 10 purchase order paths added; existing paths and definitions unchanged (compared with HEAD).
+
+== Shared development environment ==
+Dev DB (:5436) migrated 10 -> 11 (schema, 5 permission keys, the empty settings row). Before == after otherwise:
+grants: viewer -> access.roles.view PROPOSED only; purchase_orders.* grants 0; purchase orders 0; settings threshold NULL;
+suppliers 0; brands 3. Dev API :8081 restarted with `make dev-backend` on this build: /api/v1/health 200, /ready 200;
+log: 0 ERROR, 0 5xx.
+
+== Isolated throwaway stack (postgres:18-alpine :5449 migrated to 11 + seeds; API :8093 built from this tree with
+   RBAC_ALLOW_PROPOSED_GRANTS=true, ATTACHMENT_LINK_TTL=30s, LOGIN_MAX_FAILURES_PER_IP=1000, RATE_LIMIT 100/200;
+   Vite :5175; test-only users, random password never printed; PROPOSED grants on that database only; eligible PO
+   fixture inserted by SQL there ("E2E PO Brand" ACTIVE/AUTHORISED + active model/variant, "E2E PO Supplier"
+   VERIFIED + verified link, "E2E PO Costs" with an approved COST 900.00); everything removed afterwards) ==
+e2e/purchase-orders.e2e.ts first run: 5 passed, 1 failed (mobile): the test's text locator matched the hidden
+desktop table cell; the page was correct (screenshot checked). Locators now require visible elements; re-run 6/6 PASS.
+Full suite (npx playwright test, desktop 1366x900 + Pixel 7): exit 0 — 67 passed, 5 skipped (viewport-specific by design), 0 failed
+  ✓   1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓   2 [desktop] › e2e/access.e2e.ts:33:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓   3 [desktop] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓   4 [desktop] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓   5 [desktop] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  ✓   6 [desktop] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓   7 [desktop] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓   8 [desktop] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓   9 [desktop] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  10 [desktop] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  11 [desktop] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  12 [desktop] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  13 [desktop] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  14 [desktop] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  15 [desktop] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  16 [desktop] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  17 [desktop] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  18 [desktop] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  19 [desktop] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  20 [desktop] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  ✓  21 [desktop] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  ✓  22 [desktop] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  23 [desktop] › e2e/isolation.e2e.ts:59:3 › brand isolation (C-06) › cross-brand filters and requests are refused; stale links are cleaned
+  ✓  24 [desktop] › e2e/prices.e2e.ts:79:3 › price history (C-04) › draft, approve by someone else, supersede, and historical lookups stay stable
+  ✓  25 [desktop] › e2e/purchase-orders.e2e.ts:79:3 › purchase orders (D-02) › without purchase_orders.view there is no link and the page is denied
+  ✓  26 [desktop] › e2e/purchase-orders.e2e.ts:99:3 › purchase orders (D-02) › draft with lines and server totals; submission refused for an unverified supplier and inactive brand
+  ✓  27 [desktop] › e2e/purchase-orders.e2e.ts:210:3 › purchase orders (D-02) › submit, no self-approval, approval by another user, cost snapshot and read-only viewer
+  ✓  28 [desktop] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  29 [desktop] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  30 [desktop] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  31 [desktop] › e2e/shell.e2e.ts:48:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  32 [desktop] › e2e/shell.e2e.ts:60:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  ✓  33 [desktop] › e2e/shell.e2e.ts:78:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  -  34 [desktop] › e2e/shell.e2e.ts:96:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  35 [desktop] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied
+  ✓  36 [desktop] › e2e/suppliers.e2e.ts:60:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive
+  ✓  37 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓  38 [mobile] › e2e/access.e2e.ts:33:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓  39 [mobile] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓  40 [mobile] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓  41 [mobile] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  -  42 [mobile] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓  43 [mobile] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓  44 [mobile] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓  45 [mobile] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  46 [mobile] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  47 [mobile] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  48 [mobile] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  49 [mobile] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  50 [mobile] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  51 [mobile] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  52 [mobile] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  53 [mobile] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  54 [mobile] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  55 [mobile] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  56 [mobile] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  -  57 [mobile] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  -  58 [mobile] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  59 [mobile] › e2e/isolation.e2e.ts:59:3 › brand isolation (C-06) › cross-brand filters and requests are refused; stale links are cleaned
+  ✓  60 [mobile] › e2e/prices.e2e.ts:79:3 › price history (C-04) › draft, approve by someone else, supersede, and historical lookups stay stable
+  ✓  61 [mobile] › e2e/purchase-orders.e2e.ts:79:3 › purchase orders (D-02) › without purchase_orders.view there is no link and the page is denied
+  ✓  62 [mobile] › e2e/purchase-orders.e2e.ts:99:3 › purchase orders (D-02) › draft with lines and server totals; submission refused for an unverified supplier and inactive brand
+  ✓  63 [mobile] › e2e/purchase-orders.e2e.ts:210:3 › purchase orders (D-02) › submit, no self-approval, approval by another user, cost snapshot and read-only viewer
+  ✓  64 [mobile] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  65 [mobile] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  66 [mobile] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  67 [mobile] › e2e/shell.e2e.ts:48:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  68 [mobile] › e2e/shell.e2e.ts:60:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  -  69 [mobile] › e2e/shell.e2e.ts:78:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  ✓  70 [mobile] › e2e/shell.e2e.ts:96:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  71 [mobile] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied
+  ✓  72 [mobile] › e2e/suppliers.e2e.ts:60:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive
+Covered in the browser: deny without purchase_orders.view (no link, page denied, API 403); draft creation with client
+validation and a numbered PO; line add with client validation; server totals (₹2,001.00 -> ₹3,001.50 after edit);
+duplicate variant refused (409 shown in the dialog); submission refused with the server's unmet checks (unverified
+supplier, brand not activated); reload/persistence and list search; cancel with required reason (kept as history);
+eligible PO with a cost snapshot and variance warning; submit -> awaiting approval; creator not offered approval and
+API refuses (403 SELF_APPROVAL_NOT_ALLOWED); another user approves through the screen with a note; snapshot hidden for
+the approver without catalogue.cost_price.view while the agreed cost is shown; read-only viewer sees no actions;
+history Created/Submitted/Approved; no sideways scroll; no console errors.
+
+API log, 5xx: 38 (PO spec run) and 44 (full run) requests, all GET, all "context canceled", latency <= 17 ms
+(timeout 15 s): client-aborted requests, no genuine server error.
+
+Screenshots: desktop-po-detail.png (approved PO seen by the approver, snapshot hidden), mobile-po-list.png. Placeholder data.

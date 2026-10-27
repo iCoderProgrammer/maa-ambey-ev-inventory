@@ -1,0 +1,21 @@
+D-05 browser test (user's Chrome, Claude in Chrome, new tab, step by step) — 2026-10-27 — HEAD fb8a368 + uncommitted
+regression-audit fixes (not part of D-05).
+
+Stack (throwaway only): postgres d05b-pg :5465 (migration 14, earlier D-05 fixture: PO-000001 APPROVED, GRN-000001 draft
+with CH-D05-0007), API rebuilt from this tree on :8098 (RBAC_ALLOW_PROPOSED_GRANTS=true), Vite :5183. Test user
+e2e.catalogue (password reset to a random value, not printed). Shared dev stack (:5173/:8081/:5436) not touched.
+
+A  In-draft repeat, case/space variant: unit 1 "ch-d05-0100", unit 2 " CH-D05-0100 " -> field error "Same chassis/frame
+   number as line 1, unit 1", banner "Check the highlighted entries. Nothing was saved.", entries kept, 0 PUT. PASS
+B  Separator variant "CH D05 0100" kept distinct (OQ-26) -> PUT 200, "Draft saved ... Stock is unchanged"; DB stores
+   values as typed, normalised "CH-D05-0100" / "CH D05 0100". PASS
+C  Unit 3 "ch-d05-0007" (on GRN-000001, other case) -> exactly one PUT 409; mapped to line 1 unit 3 field ("is already on
+   the draft goods receipt GRN-000001"), error box with label + reference, entries kept, no retry, no "saved". PASS
+D  Corrected to "CH-D05-0101" -> PUT 200; reload shows 3 of 3 units captured (persisted). PASS
+Console errors: none. vehicle_units = 0 after the run (drafts register nothing).
+API: POST /goods-receipts 201, PUT 200/409/200; 2 x 500 = client-aborted GETs ("context canceled"), known observation,
+no failed write.
+Observation (not a defect): the "Nothing was saved" banner from the previous attempt stays until the next save; the
+field mark itself clears on correction.
+NOT RUN: live DUPLICATE_IDENTIFIER (vehicle_units_chassis_key) conflict — no route returns it until D-07 (posting).
+Mobile/320 px not re-run in this session (goods-receipts.e2e.ts mobile passed earlier today, frontend-verification.txt).

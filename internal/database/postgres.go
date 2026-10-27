@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
 )
 
 // Connect creates a pgx connection pool and verifies connectivity.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 )
 
 // Recovery converts panics into a generic 500 error envelope. The stack trace

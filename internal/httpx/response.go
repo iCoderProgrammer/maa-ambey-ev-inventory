@@ -41,6 +41,20 @@ const (
 	CodeVersionConflict   = "VERSION_CONFLICT"
 	CodeInvalidState      = "INVALID_STATE"
 	CodeActivationBlocked = "ACTIVATION_BLOCKED"
+	// Price history (C-04).
+	CodePriceOverlap    = "PRICE_OVERLAP"    // 409
+	CodeApprovalBlocked = "APPROVAL_BLOCKED" // 409
+	CodeSelfApproval    = "SELF_APPROVAL_NOT_ALLOWED"
+	CodePriceNotFound   = "PRICE_NOT_FOUND" // 404
+	// Purchase orders (D-02).
+	CodeSubmissionBlocked = "SUBMISSION_BLOCKED" // 409
+	// Goods receipts (D-03).
+	CodeOverReceiptNeedsOverride = "OVER_RECEIPT_REQUIRES_OVERRIDE" // 409
+	CodeOverReceiptForbidden     = "OVER_RECEIPT_NOT_AUTHORISED"    // 403
+	// Vehicle identifiers (D-05): details name the field (e.g. chassisNumber); 409.
+	CodeDuplicateIdentifier = "DUPLICATE_IDENTIFIER"
+	// Stock movements (E-01): the same Idempotency-Key with a different request; 409.
+	CodeIdempotencyKeyReused = "IDEMPOTENCY_KEY_REUSED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

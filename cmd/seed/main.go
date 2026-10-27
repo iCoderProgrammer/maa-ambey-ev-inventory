@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/seeds"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/seeds"
 )
 
 func main() {

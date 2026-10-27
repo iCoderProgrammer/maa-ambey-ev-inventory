@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 )
 
 // Timeout bounds the request context. Handlers and pgx queries that honour

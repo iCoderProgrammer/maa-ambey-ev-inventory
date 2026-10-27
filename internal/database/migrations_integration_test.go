@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database/dbtest"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database/dbtest"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 // TestMigrationsRoundTrip applies every migration, rolls all of them back and

@@ -11,16 +11,23 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/jarvisconsulting/maa-ambey-enterprises/docs/openapi"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/logger"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/attachments"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/catalogue"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/server"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	_ "github.com/iCoderProgrammer/maa-ambey-ev-inventory/docs/openapi"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/logger"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/attachments"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/receiving"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/stock"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/stockitems"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/suppliers"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/vehicles"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/server"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 // version is overridden at build time: -ldflags "-X main.version=<git sha>".
@@ -98,9 +105,16 @@ func run() error {
 	attachmentSvc := attachments.NewService(attachments.NewPGStore(pool), objects, signer, cfg.AttachmentMaxBytes, log)
 	attachmentHandler := attachments.NewHandler(attachmentSvc, accessHandler, server.APIPrefix, log)
 	catalogueHandler := catalogue.NewHandler(catalogue.NewService(catalogue.NewPGStore(pool), log), accessHandler, log)
+	pricingHandler := pricing.NewHandler(pricing.NewService(pricing.NewPGStore(pool), log), accessHandler, log)
+	supplierHandler := suppliers.NewHandler(suppliers.NewService(suppliers.NewPGStore(pool), log), accessHandler, log)
+	purchaseOrderHandler := purchasing.NewHandler(purchasing.NewService(purchasing.NewPGStore(pool), log), accessHandler, log)
+	goodsReceiptHandler := receiving.NewHandler(receiving.NewService(receiving.NewPGStore(pool), log), accessHandler, log)
+	vehicleUnitHandler := vehicles.NewHandler(vehicles.NewService(vehicles.NewPGStore(pool), log), accessHandler, log)
+	stockHandler := stock.NewHandler(stock.NewService(stock.NewPGStore(pool), log), accessHandler, log)
+	stockItemHandler := stockitems.NewHandler(stockitems.NewService(stockitems.NewPGStore(pool), log), accessHandler, log)
 	log.Info("attachment storage ready", slog.String("driver", objects.Driver()), slog.Int64("max_bytes", cfg.AttachmentMaxBytes))
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Version: version})
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, StockMovements: stockHandler, StockItems: stockItemHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

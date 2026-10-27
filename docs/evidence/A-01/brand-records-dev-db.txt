@@ -1,0 +1,20 @@
+A-01 evidence — 2026-10-14T06:01Z
+
+Read-only query of the shared dev database (no changes made). Brand records come from the existing
+idempotent seed seeds/0001_initial_brands.sql (B-05), unchanged in A-01.
+
+      name       |      slug       |   lifecycle_status   | authorisation_status | has_legal_name | has_reference | has_evidence | has_verifier
+-----------------+-----------------+----------------------+----------------------+----------------+---------------+--------------+--------------
+ Ceeon India     | ceeon-india     | PENDING_VERIFICATION | UNVERIFIED           | f              | f             | f            | f
+ Lectrix EV      | lectrix-ev      | PENDING_VERIFICATION | UNVERIFIED           | f              | f             | f            | f
+ Ujagar Electric | ujagar-electric | PENDING_VERIFICATION | UNVERIFIED           | f              | f             | f            | f
+(3 rows)
+
+models: 0
+variants: 0
+price_items: 0
+catalogue/price grants: 0
+
+Interpretation: all three roster brands exist, PENDING_VERIFICATION / UNVERIFIED, with no legal identity,
+reference, evidence or verifier recorded; no models, variants or prices; no catalogue/price grants.
+Purchase/sales therefore not allowed for any brand (brand.operational = false).

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
 )
 
 // PGStore implements Store and the user administration used by cmd/user.

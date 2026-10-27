@@ -1,0 +1,46 @@
+E-01 verification (BACKEND ONLY) — 2026-10-27 — base 2d2c2a5 (dev = origin/dev, clean tree at start).
+
+== Dependencies ==
+D-04 COMPLETE: vehicle_units + guard trigger (migration 000013), vehicles.RegisterFromReceiptUnit; vehicles tests pass.
+B-08 COMPLETE: audit.Record inside the caller's transaction; audit_events append-only (UPDATE/DELETE/TRUNCATE refused).
+
+== Environment ==
+Throwaway postgres:18-alpine container e01-pg on 127.0.0.1:5470 (random password, never printed), migrated 1..15.
+Shared dev DB (:5436, version 12), dev API and Vite not touched; nothing migrated or seeded there.
+
+== Migration 000015_create_stock_movements ==
+up/down/up with cmd/migrate on the throwaway DB: 15 -> 14 (table, triggers, permission gone; guard restored) -> 15.
+TestStockMovementMigrationRoundTrip (scratch DB): unit written at 14 gets a backfilled RECEIPT movement on up
+(actor, time, receipt, location of its registration) and reconciles; down to 14 removes the ledger and the guard
+refuses updates again; up over a unit already moved past RECEIVED_PENDING_PDI is refused with nothing changed.
+
+== Tests: internal/modules/stock (17, all PASS) ==
+No DB: TestMovementRoutesDenyByDefault (401 / 403 / neighbouring grants / CSRF), TestNoGenericOrDestructiveMovementRoutes,
+TestMovementInputIsCheckedBeforeTheDatabase (version, note, Idempotency-Key, unknown fields toStatus/movementType/actorId),
+TestTransitionsAreTheApprovedEdgesOnly.
+PostgreSQL: TestRegistrationRecordsExactlyOneReceiptMovement, TestDraftReceiptCreatesNoUnitOrMovement,
+TestDisplayMovesRecordOneMovementWithAudit, TestIdempotentReplayAndKeyReuse, TestStaleVersionInvalidStateAndChassisAreRefused
+(incl. PENDING_PDI -> REJECTED refused, QUALITY_HOLD -> REJECTED allowed, nothing leaves REJECTED, INV-002 chassis),
+TestLocationScopeAndPermissions, TestConcurrentRequestsWithOneKeyApplyOnce (8 parallel, one key: 1 movement, 7 replays),
+TestConcurrentIndependentMovesDoNotOverwrite (8 parallel, different keys: 1 applied, 7 VERSION_CONFLICT),
+TestConcurrentKeyReuseAcrossUnits (blocked insert on the key, then IDEMPOTENCY_KEY_REUSED, second unit unchanged),
+TestAFailedMoveLeavesNothing (caller failure and in-transaction failure: no movement/audit/unit change, key reusable),
+TestDatabaseRefusesDirectChanges (UPDATE/DELETE/TRUNCATE movements, direct unit UPDATE/DELETE incl. with the marker set:
+42501; invalid edges, wrong from-state, reversal link, second receipt: named constraints),
+TestUnitsMustReconcileWithTheLedgerAtCommit, TestStockMovementMigrationRoundTrip.
+
+== Regression test changes ==
+vehicles/duplicate_integration_test.go: the two D-05 migration tests named version 13 explicitly (v13 data written
+directly; round trip migrates to 13 instead of one step down) — behaviour asserted unchanged.
+receiving/api_integration_test.go: the D-03 draft test's tripwire ("stock movement table exists: this test must also
+check it") now asserts drafts record no stock movement.
+
+== Quality gates ==
+gofmt: clean (after an import-order fix). go vet: PASS. golangci-lint: NOT INSTALLED (skipped by the Makefile; not passed).
+swagger-check (OpenAPI drift, part of lint-backend): PASS after `make swagger`.
+Full Go suite with PostgreSQL required: 20 packages ok, 434 tests (244 top-level), 0 failed, 0 skipped.
+make ci (DATABASE_URL/TEST_DATABASE_URL = throwaway DB): exit 0 — lint (Go + ESLint + Prettier), tsc, Go integration,
+Vitest 26 files / 232 tests, build. Note: two earlier make ci attempts failed — first on gofmt, second on Vitest
+timeouts with load average 13 (different tests each run; no UI file changed); Vitest alone then 232/232, make ci exit 0.
+git diff --check: clean.
+Browser: NOT APPLICABLE (no screen; frontend phase = typed contracts/hooks, not started).

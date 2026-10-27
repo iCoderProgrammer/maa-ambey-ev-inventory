@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
 )
 
 // PGStore is the PostgreSQL Repository. Every mutation runs in one
@@ -355,6 +355,41 @@ func hasActiveVariant(ctx context.Context, q pgx.Tx, brandID string, lock bool) 
 	return err == nil, err
 }
 
+// hasApprovedPrice: an approved SELLING price valid now for an ACTIVE variant
+// under an ACTIVE model of the brand (price_items, C-04).
+func hasApprovedPrice(ctx context.Context, q pgx.Tx, brandID string, lock bool) (bool, error) {
+	sql := `SELECT p.id FROM price_items p
+		JOIN variants v ON v.id = p.variant_id JOIN models m ON m.id = p.model_id
+		WHERE p.brand_id = $1 AND p.status = 'APPROVED' AND p.price_type = 'SELLING'
+		  AND p.effective_from <= now() AND (p.effective_to IS NULL OR p.effective_to > now())
+		  AND v.lifecycle_status = 'ACTIVE' AND m.lifecycle_status = 'ACTIVE' LIMIT 1`
+	if lock {
+		sql += ` FOR SHARE OF p, v, m`
+	}
+	var id string
+	err := q.QueryRow(ctx, sql, brandID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// hasSupplierLink: a VERIFIED supplier relationship valid today with a VERIFIED supplier (D-01).
+func hasSupplierLink(ctx context.Context, q pgx.Tx, brandID string, lock bool) (bool, error) {
+	sql := `SELECT l.id FROM supplier_brand_links l JOIN suppliers s ON s.id = l.supplier_id
+		WHERE l.brand_id = $1 AND l.status = 'VERIFIED' AND s.status = 'VERIFIED'
+		  AND l.effective_from <= current_date AND (l.effective_to IS NULL OR l.effective_to >= current_date) LIMIT 1`
+	if lock {
+		sql += ` FOR SHARE OF l, s`
+	}
+	var id string
+	err := q.QueryRow(ctx, sql, brandID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // BrandReadiness implements Repository.
 func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, error) {
 	var r Readiness
@@ -370,7 +405,15 @@ func (s *PGStore) BrandReadiness(ctx context.Context, id string) (Readiness, err
 		if err != nil {
 			return err
 		}
-		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active})
+		priced, err := hasApprovedPrice(ctx, tx, id, false)
+		if err != nil {
+			return err
+		}
+		supplied, err := hasSupplierLink(ctx, tx, id, false)
+		if err != nil {
+			return err
+		}
+		r = brandReadiness(brandFacts{Brand: b, HasActiveVariant: active, HasApprovedPrice: priced, HasSupplierLink: supplied})
 		return nil
 	})
 	return r, err
@@ -388,7 +431,15 @@ func (s *PGStore) ActivateBrand(ctx context.Context, id string, version int, ev 
 		if err != nil {
 			return err
 		}
-		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active}); err != nil {
+		priced, err := hasApprovedPrice(ctx, tx, id, true)
+		if err != nil {
+			return err
+		}
+		supplied, err := hasSupplierLink(ctx, tx, id, true)
+		if err != nil {
+			return err
+		}
+		if err := checkBrandActivation(brandFacts{Brand: old, HasActiveVariant: active, HasApprovedPrice: priced, HasSupplierLink: supplied}); err != nil {
 			return err
 		}
 		b, err = scanBrand(tx.QueryRow(ctx, `UPDATE brands SET lifecycle_status = 'ACTIVE', version = version + 1
@@ -582,8 +633,32 @@ func (s *PGStore) UpdateModel(ctx context.Context, id string, in ModelUpdateRequ
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 
+// filterBrandMatches refuses a list filter that pairs a brand with a parent of
+// another brand (C-06): such a request is a cross-brand mismatch, not "no rows".
+// An unknown parent is reported as a validation error too.
+func (s *PGStore) filterBrandMatches(ctx context.Context, table, id, brandID, field, label string) error {
+	if id == "" || brandID == "" {
+		return nil
+	}
+	var actual string
+	err := s.pool.QueryRow(ctx, `SELECT brand_id::text FROM `+table+` WHERE id = $1`, id).Scan(&actual)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &ValidationError{Fields: []FieldProblem{{field, "does not exist"}}}
+	}
+	if err != nil {
+		return fmt.Errorf("check %s filter: %w", field, err)
+	}
+	if actual != brandID {
+		return &ValidationError{Fields: []FieldProblem{{"brandId", "does not match the " + label + "'s brand"}}}
+	}
+	return nil
+}
+
 // ListVariants implements Repository.
 func (s *PGStore) ListVariants(ctx context.Context, f ListFilter) (Page[Variant], error) {
+	if err := s.filterBrandMatches(ctx, "models", f.ModelID, f.BrandID, "modelId", "model"); err != nil {
+		return Page[Variant]{}, err
+	}
 	var w where
 	itemFilters(&w, f, "variant_code", "manufacturer_code")
 	if f.ModelID != "" {
@@ -652,6 +727,9 @@ func (s *PGStore) UpdateVariant(ctx context.Context, id string, in VariantUpdate
 
 // ListColours implements Repository.
 func (s *PGStore) ListColours(ctx context.Context, f ListFilter) (Page[Colour], error) {
+	if err := s.filterBrandMatches(ctx, "variants", f.VariantID, f.BrandID, "variantId", "variant"); err != nil {
+		return Page[Colour]{}, err
+	}
 	var w where
 	itemFilters(&w, f, "colour_code")
 	if f.VariantID != "" {

@@ -217,6 +217,8 @@ Brands, models, variants, colours and spec keys are data and never appear in cod
 - Value sets come from DB CHECKs: lifecycle `PENDING_VERIFICATION|ACTIVE|ARCHIVED`; authorisation
   `UNVERIFIED|AUTHORISED|NOT_AUTHORISED|REVOKED` (OQ-1); confidence `UNVERIFIED|SUPPLIER_CONFIRMED|CLIENT_APPROVED`.
 - Spec values (`variant_specs`) have no endpoint yet (ADR-012).
+- Cross-brand list filters fail with 422 (C-06, ADR-014): `GET /variants` `brandId` + a `modelId` of another brand,
+  `GET /colours` `brandId` + a `variantId` of another brand (`details[].field = brandId`); unknown referenced IDs are 422.
 
 | HTTP | `code` | When |
 | --- | --- | --- |
@@ -225,6 +227,234 @@ Brands, models, variants, colours and spec keys are data and never appear in cod
 | 409 | `INVALID_STATE` | action not allowed in the current lifecycle state (e.g. editing an ACTIVE item, adding under an archived parent) |
 | 409 | `ACTIVATION_BLOCKED` | prerequisites unmet; `details[].field` = check key (`verification`, `parent`, `authorisation`, `approved_prices`, …) |
 | 422 | `VALIDATION_FAILED` | invalid field, unknown parent or document, cross-brand `brandId` |
+
+## Price history (C-04)
+
+Rules: ADR-013. Schema: migration 000009. Client: `ui/src/features/pricing/api/pricing.ts`; hooks `hooks/usePricing.ts`.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /price-lists` · `GET /price-lists/{id}` | `catalogue.price.view` or `catalogue.cost_price.view` | filters `brandId`, `status`, `q`, paging |
+| `POST /price-lists` · `PATCH /price-lists/{id}` · `POST /price-lists/{id}/archive` | `catalogue.price.manage` or `catalogue.cost_price.edit` | one brand per list; INR |
+| `GET /price-items` · `GET /price-items/{id}` | view permission of the type | filters `priceListId`, `brandId`, `variantId`, `priceType`, `status`; newest `effectiveFrom` first |
+| `POST /price-items` · `PATCH /price-items/{id}` · `POST /price-items/{id}/cancel` | SELLING: `catalogue.price.manage`; COST: `catalogue.cost_price.edit` | drafts only; brand and model come from the variant |
+| `POST /price-items/{id}/approve` | `catalogue.price.approve` (+ view of the type) | never the drafter; no retroactive start; supersession |
+| `GET /prices/lookup?priceListId&variantId&priceType&at` | view permission of the type | price valid at `at` (default now) |
+
+- `amount` is a decimal **string** (`"125000.00"`, ≤ 10 digits + 2 decimals, > 0) in requests and responses; never a float.
+- Times are RFC 3339 with offset; `effectiveTo` is exclusive and optional (open-ended).
+- `taxConfigurationId` must be empty (422) until an approved tax configuration exists.
+- Errors: 403 `SELF_APPROVAL_NOT_ALLOWED`; 409 `PRICE_OVERLAP` (`details[].field = conflictingPriceId` when known),
+  `APPROVAL_BLOCKED` (`details[].field` = `price_list`, `brand`, `variant`, `variant_verification`), `VERSION_CONFLICT`,
+  `INVALID_STATE` (approved/cancelled rows, archived list/variant), `DUPLICATE` (list name); 404 `PRICE_NOT_FOUND`
+  from lookup; 422 `VALIDATION_FAILED` (incl. retroactive `effectiveFrom`, cross-brand `variantId`, bad supersession).
+- Cross-brand mismatches fail with 422 (C-06): `GET /price-items` with `brandId`/`priceListId`/`variantId` of different
+  brands, and `GET /prices/lookup` with a variant of another brand than the list (or an unknown list/variant).
+- No DELETE: drafts are cancelled (kept), approved prices are superseded. Every mutation is audited
+  (`pricing.price_list.*`, `pricing.price_item.drafted|updated|cancelled|approved|superseded`); refused approvals DENIED.
+
+## Suppliers (D-01)
+
+Rules: ADR-015. Schema: migration 000010. Client: `ui/src/features/suppliers/api/suppliers.ts`; hooks `hooks/useSuppliers.ts`.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /suppliers` · `GET /suppliers/{id}` | `suppliers.view` | filters `q` (name/GSTIN), `status`, `brandId`, paging; detail includes contacts, documents, links |
+| `POST /suppliers` · `PATCH /suppliers/{id}` | `suppliers.manage` | GSTIN upper-cased; identity change on a verified supplier → pending |
+| `POST /suppliers/{id}/verify` | `suppliers.verify` | needs `documentId` (this supplier's) + `reference` |
+| `POST /suppliers/{id}/archive` | `suppliers.archive` | `reason`; read-only afterwards; contacts, documents and links kept |
+| `POST /suppliers/{id}/contacts` · `PATCH …/contacts/{contactId}` · `POST …/contacts/{contactId}/remove` | `suppliers.manage` | phone or email required; one active primary; removal keeps the row |
+| `POST /suppliers/{id}/documents` | `suppliers.manage` (+ `attachments.upload` to upload first) | links the caller's own unlinked attachment |
+| `POST /suppliers/{id}/brand-links` | `suppliers.manage` | starts `UNVERIFIED`; one open link per supplier + brand |
+| `GET /supplier-brand-links?brandId=…` or `?supplierId=…` | `suppliers.view` | one of the two filters required; optional `status` |
+| `POST /supplier-brand-links/{id}/verify` | `suppliers.verify` | supplier must be `VERIFIED`; evidence document + reference + `effectiveFrom` |
+| `POST /supplier-brand-links/{id}/end` | `suppliers.archive` | `reason`; ended links are immutable |
+
+- Errors: 409 `DUPLICATE` (`legalName`, `gstin`, `brandId`), `VERSION_CONFLICT`, `INVALID_STATE` (archived supplier,
+  unverified supplier, archived brand, ended link); 404 `NOT_FOUND`; 422 `VALIDATION_FAILED` (format, unknown or other
+  supplier's document); 403 `FORBIDDEN`.
+- No DELETE. Every mutation is audited (`supplier.created|updated|verified|archived|contact_*|document_added|brand_link_*`);
+  audit payloads carry no phone numbers or emails.
+
+## Purchase orders (D-02)
+
+Rules: ADR-016. Schema: migration 000011. Client: `ui/src/features/purchasing/api/purchaseOrders.ts`; hooks
+`hooks/usePurchaseOrders.ts`. Every mutation answers with the whole PO detail (`PurchaseOrderDetail`).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /purchase-orders` · `GET /purchase-orders/{id}` | `purchase_orders.view` | filters `q` (number/supplier), `status`, `supplierId`, `brandId`, paging; detail has lines, history (`events`), `blockers`, `approvalRequired`/`approvalReason` (drafts), caller `actions` |
+| `POST /purchase-orders` | `purchase_orders.manage` | draft with optional `lines`; optional `Idempotency-Key` header (8–100 `[A-Za-z0-9_-]`): a repeat by the same user returns the first PO with 200 + `Idempotent-Replayed: true` |
+| `PATCH /purchase-orders/{id}` | `purchase_orders.manage` | drafts only: `supplierId`, `expectedDate` (YYYY-MM-DD or null), `notes` |
+| `POST …/lines` · `PATCH …/lines/{lineId}` · `POST …/lines/{lineId}/remove` | `purchase_orders.manage` (+ `catalogue.cost_price.view` to name `priceListId`) | drafts only; `version` is the PO's; one line per variant; `quantity` 1–10000; `unitCost` positive, ≤ 2 decimals |
+| `POST /purchase-orders/{id}/submit` | `purchase_orders.manage` | `SUBMITTED`, or `APPROVED` (basis `BELOW_THRESHOLD`) only within a signed-off threshold |
+| `POST /purchase-orders/{id}/approve` | `purchase_orders.approve` | never by the creator or submitter (403 `SELF_APPROVAL_NOT_ALLOWED`); prerequisites re-checked |
+| `POST /purchase-orders/{id}/return` | `purchase_orders.approve` | `SUBMITTED` → `DRAFT`, `reason` required |
+| `POST /purchase-orders/{id}/cancel` | `purchase_orders.cancel` | from `DRAFT`, `SUBMITTED`, or `APPROVED` with nothing received; `reason` required |
+| `GET /purchase-order-settings` | `purchase_orders.view` or `.settings.manage` | `approvalThreshold` null = not configured |
+| `PUT /purchase-order-settings` | `purchase_orders.settings.manage` | threshold needs `approvalReference` (owner sign-off) |
+
+- Amounts are decimal strings in INR excluding tax; totals, line totals, remaining quantities, cost variance and line
+  `warnings` (`PRICE_VARIANCE`, `PARTIAL_DELIVERY`, `OVER_RECEIPT`) are computed by the server. Unknown body fields
+  (e.g. `totalAmount`, `status`) are refused with 422.
+- Catalogue cost snapshot (`reference*`): taken when a line names `priceListId` (the list's approved `COST` price valid
+  now); kept unchanged afterwards. Hidden (`referenceHidden: true`) without `catalogue.cost_price.view`.
+- Errors: 409 `SUBMISSION_BLOCKED` / `APPROVAL_BLOCKED` (details: unmet keys `lines`, `expected_date`,
+  `supplier_verified`, `supplier_brand_link`, `brand_active`, `model_active`, `variant_active`), `DUPLICATE` (`variantId`),
+  `VERSION_CONFLICT`, `INVALID_STATE`; 403 `FORBIDDEN`, `SELF_APPROVAL_NOT_ALLOWED`; 404 `NOT_FOUND`; 422
+  `VALIDATION_FAILED` (format, cross-brand/archived catalogue, archived or unknown supplier, other brand's price list).
+- No DELETE of a PO. Audited: `purchase_order.created|updated|line_added|line_updated|line_removed|submitted|approved|
+  returned|cancelled|settings_updated`; refused approvals are recorded with outcome `DENIED`.
+
+## Goods receipts (D-03)
+
+Rules: ADR-017. Schema: migration 000012. Client: `ui/src/features/receiving/api/goodsReceipts.ts`; hooks
+`hooks/useGoodsReceipts.ts`. Every mutation answers with the whole receipt (`GoodsReceiptDetail`). A draft changes no
+stock (`stockPosted: false`); posting is D-07.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /goods-receipts` · `GET /goods-receipts/{id}` | `goods_receipts.view` | filters `q` (GRN/PO number, supplier, supplier reference), `status`, `purchaseOrderId`, paging; detail lists **every** PO line with `orderedQuantity`, `postedQuantity`, `otherDraftsQuantity`, `availableQuantity`, received/accepted/rejected, `excessQuantity`, `overReceipt`, `units`, `warnings`; plus `documents`, `events`, caller `actions` |
+| `GET /receivable-purchase-orders` | `goods_receipts.manage` | `APPROVED`/`PARTIALLY_RECEIVED` POs with ordered, posted, draft-held and available quantities |
+| `POST /goods-receipts` | `goods_receipts.manage` | `purchaseOrderId`, `receivedDate` (not future), `supplierReference`, `notes`; optional `Idempotency-Key` as for POs |
+| `PUT /goods-receipts/{id}` | `goods_receipts.manage` (+ `goods_receipts.over_receipt` to send `overReceiptReason`) | replaces header, lines and units of a draft, all or nothing; `version` required; lines with nothing entered are dropped, so error paths (`lines[i].units[j].chassisNumber`) keep the client's positions |
+| `POST /goods-receipts/{id}/cancel` | `goods_receipts.manage` | drafts only, `reason` required; kept as history |
+| `POST /goods-receipts/{id}/documents` | `goods_receipts.manage` + `attachments.upload` | links one of the caller's own unlinked uploads (`documentType` `DELIVERY_CHALLAN`/`SUPPLIER_INVOICE`/`PHOTO`/`OTHER`); drafts only; downloads need `attachments.view` + `goods_receipts.view` |
+
+- Per line `receivedQuantity` = `acceptedQuantity` + `rejectedQuantity` (1–10000); units ≤ received, accepted/rejected
+  units ≤ those quantities. Identifiers are optional printable ASCII ≤ 50; a chassis/frame number (trimmed,
+  upper-cased) appears once per receipt and not on another `DRAFT`/`POSTED` receipt.
+- `availableQuantity` = ordered − posted − other open drafts. Above it: 409 `OVER_RECEIPT_REQUIRES_OVERRIDE` (details per
+  line), or 403 `OVER_RECEIPT_NOT_AUTHORISED` when the reason comes from a caller without the permission (audited
+  `DENIED`). An authorisation stays while it covers the received quantity.
+- Errors also: 409 `DUPLICATE` (details per unit), `VERSION_CONFLICT`, `INVALID_STATE` (not a draft, or the PO is no
+  longer receivable); 404; 422 `VALIDATION_FAILED`. No DELETE and no posting route. Audited:
+  `goods_receipt.created|saved|over_receipt_authorised|cancelled|document_added`.
+
+## Vehicle units (D-04)
+
+Rules: ADR-018. Schema: migration 000013. Client: `ui/src/features/vehicles/api/vehicleUnits.ts`; hooks
+`hooks/useVehicleUnits.ts`; cost text and read-error states `lib/presentation.ts`. Read-only: units are created only by
+receipt posting (D-07, `vehicles.RegisterFromReceiptUnit` in the posting transaction) and change only through the stock
+movement ledger (E-01, below).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /vehicle-units` | `vehicle_units.view` | `VehicleUnitPage`; newest first; `q` matches `unitNumber` and the normalised chassis/frame, motor, battery and charger identifiers (trimmed, upper-cased, substring); filters `status` (13 INV-005 values), `brandId`, `variantId`, `supplierId`, `purchaseOrderId`, `goodsReceiptId`, `locationId`; `page` ≥ 1, `limit` 1–100 (default 25) |
+| `GET /vehicle-units/{id}` | `vehicle_units.view` | `VehicleUnitDetail` = `VehicleUnit` + `source` (supplier, PO + line, GRN + line + captured unit, `supplierReference`, `receivedDate`) + `events` (append-only; each with `sourceType`, `sourceId`, `sourceReference` e.g. the GRN number) |
+
+- `VehicleUnit`: `id`, `unitNumber` (`MAE-VEH-000001`, format pending OQ-28), `status`, brand/model/variant ids and
+  names, `chassisNumber`/`chassisNormalised`, `motorSerial`, `batterySerial`, `chargerSerial` (all nullable: nothing is
+  mandatory while `RECEIVED_PENDING_PDI`), `locationId`/`locationCode`/`locationName` (nullable, OQ-24), `sourceType`
+  (`GOODS_RECEIPT`), `supplierId`/`supplierName`, `receivedDate`, `unitCost` (decimal string) + `costCurrency`
+  (`INR`) — both **null with `costHidden: true`** without `vehicle_units.cost.view` — `version`, timestamps.
+- Location scope: units without a location are visible to every viewer; a unit at a location needs it in the caller's
+  scope (list filtered; detail 404; a `locationId` filter outside the scope is 422 `VALIDATION_FAILED` on `locationId`).
+- Errors: 401, 403 `FORBIDDEN`, 404 `NOT_FOUND` (unknown/invalid id, or out of scope), 422 `VALIDATION_FAILED`
+  (`q`, `status`, the id filters, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
+- The referenced PO, receipt and receipt documents open through their own routes and permissions.
+- Audited (by posting, D-07): `vehicle_unit.registered` (summary without the cost).
+
+### Duplicate vehicle identifiers (D-05)
+
+A normalised chassis/frame number (trimmed, upper-cased; separators kept, OQ-26) belongs to one vehicle unit across all
+brands (unique index `vehicle_units_chassis_key`). Motor, battery and charger numbers are not unique (no approved policy:
+OQ-4, OQ-30). The route that registers units — receipt posting, D-07 — answers a conflict with
+`vehicles.WriteDuplicateIdentifier`:
+
+```json
+HTTP/1.1 409 Conflict
+{"error": {"code": "DUPLICATE_IDENTIFIER",
+  "message": "This identifier is already registered to another vehicle. Correct it and try again. Nothing was saved.",
+  "requestId": "…",
+  "details": [{"field": "lines[0].units[1].chassisNumber", "message": "is already registered"}]}}
+```
+
+- `code` is stable; `details[].field` is the request path of the conflicting identifier (ends in `chassisNumber`), so
+  the form marks that input. Nothing about the registered vehicle (number, brand, location, supplier) is returned.
+- Only that index maps to this code; a repeat for the same captured unit is a different error, and other database
+  errors stay `INTERNAL_ERROR`. No current route returns it yet (the vehicle unit API is read-only), so the OpenAPI
+  document lists it with the posting route (D-07).
+- Drafts (D-03) already refuse a chassis on another open or posted receipt (`DUPLICATE`, per unit); every registered
+  unit so far comes from a posted receipt.
+- UI (D-05 frontend): `describeGRNError` puts the conflict on the matching unit's identifier field only when the path
+  names an identifier of a line and unit that exist in the form, otherwise shows a general message; entries are kept
+  and nothing is retried. Comparison uses `normaliseChassis` (`features/vehicles/lib/identifiers.ts`). No link to the
+  existing unit (the answer carries no identifier of it).
+
+## Stock movements (E-01)
+
+Rules: ADR-020. Schema: migration 000015 (`stock_movements`). Package `internal/modules/stock`. Every change of a
+vehicle unit's stock state is one append-only movement; inserting it is what changes the unit, and nothing else can.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `POST /vehicle-units/{id}/put-on-display` | `vehicle_units.display.manage` | `AVAILABLE` → `DISPLAY` (`DISPLAY_ON`) |
+| `POST /vehicle-units/{id}/take-off-display` | `vehicle_units.display.manage` | `DISPLAY` → `AVAILABLE` (`DISPLAY_OFF`) |
+
+- Request: header `Idempotency-Key` **required** (8–100 `[A-Za-z0-9_-]`, per user), `X-CSRF-Token`, body
+  `{"version": <unit version>, "note": "optional, ≤ 500"}`. Unknown fields (`toStatus`, `movementType`, `actorId`, …) are
+  422: the server derives the movement type from the route, the before-state from the locked unit row, the actor from
+  the session and the time from the database.
+- 200 `StockMoveResult` = `movement` (`StockMovement`: `id`, `itemType` `VEHICLE_UNIT`, `vehicleUnitId`, `movementType`,
+  `quantityBefore`/`quantityAfter` (1 → 1), `fromStatus`/`toStatus`, `fromLocationId`/`toLocationId` (unchanged),
+  `sourceType` `STAFF_ACTION`, `sourceId`/`sourceReference` null, `actorId`, `note`, `createdAt`) + `unit`
+  (`id`, `unitNumber`, `status`, `locationId`, `version`).
+- Replay: the same key and the same request (route, unit, version, note) by the same user returns the **first**
+  movement with 200 and `Idempotent-Replayed: true`, and `unit` as it is now; nothing is written again. Concurrent
+  repeats wait for the first and replay it.
+- Errors: 401; 403 `FORBIDDEN` / `CSRF_FAILED`; 404 `NOT_FOUND` (unknown/invalid id, or a unit at a location outside the
+  caller's scope; units without a location are in every scope); 409 `VERSION_CONFLICT` (stale `version`), 409
+  `INVALID_STATE` (unit not in the starting status, or no chassis/frame number to leave `RECEIVED_PENDING_PDI`), 409
+  `IDEMPOTENCY_KEY_REUSED` (key already used by this user for a different request; send a new key); 415; 422
+  `VALIDATION_FAILED` (`version`, `note`, `Idempotency-Key`). A refused request writes nothing and does not use up its key.
+- Atomic: the movement, the unit's new status and `version + 1`, and the audit event `vehicle_unit.moved` (summary:
+  `movementId`, `movementType`, `status` from/to, `locationId`, `version`) commit together or not at all.
+- No route writes an arbitrary movement or status, or edits/deletes one. Listing movements is E-02.
+
+Internal callers (inside their own transaction; they check their own permission):
+
+- `stock.MoveUnit(ctx, tx, actor, scope, MoveRequest{UnitID, Type, ExpectedVersion, IdempotencyKey, Note, RequestID})`
+  for the PDI moves `PDI_PASS` (RECEIVED_PENDING_PDI → AVAILABLE), `QUALITY_HOLD` (RECEIVED_PENDING_PDI → QUALITY_HOLD)
+  and `REJECT` (QUALITY_HOLD → REJECTED), owned by D-06. Errors: `ErrNotFound`, `ErrVersionConflict`,
+  `*InvalidStateError`, `ErrChassisRequired`, `ErrIdempotencyKeyReused`, `*ValidationError`; on `stock.IsKeyRace(err)`
+  roll back and call `stock.Replay`. Roll back on any error.
+- `stock.RecordReceipt` is called by `vehicles.RegisterFromReceiptUnit`: receipt posting (D-07) gets the `RECEIPT`
+  movement (0 → 1, none → RECEIVED_PENDING_PDI, source the goods receipt) by registering the unit, in the same
+  transaction that marks the receipt POSTED and updates PO quantities. D-07 keeps its own posting `Idempotency-Key`.
+
+## Spare part and accessory SKUs (E-03)
+
+Rules: ADR-021. Schema: migration 000016. Package `internal/modules/stockitems`. Master data only: no route records
+stock, a balance or a movement (E-04). No DELETE (405).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /stock-item-categories` | `stock_items.view` | `StockItemCategoryPage`; `q` (name), `status` (`ACTIVE`/`ARCHIVED`), `page`, `limit` |
+| `POST /stock-item-categories` | `stock_items.manage` | `{name, description?}` → 201 `StockItemCategory`; name unique ignoring case → 409 `DUPLICATE` (`name`) |
+| `PATCH /stock-item-categories/{id}` | `stock_items.manage` | `{version, name?, description?}`; archived → 409 `INVALID_STATE` |
+| `POST /stock-item-categories/{id}/archive` | `stock_items.archive` | `{version, reason}`; with ACTIVE SKUs → 409 `INVALID_STATE` |
+| `GET /stock-items` | `stock_items.view` | `StockItemPage` by SKU code; `q` (SKU code, case-insensitive, or name), `status`, `categoryId`, `trackingMode`, `supplierId` (current links; needs `suppliers.view`), `brandId` (compatibility), `page`, `limit` |
+| `POST /stock-items` | `stock_items.manage` | `StockItemCreate` → 201 `StockItemDetail` |
+| `GET /stock-items/{id}` | `stock_items.view` | `StockItemDetail` = `StockItem` + `suppliers` (current, then ended) + `suppliersHidden` + `compatibility`; archived SKUs stay readable |
+| `PATCH /stock-items/{id}` | `stock_items.manage` | `StockItemUpdate`; archived → 409 `INVALID_STATE` |
+| `POST /stock-items/{id}/archive` | `stock_items.archive` | `{version, reason}` → `StockItemDetail` |
+
+- `StockItemCreate`: `sku` (1–40 of `A–Z a–z 0–9 . _ / -`, no spaces; unique compared upper-cased, archived SKUs
+  included → 409 `DUPLICATE` on `sku`), `name`, `description?`, `categoryId` (ACTIVE), `uom` (1–10 letters/digits,
+  starts with a letter; stored upper-case), `trackingMode` (`QUANTITY` | `SERIAL`), `reorderLevel?` (decimal string ≥ 0,
+  up to 3 decimals; whole for `SERIAL`; returned as e.g. `"5.000"`), `suppliers?` (`[{supplierId, supplierPartNumber?}]`,
+  ≤ 20, not archived; needs `suppliers.view`), `compatibility?` (`[{brandId, modelId?}]`, ≤ 50; the model must belong
+  to the brand; not archived; a model under a brand already listed whole is refused; needs `catalogue.view`).
+- `StockItemUpdate`: `version` plus any of `name`, `description` (null clears), `categoryId`, `uom`, `reorderLevel`
+  (null clears), `suppliers` and `compatibility` (each replaces the set; removed supplier links are ended and kept).
+  `sku`, `trackingMode`, `status` and audit fields are 422 "cannot be set here".
+- Field errors name the entry: `suppliers[1].supplierId` ("does not exist", "is archived", "is listed twice"),
+  `compatibility[0].modelId` ("does not exist", "belongs to another brand", "is archived").
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`; 404 `NOT_FOUND`; 409 `DUPLICATE`, `VERSION_CONFLICT`, `INVALID_STATE`;
+  415; 422 `VALIDATION_FAILED`.
+- Audited in the same transaction: `stock_item_category.created/updated/archived`, `stock_item.created/updated/archived`
+  (summaries: SKU, name, category, uom, tracking mode, reorder level, supplier IDs, compatibility keys, reason).
 
 ## Middleware chain
 

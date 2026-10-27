@@ -1,0 +1,57 @@
+D-05 verification (FRONTEND ONLY) — 2026-10-27 — base 2679542 (dev, local ahead of origin/dev = 4a5a9c0 by 5, behind 0).
+Working tree also holds the uncommitted regression-audit fixes (13 modified + 3 untracked files), not touched and not
+part of D-05. No Go, SQL, OpenAPI or seed change.
+
+== Contract consumed (API_CONVENTIONS "Duplicate vehicle identifiers", e4c3fa3) ==
+409 {"error": {"code": "DUPLICATE_IDENTIFIER", "message": <generic>, "requestId", "details": [{"field":
+"lines[i].units[j].chassisNumber", "message": "is already registered"}]}}. Nothing about the existing vehicle.
+Live route: none yet. No receipt-posting route exists (GET/POST/PUT goods-receipts, cancel, documents only;
+TestNoRouteDeletesOrPostsReceipts forbids /post until D-07), and the vehicle unit API is read-only. The "Post receipt"
+button stays disabled. So the live posting-conflict integration is BLOCKED BY D-07; the handling is wired into the
+receipt editor's shared error path (describeGRNError) so the posting step can reuse it.
+
+== Behaviour ==
+- Normalisation: features/vehicles/lib/identifiers.ts normaliseChassis = trim() + toUpperCase() only (server
+  upper(btrim()); identifiers are printable ASCII so both agree). Separators and inner spaces kept (OQ-26). The editor's
+  in-draft duplicate check (across all lines/units) now uses it. Values are sent trimmed, as typed: the server keeps the
+  printed form and compares the normalised one (unchanged D-03 behaviour).
+- Motor/battery/charger: never treated as unique by the screen (OQ-4, OQ-30); a server report naming one would still be
+  shown on that field.
+- Field mapping: "lines[0].units[1].chassisNumber" -> "lines.0.units.1.chassisNumber" (existing formPath). Placed only
+  when the path ends in an identifier field AND names a line/unit that exists in the form (no leading zeros, in range);
+  otherwise no field is marked and a general message is shown. The server's detail text is not shown; the field says
+  "Already registered to another vehicle. Check the number and correct it." and the error box lists "Line N, unit M:
+  chassis/frame number". Other 409s (VERSION_CONFLICT -> reload offer, DUPLICATE on another draft, over-receipt) and
+  401/403/404/422/network keep their existing handling. Unknown paths no longer switch the editor step.
+- Entries are kept, nothing is retried (mutations retry: false; save disabled while pending), "Draft saved" is not shown;
+  correcting the number clears its mark; the user saves again explicitly.
+- Existing-unit link: none. The conflict carries no unit identifier (by design), /inventory/vehicles is still a planned
+  placeholder (no detail route until D-08), and searching for the hidden unit would reveal it. Left for D-08 only if a
+  safe, authorised identifier is ever returned.
+
+== Checks (ui/) ==
+Prettier --check: PASS. ESLint (max-warnings 0): PASS. tsc -b --noEmit: PASS. vite build: PASS.
+Vitest full: 26 files / 232 tests PASS (was 24 / 206). New:
+  src/features/vehicles/identifiers.test.ts (20): trim/upper only, separators distinct, identifier paths, nested path
+    placement with own message and form line numbers, 7 unsafe/unknown paths fall back (out of range line/unit,
+    non-identifier field, __proto__, constructor.prototype, empty), no details/no form, server text about other
+    records never repeated, VERSION_CONFLICT/CONFLICT not a duplicate, 401/403/404/422/network untouched.
+  src/features/receiving/duplicateIdentifier.test.tsx (6): separators kept apart and sent as typed; cross-line
+    case/space repeat caught before sending and cleared on correction; immediate 409 (only line 1 unit 2 marked,
+    aria-invalid + accessible description, error box with label and reference, no reload, no link, entries kept,
+    exactly 1 PUT after 200 ms, correction then explicit save succeeds); delayed 409 after a locally valid form
+    (button disabled while pending, second click sends nothing, same mapping, no retry, no "saved"); out-of-range path
+    -> general message, no field marked; no vehicle-units or duplicate-check request, no link to a unit.
+  These mock the API response; the PostgreSQL race is proven by the Go tests (e4c3fa3, re-verified 2679542).
+make ci (fresh throwaway DB): exit 0. golangci-lint not installed (skipped by the Makefile; go vet ran).
+git diff --check: clean.
+
+== Browser (headed Chrome, DISPLAY=:1, slowMo 150) ==
+Throwaway stack: postgres:18-alpine :5465 (migrated to 14 + seeds), API built from this tree :8098, Vite :5183;
+test-only users e2e.active / e2e.catalogue / e2e.catviewer / e2e.priceapprover (random password, never printed),
+PROPOSED grants and the eligible-PO SQL fixture on that DB only. Everything removed afterwards.
+e2e/goods-receipts.e2e.ts: 4 passed (desktop + mobile: deny-by-default; partial draft with units and documents,
+over-receipt override, draft duplicates and stale saves refused, drafts change no stock). After the run:
+vehicle_units = 0, PO received quantities 0 (drafts register nothing).
+NOT RUN: a live DUPLICATE_IDENTIFIER browser flow — no route returns it until D-07.
+Shared dev DB (:5436) read only: still version 12; dev API (:8081) and Vite (:5173) not touched.

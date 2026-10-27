@@ -44,10 +44,10 @@ describe('application shell', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' })
     for (const label of [
       'Vehicle Units',
-      'Purchase Orders',
+      'Stock Movements',
       'Customers',
       'Reports',
-      'Catalogue & Brands',
+      'Quotations',
     ]) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
     }
@@ -102,8 +102,8 @@ describe('application shell', () => {
     const { router } = renderApp('/nope')
 
     expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: /Suppliers/ }))
-    expect(router.state.location.pathname).toBe('/procurement/suppliers')
+    await user.click(screen.getByRole('link', { name: /Stock Movements/ }))
+    expect(router.state.location.pathname).toBe('/inventory/movements')
   })
 
   it('switches between light and dark themes', async () => {

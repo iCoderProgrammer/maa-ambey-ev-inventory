@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database/dbtest"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database/dbtest"
 )
 
 // Audit rows can be added but never changed or removed through the

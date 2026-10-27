@@ -199,6 +199,29 @@ for p in catalogue.view catalogue.manage catalogue.verify catalogue.activate cat
          catalogue.brand.authorise catalogue.brand.activate; do
   make access ARGS="grant --role owner --permission $p"; done
 make access ARGS="grant --role accountant --permission catalogue.view"
+# optional, for the price tests (C-04): the catalogue user drafts, a different user approves
+for p in catalogue.price.view catalogue.price.manage catalogue.cost_price.view catalogue.cost_price.edit; do
+  make access ARGS="grant --role owner --permission $p"; done
+make user ARGS="create --username e2e.priceapprover --name 'E2E Price Approver'"
+make access ARGS="assign --username e2e.priceapprover --role sales_executive"
+for p in catalogue.view catalogue.price.view catalogue.price.approve; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
+# optional, for the supplier tests (D-01)
+for p in suppliers.view suppliers.manage suppliers.verify suppliers.archive attachments.upload attachments.view; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission suppliers.view"
+# optional, for the purchase order tests (D-02)
+for p in purchase_orders.view purchase_orders.manage purchase_orders.approve purchase_orders.cancel; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission purchase_orders.view"
+for p in purchase_orders.view purchase_orders.approve; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
+# optional, for the goods receipt tests (D-03)
+for p in goods_receipts.view goods_receipts.manage; do
+  make access ARGS="grant --role owner --permission $p"; done
+make access ARGS="grant --role accountant --permission goods_receipts.view"
+for p in goods_receipts.view goods_receipts.manage goods_receipts.over_receipt; do
+  make access ARGS="grant --role sales_executive --permission $p"; done
 cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_USERNAME=e2e.active E2E_PASSWORD=... \
   E2E_DISABLED_USERNAME=e2e.disabled E2E_DISABLED_PASSWORD=... \
@@ -206,7 +229,8 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   E2E_ATTACH_USERNAME=e2e.attach E2E_ATTACH_PASSWORD=... \
   E2E_ATTACH_VIEWER_USERNAME=e2e.attachviewer E2E_ATTACH_VIEWER_PASSWORD=... \
   E2E_CATALOGUE_USERNAME=e2e.catalogue E2E_CATALOGUE_PASSWORD=... \
-  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... npm run test:e2e
+  E2E_CATALOGUE_VIEWER_USERNAME=e2e.catviewer E2E_CATALOGUE_VIEWER_PASSWORD=... \
+  E2E_PRICE_APPROVER_USERNAME=e2e.priceapprover E2E_PRICE_APPROVER_PASSWORD=... npm run test:e2e
 ```
 
 - Use a non-production database and throwaway accounts; never put the passwords in files in the repo.
@@ -215,7 +239,19 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   start it with a higher `LOGIN_MAX_FAILURES_PER_IP` (e.g. 1000) since every request comes from one IP.
 - The catalogue API test (C-02) sends dozens of requests in a few seconds from one IP: start the API with
   a higher `RATE_LIMIT_BURST` (e.g. `RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200`) or it can get `429 RATE_LIMITED`.
-  It creates placeholder brands/models: throwaway database only. C-02 has no catalogue screen, so it is API-level.
+  It creates placeholder brands/models: throwaway database only. `e2e/catalogue-ui.e2e.ts` (C-03) drives the
+  catalogue screens with the same two accounts (plus `e2e.active` for the no-permission case) on desktop and mobile;
+  `e2e/prices.e2e.ts` (C-04) also needs `E2E_PRICE_APPROVER_*`; `e2e/isolation.e2e.ts` (C-06) uses `E2E_CATALOGUE_*`.
+  `e2e/suppliers.e2e.ts` (D-01) uses `E2E_CATALOGUE_*` with the supplier grants above (throwaway database only).
+  `e2e/purchase-orders.e2e.ts` (D-02) uses `E2E_CATALOGUE_*` and `E2E_PRICE_APPROVER_*` with the purchase order
+  grants above. Its approval test also needs an eligible fixture — an `ACTIVE`/`AUTHORISED` brand with an active model
+  and variant, a verified supplier with a verified current link to it, and a cost price list with an approved `COST`
+  price — inserted directly into the throwaway database (brand activation cannot pass through the API yet) and named
+  in `E2E_PO_SUPPLIER`, `E2E_PO_BRAND`, `E2E_PO_COST_LIST`; without them that test is skipped.
+  `e2e/goods-receipts.e2e.ts` (D-03) uses the same fixture (it creates, submits and approves its own purchase order
+  through the API) with `E2E_CATALOGUE_*` (receives, without over-receipt), `E2E_PRICE_APPROVER_*` (authorises
+  over-receipt) and `E2E_CATALOGUE_VIEWER_*` (read-only) and the goods receipt grants above. Set `E2E_EVIDENCE_DIR`
+  to save desktop/mobile screenshots.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

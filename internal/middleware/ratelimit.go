@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 )
 
 // RateLimiter is an in-memory, per-client-IP token bucket. It is a baseline

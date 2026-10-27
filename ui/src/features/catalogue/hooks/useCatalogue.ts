@@ -231,3 +231,9 @@ export function useArchiveItem(kind: CatalogueItemKind) {
     onSuccess: (item) => settled.item(kind, item),
   })
 }
+
+/** Refetches every catalogue query, e.g. after a stale-version conflict. */
+export function useRefreshCatalogue() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: catalogueKeys.all })
+}

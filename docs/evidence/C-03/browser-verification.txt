@@ -1,0 +1,99 @@
+C-03 browser verification — isolated stack — 2026-10-13T12:59Z
+
+Environment (throwaway; removed after the run): postgres:18-alpine :5449 (migrated to 8, seeded roster), API :8093 built
+from this tree (APP_ENV=development RBAC_ALLOW_PROPOSED_GRANTS=true LOGIN_MAX_FAILURES_PER_IP=1000 ATTACHMENT_LINK_TTL=30s
+RATE_LIMIT_RPS=100 RATE_LIMIT_BURST=200), Vite :5175 serving this tree's UI. Test-only users and PROPOSED grants as in
+docs/DEVELOPMENT_SETUP.md (e2e.catalogue = owner with 7 catalogue keys, e2e.catviewer = accountant with catalogue.view,
+e2e.active = no role). Placeholder data only. Shared dev DB not touched.
+
+== Iteration ==
+- First run of e2e/catalogue-ui.e2e.ts: 6/6 passed (desktop + Pixel 7).
+- Screenshot review found: duplicated text in pending readiness rows; stretched grid cards; on phones the status
+  columns were off-screen inside a scrolling table and names wrapped one word per line. Fixed (stacked list below
+  the sm breakpoint, items-start grid, server message only). Spec updated to use the list on phones.
+
+== Final run: npx playwright test (all specs, desktop 1366px + Pixel 7) ==
+  ✓   1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓   2 [desktop] › e2e/access.e2e.ts:31:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓   3 [desktop] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓   4 [desktop] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓   5 [desktop] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  ✓   6 [desktop] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓   7 [desktop] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓   8 [desktop] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓   9 [desktop] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  10 [desktop] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  11 [desktop] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  12 [desktop] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  13 [desktop] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  14 [desktop] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  15 [desktop] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  16 [desktop] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  17 [desktop] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  18 [desktop] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  19 [desktop] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  20 [desktop] › e2e/catalogue-ui.e2e.ts:82:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  ✓  21 [desktop] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  ✓  22 [desktop] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  23 [desktop] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  24 [desktop] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  25 [desktop] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  26 [desktop] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  27 [desktop] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  ✓  28 [desktop] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  -  29 [desktop] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  ✓  30 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access
+  ✓  31 [mobile] › e2e/access.e2e.ts:31:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off
+  ✓  32 [mobile] › e2e/attachments.e2e.ts:29:3 › private attachments (B-09) › a user without attachment permissions sees no Documents and is denied
+  ✓  33 [mobile] › e2e/attachments.e2e.ts:57:5 › private attachments (B-09) › with permissions › upload, list, preview, download and refresh
+  ✓  34 [mobile] › e2e/attachments.e2e.ts:122:5 › private attachments (B-09) › with permissions › the server rejects bad files even when the client is bypassed
+  -  35 [mobile] › e2e/attachments.e2e.ts:155:5 › private attachments (B-09) › with permissions › links are private, signed, short-lived and bound to one user
+  ✓  36 [mobile] › e2e/auth.e2e.ts:5:3 › authentication (B-06) › a deep link without a session goes to sign-in and returns after it
+  ✓  37 [mobile] › e2e/auth.e2e.ts:19:3 › authentication (B-06) › empty submit is validated without calling the API
+  ✓  38 [mobile] › e2e/auth.e2e.ts:31:3 › authentication (B-06) › a wrong password gives a generic error and clears the password
+  ✓  39 [mobile] › e2e/auth.e2e.ts:40:3 › authentication (B-06) › a disabled account cannot sign in
+  ✓  40 [mobile] › e2e/auth.e2e.ts:48:3 › authentication (B-06) › the session survives a reload and stays out of reach of scripts
+  ✓  41 [mobile] › e2e/auth.e2e.ts:72:3 › authentication (B-06) › the sign-in page sends a signed-in user to the app
+  ✓  42 [mobile] › e2e/auth.e2e.ts:79:3 › authentication (B-06) › sign-out ends the session on the server
+  ✓  43 [mobile] › e2e/auth.e2e.ts:97:3 › authentication (B-06) › a session the server no longer accepts sends the user to sign in
+  ✓  44 [mobile] › e2e/auth.e2e.ts:114:3 › authentication (B-06) › mutations need a session and the CSRF token
+  ✓  45 [mobile] › e2e/auth.e2e.ts:127:3 › authentication (B-06) › a temporary API outage does not throw a signed-in user out
+  ✓  46 [mobile] › e2e/auth.e2e.ts:146:3 › authentication (B-06) › repeated failures are throttled with a wait time
+  ✓  47 [mobile] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied
+  ✓  48 [mobile] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions
+  ✓  49 [mobile] › e2e/catalogue-ui.e2e.ts:82:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API
+  -  50 [mobile] › e2e/catalogue.e2e.ts:60:3 › catalogue API (C-02) › deny by default: no session, no grant, no CSRF token
+  -  51 [mobile] › e2e/catalogue.e2e.ts:89:3 › catalogue API (C-02) › relationships, duplicates, activation, archive and versions are enforced
+  ✓  52 [mobile] › e2e/shell.e2e.ts:5:3 › application shell (B-03, B-04, B-05) › dashboard shows live API, database and schema status
+  ✓  53 [mobile] › e2e/shell.e2e.ts:18:3 › application shell (B-03, B-04, B-05) › the dashboard shows no invented catalogue data and marks planned modules
+  ✓  54 [mobile] › e2e/shell.e2e.ts:34:3 › application shell (B-03, B-04, B-05) › planned modules are labelled as planned and unknown paths show not-found
+  ✓  55 [mobile] › e2e/shell.e2e.ts:46:3 › application shell (B-03, B-04, B-05) › no page scrolls sideways
+  ✓  56 [mobile] › e2e/shell.e2e.ts:58:3 › application shell (B-03, B-04, B-05) › theme choice persists across reloads
+  -  57 [mobile] › e2e/shell.e2e.ts:76:3 › navigation on desktop › sidebar links navigate, collapse and keep focus on the new page
+  ✓  58 [mobile] › e2e/shell.e2e.ts:94:3 › navigation on mobile › drawer opens, navigates, closes and the account menu works
+  5 skipped
+  53 passed (3.0m)
+
+Audit events (catalogue.*) written through the UI and API tests:
+           action            | outcome | count
+-----------------------------+---------+-------
+ catalogue.brand.activated   | DENIED  |     1
+ catalogue.brand.created     | SUCCESS |     6
+ catalogue.model.activated   | DENIED  |     5
+ catalogue.model.activated   | SUCCESS |     5
+ catalogue.model.archived    | SUCCESS |     5
+ catalogue.model.created     | SUCCESS |     6
+ catalogue.model.verified    | SUCCESS |     5
+ catalogue.variant.activated | DENIED  |     1
+ catalogue.variant.activated | SUCCESS |     1
+ catalogue.variant.created   | SUCCESS |     5
+ catalogue.variant.updated   | SUCCESS |     4
+ catalogue.variant.verified  | SUCCESS |     1
+(12 rows)
+
+
+API log: 24 ERROR lines, all 'context canceled' (browser aborted in-flight requests during navigation/teardown;
+pre-existing logging behaviour, noted in C-02 verification). No other server error.
+
+Screenshots (final UI): desktop-brands.png, desktop-brand-detail.png, desktop-add-variant-dialog.png,
+mobile-brands.png, mobile-model-detail.png.

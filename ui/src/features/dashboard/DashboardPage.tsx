@@ -16,11 +16,12 @@ const quickWorkflows = [
     domain: 'Inventory',
   },
   {
-    title: 'Goods Receipts & PDI',
+    title: 'Goods Receipts',
     path: '/procurement/goods-receipts',
     icon: Boxes,
-    description: 'Inward receiving, chassis verification & inspection dispositions.',
+    description: 'Draft receipts with unit identifiers; posting and PDI follow (D-07, D-06).',
     backlog: 'D-03',
+    available: true,
     domain: 'Procurement',
   },
   {
@@ -35,8 +36,9 @@ const quickWorkflows = [
     title: 'Multi-Brand Catalogue',
     path: '/admin/catalogue',
     icon: Tag,
-    description: 'Models, variants, battery ratings & price history by brand.',
-    backlog: 'C-01',
+    description: 'Brands, models and variants with verification status. Prices arrive with C-04.',
+    backlog: 'C-03',
+    available: true,
     domain: 'Admin',
   },
   {
@@ -122,11 +124,15 @@ export function DashboardPage() {
                   </h3>
                   <p className="mt-1 text-xs leading-relaxed text-muted">{item.description}</p>
                 </div>
-                {/* These modules are not built yet; the link opens their planned-module page. */}
+                {/* Planned modules open their planned-module page; built ones open the module. */}
                 <div className="mt-4 flex items-center justify-between gap-2 text-xs font-medium">
-                  <Badge tone="neutral">Planned</Badge>
+                  {item.available ? (
+                    <Badge tone="success">Available</Badge>
+                  ) : (
+                    <Badge tone="neutral">Planned</Badge>
+                  )}
                   <span className="flex items-center gap-1 text-primary">
-                    View plan
+                    {item.available ? 'Open module' : 'View plan'}
                     <ArrowRight
                       className="size-3.5 transition-transform duration-150 group-hover:translate-x-1"
                       aria-hidden="true"

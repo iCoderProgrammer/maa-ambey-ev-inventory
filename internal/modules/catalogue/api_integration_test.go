@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 )
 
 // End-to-end API tests over a throwaway migrated database (dbtest). Data is
@@ -206,11 +206,11 @@ func TestBrandScopedUniquenessAndCrossBrandRules(t *testing.T) {
 	// The brand of a model never changes.
 	expectError(t, a.h.call(a.admin, http.MethodPatch, "/models/"+m1.ID, map[string]any{"version": m1.Version, "brandId": b2.ID}),
 		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
-	// Filtering one brand never returns another brand's rows.
-	var list VariantList
-	expect(t, a.h.call(a.viewer, http.MethodGet, "/variants?brandId="+b2.ID+"&modelId="+m1.ID, nil), http.StatusOK, &list)
-	if list.Total != 0 {
-		t.Fatal("cross-brand filter returned rows")
+	// A filter pairing one brand with another brand's model is a mismatch and fails (C-06).
+	e = expectError(t, a.h.call(a.viewer, http.MethodGet, "/variants?brandId="+b2.ID+"&modelId="+m1.ID, nil),
+		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	if !hasField(e.Details, "brandId") {
+		t.Fatal(e)
 	}
 }
 
@@ -300,14 +300,22 @@ func TestBrandAuthorisationAndActivationGate(t *testing.T) {
 	v := a.createVariant(t, m.ID, "STD")
 	a.verifyAndActivate(t, "/variants/"+v.ID, v.Version)
 	expect(t, a.h.call(a.viewer, http.MethodGet, "/brands/"+b.ID+"/activation-readiness", nil), http.StatusOK, &r)
+	// Without an approved price (C-04) or a verified supplier relationship (D-01)
+	// those two recordable checks stay open; pending checks are never met.
 	for _, c := range r.Checks {
+		if c.Key == "approved_prices" || c.Key == "supplier_link" {
+			if c.Met || c.Pending {
+				t.Errorf("approved_prices met=%v pending=%v", c.Met, c.Pending)
+			}
+			continue
+		}
 		if c.Met == c.Pending {
 			t.Errorf("check %s met=%v pending=%v", c.Key, c.Met, c.Pending)
 		}
 	}
 	e = expectError(t, a.h.call(a.admin, http.MethodPost, "/brands/"+b.ID+"/activate", map[string]any{"version": b.Version}),
 		http.StatusConflict, "ACTIVATION_BLOCKED")
-	if len(e.Details) != len(pendingChecks) {
+	if len(e.Details) != len(pendingChecks)+2 || !hasField(e.Details, "approved_prices") || !hasField(e.Details, "supplier_link") {
 		t.Fatalf("unmet %+v", e.Details)
 	}
 	var stored Brand

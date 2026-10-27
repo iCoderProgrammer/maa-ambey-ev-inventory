@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 )
 
 const maxBodyBytes = 16 << 10
@@ -336,7 +336,7 @@ func (h *Handler) RecordBrandAuthorisation(c *gin.Context) {
 // BrandReadiness godoc
 //
 //	@Summary		Brand activation readiness
-//	@Description	Every prerequisite for enabling the brand for purchase/sales (BR-002) and whether it is met. Checks marked pending belong to features not built yet (supplier links, approved prices, warranty terms, identifier rules) and are never met, so no brand can be activated until those exist. Requires catalogue.view.
+//	@Description	Every prerequisite for enabling the brand for purchase/sales (BR-002) and whether it is met. approved_prices needs an approved SELLING price valid now for an active variant (C-04). Checks marked pending belong to features not built yet (supplier links, warranty terms, identifier rules) and are never met, so no brand can be activated until those exist. Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			id	path		string	true	"Brand ID"
@@ -574,7 +574,7 @@ func (h *Handler) ArchiveModel(c *gin.Context) { h.archive(c, kindModel) }
 // ListVariants godoc
 //
 //	@Summary		List variants
-//	@Description	Sorted by name. Requires catalogue.view.
+//	@Description	Sorted by name. brandId together with a modelId of another brand is a cross-brand mismatch: 422 (C-06). Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			brandId		query	string	false	"Brand ID"
@@ -732,7 +732,7 @@ func (h *Handler) ArchiveVariant(c *gin.Context) { h.archive(c, kindVariant) }
 // ListColours godoc
 //
 //	@Summary		List colours
-//	@Description	Sorted by name. Requires catalogue.view.
+//	@Description	Sorted by name. brandId together with a variantId of another brand is a cross-brand mismatch: 422 (C-06). Requires catalogue.view.
 //	@Tags			catalogue
 //	@Produce		json
 //	@Param			brandId		query	string	false	"Brand ID"
