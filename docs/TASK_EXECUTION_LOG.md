@@ -54,7 +54,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
-| E-01 | Append-only stock movement API | P0 | D-04, B-08 | NOT STARTED |
+| E-01 | Append-only stock movement API | P0 | D-04, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase (typed contracts/hooks) not started |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | NOT STARTED |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
@@ -2510,6 +2510,74 @@ DUPLICATE_IDENTIFIER still NOT RUN (needs D-07). Evidence: `docs/evidence/D-05/b
 #### Final status
 IN PROGRESS — D-05 backend and frontend phases complete, committed locally (not pushed). Remaining: exercise the
 conflict against the real posting route once D-07 exists.
+
+### E-01 — Append-only stock movement API
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase (typed movement contracts and hooks, no
+  screen) not started.
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_01_append-only-stock-movement-api.md
+- Git at start: `dev` at `2d2c2a5` = `origin/dev`, clean tree. D-06 was stopped before coding because it needs E-01.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units` + guard trigger (000013), `RegisterFromReceiptUnit`; vehicles tests pass |
+| B-08 | COMPLETE | `audit.Record` in the caller's transaction; audit append-only tests pass |
+
+#### Acceptance criteria
+- [x] AC1 All qualifying changes create exactly one movement: registration writes its RECEIPT movement in the same
+  transaction; every status change is one movement inserted by `stock.MoveUnit`; the unit changes only by that insert
+  (trigger) and must equal its latest movement at commit (`vehicle_units_ledger_reconciles`)
+- [x] AC2 Movements cannot be edited/deleted via ordinary APIs: no such route; UPDATE/DELETE/TRUNCATE refused by the
+  database; direct unit updates/deletes still refused (also with the trigger's marker set)
+- [x] AC3 Idempotency tested: replay, key reuse, 8-way concurrent same key, concurrent key across units, retries after
+  failures
+- [ ] Transitions needing policy (not implemented): PENDING_PDI -> REJECTED, QUALITY_HOLD -> AVAILABLE, REJECTED onward
+  (OQ-31); reservation/sale edges (F-04/F-07); SERVICE_HOLD/returns; transfers (OQ-32); reversals (OQ-33)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction; E-01 has no screen — its frontend phase is
+typed contracts/hooks).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000015_create_stock_movements` (up/down): `stock_movements` (append-only; transition CHECK = approved edges
+  RECEIPT, PDI_PASS, QUALITY_HOLD, REJECT, DISPLAY_ON, DISPLAY_OFF; quantities 0/1; source GOODS_RECEIPT|STAFF_ACTION;
+  unique `(actor_id, idempotency_key)`, one RECEIPT per unit; reversal link present but kept empty), apply trigger (locks
+  unit, checks "before", sets status/location/version), narrowed D-04 guard (only that trigger's update), commit-time
+  reconciliation trigger, backfill of RECEIPT movements for existing units, permission `vehicle_units.display.manage`
+  (no grants).
+- `internal/modules/stock` (new): `RecordReceipt`, `MoveUnit`, `Replay` (tx-aware domain), `Service.Display`, `PGStore`,
+  Gin routes `POST /vehicle-units/{id}/put-on-display` and `/take-off-display` (version + Idempotency-Key required),
+  audit `vehicle_unit.moved`. `vehicles.RegisterFromReceiptUnit` writes the RECEIPT movement; audit names `movementId`.
+  `httpx.CodeIdempotencyKeyReused`. Server/API wiring. OpenAPI regenerated.
+- Docs: ADR-020, OQ-31…OQ-33 (`docs/ARCHITECTURE_DECISIONS.md`), "Stock movements (E-01)" incl. D-06/D-07 integration
+  (`docs/API_CONVENTIONS.md`).
+- Checks: 17 new stock tests; Go 20 packages / 434 tests (244 top-level) pass with PostgreSQL required; migration
+  up/down/up; `make ci` exit 0 (Vitest 232); gofmt/vet clean; swagger-check PASS; golangci-lint not installed (skipped).
+  Details: `docs/evidence/E-01/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (no UI consumer yet; frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE (no screen in E-01).
+
+#### Files changed
+`migrations/000015_create_stock_movements.{up,down}.sql`, `internal/modules/stock/*` (new), `internal/modules/vehicles/
+{pgstore,types,http}.go`, `internal/modules/vehicles/duplicate_integration_test.go` (v13 explicit),
+`internal/modules/receiving/api_integration_test.go` (tripwire now asserts no movements), `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `internal/server/{server,server_test}.go`, `cmd/api/main.go`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log, `docs/evidence/E-01/verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-31 PDI dispositions (blocks D-06's REJECT rule), OQ-32 transfers, OQ-33 corrections; grants (RB-5).
+- `ui/src/features/access/api/access.ts` does not list `vehicle_units.display.manage` yet (frontend phase).
+- Shared dev DB still version 12 (needs 13–15); not migrated.
+
+#### Final status
+IN PROGRESS — E-01 backend phase complete, committed locally (not pushed). D-06 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

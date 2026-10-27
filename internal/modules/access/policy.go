@@ -17,7 +17,7 @@ import (
 )
 
 // Permission keys. Every key must exist in the permissions table (migrations
-// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -67,6 +67,8 @@ const (
 	// Vehicle unit registry (D-04, migration 000013).
 	PermVehicleUnitView     = "vehicle_units.view"
 	PermVehicleUnitCostView = "vehicle_units.cost.view"
+	// Stock movements (E-01, migration 000015): AVAILABLE <-> DISPLAY.
+	PermVehicleUnitDisplayManage = "vehicle_units.display.manage"
 )
 
 // AllPermissions lists every key the code knows.
@@ -80,7 +82,7 @@ var AllPermissions = []string{
 	PermSupplierView, PermSupplierManage, PermSupplierVerify, PermSupplierArchive,
 	PermPurchaseOrderView, PermPurchaseOrderManage, PermPurchaseOrderApprove, PermPurchaseOrderCancel, PermPurchaseOrderSettings,
 	PermGoodsReceiptView, PermGoodsReceiptManage, PermGoodsReceiptOverReceipt,
-	PermVehicleUnitView, PermVehicleUnitCostView,
+	PermVehicleUnitView, PermVehicleUnitCostView, PermVehicleUnitDisplayManage,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

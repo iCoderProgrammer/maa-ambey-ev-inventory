@@ -22,6 +22,7 @@ import (
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/pricing"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/purchasing"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/receiving"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/stock"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/suppliers"
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/vehicles"
 )
@@ -51,14 +52,16 @@ type Deps struct {
 	GoodsReceipts *receiving.Handler
 	// VehicleUnits serves the vehicle unit registry (D-04).
 	VehicleUnits *vehicles.Handler
-	Version      string
+	// StockMovements serves the stock movement operations (E-01).
+	StockMovements *stock.Handler
+	Version        string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
-	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil {
-		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts and VehicleUnits dependencies are required")
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil || d.StockMovements == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts, VehicleUnits and StockMovements dependencies are required")
 	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
@@ -120,6 +123,7 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	d.PurchaseOrders.Register(api)
 	d.GoodsReceipts.Register(api)
 	d.VehicleUnits.Register(api)
+	d.StockMovements.Register(api)
 
 	return r, nil
 }

@@ -229,7 +229,19 @@ func TestUniquenessMigrationRefusesExistingDuplicates(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 	f := setupOn(t, pool)
-	if _, err := f.registerAll(ctx, f.grn, true, nil, f.unitA1); err != nil {
+	// Version 13 has no stock movement ledger (E-01) for today's registration to
+	// write to, so both units are written directly, as version 13 allowed.
+	if err := pgx.BeginFunc(ctx, f.pool, func(tx pgx.Tx) error {
+		if err := f.post(ctx, tx, f.grn); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO vehicle_units (brand_id, model_id, variant_id, chassis_number, source_type, supplier_id,
+				purchase_order_id, purchase_order_line_id, goods_receipt_id, goods_receipt_line_id, goods_receipt_unit_id,
+				received_date, unit_cost, registered_by)
+			VALUES ($1, $2, $3, 'ch-0001', 'GOODS_RECEIPT', $4, $5, $6, $7, $8, $9, DATE '2026-01-15', 95000, $10)`,
+			f.brandA, f.modelA, f.variantA, f.supplier, f.po, f.poLineA, f.grn, f.grnLineA, f.unitA1, f.ids["poster"])
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	// Data from before D-05 (version 13 has no uniqueness): written directly, as the D-05 service would refuse it.
@@ -277,7 +289,7 @@ func TestUniquenessMigrationRoundTrip(t *testing.T) {
 	if e, u := index("vehicle_units_chassis_key"); !e || !u {
 		t.Fatal("up: no unique chassis index")
 	}
-	if err := m.Steps(-1); err != nil {
+	if err := m.Migrate(13); err != nil {
 		t.Fatal(err)
 	}
 	if e, _ := index("vehicle_units_chassis_key"); e {

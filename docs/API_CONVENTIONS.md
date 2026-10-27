@@ -336,7 +336,7 @@ stock (`stockPosted: false`); posting is D-07.
 Rules: ADR-018. Schema: migration 000013. Client: `ui/src/features/vehicles/api/vehicleUnits.ts`; hooks
 `hooks/useVehicleUnits.ts`; cost text and read-error states `lib/presentation.ts`. Read-only: units are created only by
 receipt posting (D-07, `vehicles.RegisterFromReceiptUnit` in the posting transaction) and change only through the stock
-movement service (E-01).
+movement ledger (E-01, below).
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -381,6 +381,47 @@ HTTP/1.1 409 Conflict
   names an identifier of a line and unit that exist in the form, otherwise shows a general message; entries are kept
   and nothing is retried. Comparison uses `normaliseChassis` (`features/vehicles/lib/identifiers.ts`). No link to the
   existing unit (the answer carries no identifier of it).
+
+## Stock movements (E-01)
+
+Rules: ADR-020. Schema: migration 000015 (`stock_movements`). Package `internal/modules/stock`. Every change of a
+vehicle unit's stock state is one append-only movement; inserting it is what changes the unit, and nothing else can.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `POST /vehicle-units/{id}/put-on-display` | `vehicle_units.display.manage` | `AVAILABLE` → `DISPLAY` (`DISPLAY_ON`) |
+| `POST /vehicle-units/{id}/take-off-display` | `vehicle_units.display.manage` | `DISPLAY` → `AVAILABLE` (`DISPLAY_OFF`) |
+
+- Request: header `Idempotency-Key` **required** (8–100 `[A-Za-z0-9_-]`, per user), `X-CSRF-Token`, body
+  `{"version": <unit version>, "note": "optional, ≤ 500"}`. Unknown fields (`toStatus`, `movementType`, `actorId`, …) are
+  422: the server derives the movement type from the route, the before-state from the locked unit row, the actor from
+  the session and the time from the database.
+- 200 `StockMoveResult` = `movement` (`StockMovement`: `id`, `itemType` `VEHICLE_UNIT`, `vehicleUnitId`, `movementType`,
+  `quantityBefore`/`quantityAfter` (1 → 1), `fromStatus`/`toStatus`, `fromLocationId`/`toLocationId` (unchanged),
+  `sourceType` `STAFF_ACTION`, `sourceId`/`sourceReference` null, `actorId`, `note`, `createdAt`) + `unit`
+  (`id`, `unitNumber`, `status`, `locationId`, `version`).
+- Replay: the same key and the same request (route, unit, version, note) by the same user returns the **first**
+  movement with 200 and `Idempotent-Replayed: true`, and `unit` as it is now; nothing is written again. Concurrent
+  repeats wait for the first and replay it.
+- Errors: 401; 403 `FORBIDDEN` / `CSRF_FAILED`; 404 `NOT_FOUND` (unknown/invalid id, or a unit at a location outside the
+  caller's scope; units without a location are in every scope); 409 `VERSION_CONFLICT` (stale `version`), 409
+  `INVALID_STATE` (unit not in the starting status, or no chassis/frame number to leave `RECEIVED_PENDING_PDI`), 409
+  `IDEMPOTENCY_KEY_REUSED` (key already used by this user for a different request; send a new key); 415; 422
+  `VALIDATION_FAILED` (`version`, `note`, `Idempotency-Key`). A refused request writes nothing and does not use up its key.
+- Atomic: the movement, the unit's new status and `version + 1`, and the audit event `vehicle_unit.moved` (summary:
+  `movementId`, `movementType`, `status` from/to, `locationId`, `version`) commit together or not at all.
+- No route writes an arbitrary movement or status, or edits/deletes one. Listing movements is E-02.
+
+Internal callers (inside their own transaction; they check their own permission):
+
+- `stock.MoveUnit(ctx, tx, actor, scope, MoveRequest{UnitID, Type, ExpectedVersion, IdempotencyKey, Note, RequestID})`
+  for the PDI moves `PDI_PASS` (RECEIVED_PENDING_PDI → AVAILABLE), `QUALITY_HOLD` (RECEIVED_PENDING_PDI → QUALITY_HOLD)
+  and `REJECT` (QUALITY_HOLD → REJECTED), owned by D-06. Errors: `ErrNotFound`, `ErrVersionConflict`,
+  `*InvalidStateError`, `ErrChassisRequired`, `ErrIdempotencyKeyReused`, `*ValidationError`; on `stock.IsKeyRace(err)`
+  roll back and call `stock.Replay`. Roll back on any error.
+- `stock.RecordReceipt` is called by `vehicles.RegisterFromReceiptUnit`: receipt posting (D-07) gets the `RECEIPT`
+  movement (0 → 1, none → RECEIVED_PENDING_PDI, source the goods receipt) by registering the unit, in the same
+  transaction that marks the receipt POSTED and updates PO quantities. D-07 keeps its own posting `Idempotency-Key`.
 
 ## Middleware chain
 

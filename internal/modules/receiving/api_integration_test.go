@@ -249,8 +249,9 @@ func TestPartialDraftReceiptChangesNoStock(t *testing.T) {
 	if n := f.scalar(t, `SELECT (SELECT count(*) FROM vehicle_units) + (SELECT count(*) FROM vehicle_unit_events)`); n != "0" {
 		t.Fatalf("a draft registered vehicle units (%s)", n)
 	}
-	if n := f.scalar(t, `SELECT count(*)::text FROM information_schema.tables WHERE table_name = 'stock_movements'`); n != "0" {
-		t.Fatalf("stock movement table exists (%s): this test must also check it", n)
+	// ...and recorded no stock movement (E-01).
+	if n := f.scalar(t, `SELECT count(*)::text FROM stock_movements`); n != "0" {
+		t.Fatalf("a draft recorded stock movements (%s)", n)
 	}
 	// Server-side values only.
 	expectError(t, f.h.call(f.receiver, http.MethodPut, "/goods-receipts/"+d.ID, map[string]any{"version": d.Version, "receivedDate": pastDate,

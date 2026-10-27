@@ -9,8 +9,8 @@
 // delete route: the only way in is RegisterFromReceiptUnit, called by receipt
 // posting (D-07) inside its transaction for an accepted unit of a POSTED goods
 // receipt, and the database refuses a unit whose receipt is not posted at
-// commit. Status and location change only through the stock movement service
-// (E-01, INV-009); until then the database refuses every update. A normalised
+// commit. Status and location change only through the stock movement ledger
+// (package stock, E-01, INV-009): the database refuses every other update. A normalised
 // chassis/frame number belongs to one unit only (D-05: checked before the
 // insert and enforced by the vehicle_units_chassis_key index); motor, battery
 // and charger numbers have no approved uniqueness policy yet, and identifier

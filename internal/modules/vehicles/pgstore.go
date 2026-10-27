@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
+	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/stock"
 )
 
 // PGStore is the PostgreSQL Repository.
@@ -168,7 +169,8 @@ type Registration struct {
 // supplier, references, received date, the identifiers as captured and the PO
 // line's agreed unit cost (cost basis pending, OQ-29). locationID is optional
 // until receipts carry a location (OQ-24). It records the REGISTERED history
-// entry and an audit event in the same transaction.
+// entry, the unit's RECEIPT stock movement (E-01) and an audit event in the
+// same transaction.
 //
 // The database re-checks at commit that the receipt is POSTED (a draft never
 // has vehicle units); pass the commit error through CommitError. A chassis/frame
@@ -246,12 +248,19 @@ func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, 
 		r.ID, ActionRegistered, StatusReceivedPendingPDI, SourceGoodsReceipt, receiptID, grnNumber, actor.UserID); err != nil {
 		return Registration{}, fmt.Errorf("record vehicle unit history: %w", err)
 	}
+	// The unit enters stock through its RECEIPT movement (E-01); the database
+	// refuses at commit a unit without one.
+	movementID, err := stock.RecordReceipt(ctx, tx, actor, stock.Receipt{UnitID: r.ID, GoodsReceiptID: receiptID,
+		GoodsReceiptNumber: grnNumber, GoodsReceiptUnitID: receiptUnitID, LocationID: locationID, RequestID: requestID})
+	if err != nil {
+		return Registration{}, err
+	}
 	// The cost is left out of the audit summary: audit readers need not hold vehicle_units.cost.view.
 	if err := audit.Record(ctx, tx, audit.Event{Actor: actor, Action: "vehicle_unit.registered", EntityType: "vehicle_unit",
 		EntityID: r.ID, Reference: r.UnitNumber, RequestID: requestID, Summary: audit.Summary{
 			"status": StatusReceivedPendingPDI, "sourceType": SourceGoodsReceipt, "goodsReceiptId": receiptID,
 			"goodsReceiptNumber": grnNumber, "goodsReceiptUnitId": receiptUnitID, "purchaseOrderId": poID,
-			"brandId": brandID, "variantId": variantID,
+			"brandId": brandID, "variantId": variantID, "movementId": movementID,
 		}}); err != nil {
 		return Registration{}, err
 	}

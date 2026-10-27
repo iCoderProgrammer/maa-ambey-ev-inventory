@@ -53,6 +53,8 @@ const (
 	CodeOverReceiptForbidden     = "OVER_RECEIPT_NOT_AUTHORISED"    // 403
 	// Vehicle identifiers (D-05): details name the field (e.g. chassisNumber); 409.
 	CodeDuplicateIdentifier = "DUPLICATE_IDENTIFIER"
+	// Stock movements (E-01): the same Idempotency-Key with a different request; 409.
+	CodeIdempotencyKeyReused = "IDEMPOTENCY_KEY_REUSED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

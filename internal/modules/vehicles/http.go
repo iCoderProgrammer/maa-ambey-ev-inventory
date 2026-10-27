@@ -24,7 +24,7 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 }
 
 // Register mounts the routes. Read-only: units are created only by receipt
-// posting (D-07), and change only through the stock movement service (E-01).
+// posting (D-07), and change only through the stock movement ledger (package stock, E-01).
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	view := h.access.Require(access.PermVehicleUnitView)
 	rg.GET("/vehicle-units", view, h.List)

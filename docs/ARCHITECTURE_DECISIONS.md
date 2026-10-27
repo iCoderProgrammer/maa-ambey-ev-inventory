@@ -485,6 +485,57 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-020 — Append-only stock movement ledger (E-01)
+
+- **Status:** Accepted (technical design; who may make which move, reversal/correction flow, PDI policy, transfer rules
+  and grants pending — OQ-31…OQ-33, RB-5).
+- **Schema (migration 000015):** `stock_movements` — one row per change of a vehicle unit's stock state:
+  `item_type` (`VEHICLE_UNIT` only until spare parts, E-03), `vehicle_unit_id`, `movement_type`, `quantity_before/after`
+  (0/1: a unit is one item), `from/to_status`, `from/to_location_id`, `source_type` (`GOODS_RECEIPT` | `STAFF_ACTION`) +
+  `source_id` + `source_reference`, `reverses_movement_id`, `actor_id`, `request_id`, `idempotency_key` +
+  `request_hash` (SHA-256 of the operation), `note`, `created_at` (database clock), `seq`.
+- **Movement types = approved lifecycle edges with an owner** (System Architecture §6), enforced by CHECK
+  `stock_movements_transition_valid` and mirrored by `stock.Transitions`: `RECEIPT` (none → RECEIVED_PENDING_PDI,
+  0 → 1, source the unit's own goods receipt), `PDI_PASS` (RECEIVED_PENDING_PDI → AVAILABLE), `QUALITY_HOLD`
+  (RECEIVED_PENDING_PDI → QUALITY_HOLD), `REJECT` (QUALITY_HOLD → REJECTED), `DISPLAY_ON` / `DISPLAY_OFF`
+  (AVAILABLE ↔ DISPLAY). Every non-receipt movement is 1 → 1 at an unchanged location. **Not implemented** (no
+  approved rule or owner yet): RECEIVED_PENDING_PDI → REJECTED and QUALITY_HOLD → AVAILABLE (not in the diagram; PDI
+  policy, OQ-31), reservation/sale/delivery edges (F-04/F-07 add their types by migration), SERVICE_HOLD and returns
+  (no approved exit/approval), ORDERED/IN_TRANSIT (units are registered at receipt), location transfers (OQ-32),
+  reversals (OQ-33: the link column, its same-unit FK and one-reversal-per-movement key exist; a CHECK keeps it empty).
+- **The ledger drives the snapshot.** An `AFTER INSERT` trigger on `stock_movements` locks the unit, requires its
+  current status/location to equal the movement's "before" (`stock_movements_from_matches_unit`; a RECEIPT must be the
+  unit's first movement, from its own goods receipt, at its registered state: `stock_movements_receipt_matches_unit`),
+  then sets status, location, `version + 1`, `updated_at`. The D-04 guard on `vehicle_units` now accepts exactly that
+  update: issued from inside a trigger (`pg_trigger_depth() > 1`, which no client statement satisfies, even one that sets
+  the `maa.stock_movement_unit` marker), for the unit the marker names, changing nothing but those four columns.
+  Direct UPDATE/DELETE of units, and UPDATE/DELETE/TRUNCATE of movements, stay `insufficient_privilege` (tested).
+- **Reconciliation (LED-003):** a deferred constraint trigger checks at commit that every inserted/updated unit has a
+  RECEIPT movement and equals its latest movement (status, location, quantity 1): `vehicle_units_ledger_reconciles`.
+  A unit therefore cannot exist or change without its movement, and the chain from → to is continuous.
+- **Registration:** `vehicles.RegisterFromReceiptUnit` now writes the unit's RECEIPT movement (`stock.RecordReceipt`,
+  key `receipt-unit-<captured unit id>`) in the same transaction; the registration audit event names `movementId`.
+  Units registered before 000015 get the same movement backfilled (actor, time, receipt and location of the
+  registration); the migration refuses to run if any unit is not RECEIVED_PENDING_PDI.
+- **Service:** `stock.MoveUnit(ctx, tx, actor, scope, req)` runs inside the caller's transaction: lock unit → location
+  scope (outside = not found) → idempotency lookup (after the lock, so concurrent repeats see the first commit) →
+  `ExpectedVersion` → starting status → insert (trigger applies it) → audit `vehicle_unit.moved`. Permissions are the
+  caller's (per task). `stock.PGStore.Move` wraps it in its own transaction for the API and resolves a concurrent key
+  collision (`errKeyRace` on `stock_movements_idempotency_key`) by rolling back and replaying.
+- **Idempotency:** unique `(actor_id, idempotency_key)` in the database; same key + same `request_hash` = replay of the
+  first movement (no second movement, audit or unit change); same key + different operation = `IDEMPOTENCY_KEY_REUSED`.
+  Refused requests write nothing, so their key stays free.
+- **API:** only the moves no other workflow owns: `POST /vehicle-units/{id}/put-on-display` and `/take-off-display`
+  (`vehicle_units.display.manage`, new, **no grants**; `version` and `Idempotency-Key` required). PDI moves are reached
+  through D-06's routes, receipt through D-07's posting route. No generic movement/status route; list/detail is E-02.
+- **D-07 integration:** in one transaction — lock and revalidate the receipt and PO lines; for each accepted captured
+  unit call `vehicles.RegisterFromReceiptUnit` (unit + RECEIPT movement + audit); update PO received quantities and
+  status; mark the receipt POSTED; commit (the deferred checks verify the receipt is POSTED and every unit reconciles).
+  Map errors with `vehicles.CommitError`. Posting idempotency is the receipt's own key/status; a repeated post finds the
+  receipt POSTED (and `ErrAlreadyRegistered` per unit). A draft never reaches this path.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -518,4 +569,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-28 | Internal vehicle unit number: D-04 uses `MAE-VEH-000001…` after the design specification example (`MAE-VEH-00042`). Confirm prefix, digits and whether it restarts per year or location. | D-04, D-09 |
 | OQ-29 | Vehicle unit cost basis (REP-003): D-04 records the PO line's agreed unit cost at registration. Should it be the supplier bill amount, include freight/landed costs, and who may see it (`vehicle_units.cost.view`)? | D-04, D-07, E-07, G-02, RB-5 |
 | OQ-30 | Batteries: one `battery_serial` per unit (as captured on receipts). Do any models carry several packs or swappable packs needing component history (INV-004, architecture "battery_units")? | D-04, D-05, D-06 |
+| OQ-31 | PDI dispositions (E-01 implements only the diagram's edges): may a failed PDI go straight from RECEIVED_PENDING_PDI to REJECTED (INV-008 says "quality hold or rejected"; the diagram only shows QUALITY_HOLD → REJECTED)? Can a QUALITY_HOLD unit be re-inspected and released to AVAILABLE? Is REJECTED final, and what follows it (RETURNED_TO_SUPPLIER)? | D-06, E-01 |
+| OQ-32 | Location transfers: who may move a unit between locations, with what approval (System Architecture §12 item 4)? E-01 records locations on every movement but has no transfer movement. | E-01, later |
+| OQ-33 | Stock movement corrections (LED-002): which mistakes may be corrected by a reversal movement, by whom, with what approval? Until then no reversal type exists. | E-01, E-05 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

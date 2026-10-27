@@ -6832,6 +6832,210 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/vehicle-units/{id}/put-on-display": {
+            "post": {
+                "description": "Moves an AVAILABLE unit to DISPLAY by recording one DISPLAY_ON stock movement (quantity 1 -\u003e 1, location unchanged, source STAFF_ACTION). The unit's status, version and the movement are written in one transaction with an audit event (vehicle_unit.moved). version must be the unit's current version. Idempotency-Key is required: a repeat by the same user with the same key and body returns the first movement with 200 and Idempotent-Replayed: true (unit as it is now) and changes nothing; the same key with a different request is 409 IDEMPOTENCY_KEY_REUSED. A unit at a location outside the caller's scope is 404. Requires vehicle_units.display.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-movements"
+                ],
+                "summary": "Put a vehicle unit on display",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Current version and an optional note",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/StockDisplayInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recorded, or a replay (Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/StockMoveResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT, INVALID_STATE (not AVAILABLE) or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, note, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-units/{id}/take-off-display": {
+            "post": {
+                "description": "Moves a DISPLAY unit back to AVAILABLE by recording one DISPLAY_OFF stock movement. Same rules as put-on-display: version, Idempotency-Key, one transaction with the audit event, replays change nothing, location scope. Requires vehicle_units.display.manage and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-movements"
+                ],
+                "summary": "Take a vehicle unit off display",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Current version and an optional note",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/StockDisplayInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recorded, or a replay (Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/StockMoveResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT, INVALID_STATE (not DISPLAY) or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, note, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -9687,6 +9891,139 @@ const docTemplate = `{
                 "signedOut": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "StockDisplayInput": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "Front window"
+                },
+                "version": {
+                    "description": "Version is the unit's current version (required).",
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "StockMoveResult": {
+            "type": "object",
+            "properties": {
+                "movement": {
+                    "$ref": "#/definitions/StockMovement"
+                },
+                "unit": {
+                    "$ref": "#/definitions/StockUnitState"
+                }
+            }
+        },
+        "StockMovement": {
+            "type": "object",
+            "properties": {
+                "actorId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "fromLocationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "AVAILABLE"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f2a1c4e-7b6d-4e8f-9a0b-1c2d3e4f5a6b"
+                },
+                "itemType": {
+                    "type": "string",
+                    "enum": [
+                        "VEHICLE_UNIT"
+                    ],
+                    "example": "VEHICLE_UNIT"
+                },
+                "movementType": {
+                    "type": "string",
+                    "enum": [
+                        "RECEIPT",
+                        "PDI_PASS",
+                        "QUALITY_HOLD",
+                        "REJECT",
+                        "DISPLAY_ON",
+                        "DISPLAY_OFF"
+                    ],
+                    "example": "DISPLAY_ON"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "quantityAfter": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "quantityBefore": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "sourceId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "GRN-000001"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT",
+                        "STAFF_ACTION"
+                    ],
+                    "example": "STAFF_ACTION"
+                },
+                "toLocationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "toStatus": {
+                    "type": "string",
+                    "example": "DISPLAY"
+                },
+                "vehicleUnitId": {
+                    "type": "string"
+                }
+            }
+        },
+        "StockUnitState": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "status": {
+                    "type": "string",
+                    "example": "DISPLAY"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 2
                 }
             }
         },
