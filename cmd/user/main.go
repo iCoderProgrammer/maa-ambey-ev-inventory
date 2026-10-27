@@ -34,11 +34,11 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 var (

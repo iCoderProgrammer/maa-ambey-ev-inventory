@@ -19,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 // BaseURL returns TEST_DATABASE_URL, skipping the test when it is unset

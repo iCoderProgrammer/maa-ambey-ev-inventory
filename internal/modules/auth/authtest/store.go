@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 )
 
 // Store is a concurrency-safe in-memory auth.Store.

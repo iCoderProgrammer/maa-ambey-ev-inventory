@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 )
 
 // Handler is the HTTP adapter for vehicle units.

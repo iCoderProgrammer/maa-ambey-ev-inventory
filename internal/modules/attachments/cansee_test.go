@@ -3,7 +3,7 @@ package attachments
 import (
 	"testing"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 )
 
 // Supplier documents (D-01) are visible to holders of attachments.view and

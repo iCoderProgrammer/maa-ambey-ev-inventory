@@ -14,10 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/httpx"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/stock"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/stock"
 )
 
 const testPassword = "correct horse battery staple"

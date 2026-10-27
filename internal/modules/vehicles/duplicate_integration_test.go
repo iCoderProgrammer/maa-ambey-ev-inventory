@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database/dbtest"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database/dbtest"
 )
 
 // D-05: duplicate vehicle identifier controls, on throwaway databases.

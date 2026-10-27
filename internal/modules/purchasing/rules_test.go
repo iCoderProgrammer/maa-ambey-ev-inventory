@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 )
 
 func TestTransitions(t *testing.T) {

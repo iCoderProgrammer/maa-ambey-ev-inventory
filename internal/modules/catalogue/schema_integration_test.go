@@ -8,9 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database/dbtest"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/seeds"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database/dbtest"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/seeds"
 )
 
 // Test data is placeholder only ("Brand A", "M1"): no real model, variant or

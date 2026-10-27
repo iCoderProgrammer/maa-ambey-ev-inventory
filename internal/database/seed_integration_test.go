@@ -5,7 +5,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/seeds"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/seeds"
 )
 
 // Verifies the real seed files are idempotent and seed only unverified,

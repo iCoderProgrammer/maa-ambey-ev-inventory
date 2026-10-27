@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
 )
 
 // Login errors. Handlers map them to the error envelope.

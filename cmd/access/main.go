@@ -31,12 +31,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/database"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/auth"
-	"github.com/jarvisconsulting/maa-ambey-enterprises/migrations"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/migrations"
 )
 
 const usage = "usage: access roles | permissions | show --username U | grant|revoke --role R --permission P [--approved-by NAME --approval-ref REF] | assign|unassign --username U --role R | location-create --code C --name N | scope-add|scope-remove --username U --location C"

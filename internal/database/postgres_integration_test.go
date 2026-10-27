@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/config"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/config"
 )
 
 // These tests need a migrated PostgreSQL database. They are skipped unless

@@ -1,4 +1,4 @@
-module github.com/jarvisconsulting/maa-ambey-enterprises
+module github.com/iCoderProgrammer/maa-ambey-ev-inventory
 
 go 1.26.0
 

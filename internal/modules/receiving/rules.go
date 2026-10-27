@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 )
 
 // Receipt rules (PO-003, PO-004, ADR-017). They are pure functions so they can

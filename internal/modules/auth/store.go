@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/jarvisconsulting/maa-ambey-enterprises/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
 )
 
 // User statuses (users.status).
