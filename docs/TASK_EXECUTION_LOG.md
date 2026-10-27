@@ -2500,6 +2500,13 @@ Result: NOT APPLICABLE in this phase (no UI change).
   `ui/src/features/receiving/{lib/labels.ts,components/ReceiptEditor.tsx,duplicateIdentifier.test.tsx}`,
   `docs/API_CONVENTIONS.md`, this log, `docs/evidence/D-05/frontend-verification.txt`. Shared dev DB still 12, untouched.
 
+#### Browser test in the user's Chrome (2026-10-27)
+Throwaway stack (DB :5465 migration 14, API :8098 from this tree, Vite :5183), e2e.catalogue. Receipt editor:
+in-draft case/space repeat blocked before sending (0 PUT); separator variant kept distinct and saved (PUT 200);
+chassis on another draft (other case) -> one PUT 409 mapped to the unit field, entries kept, no retry; corrected value
+saved and persisted after reload. No console errors; vehicle_units 0; only 5xx = 2 client-aborted GETs. Live
+DUPLICATE_IDENTIFIER still NOT RUN (needs D-07). Evidence: `docs/evidence/D-05/browser-chrome-2026-10-27.txt`.
+
 #### Final status
 IN PROGRESS — D-05 backend and frontend phases complete, committed locally (not pushed). Remaining: exercise the
 conflict against the real posting route once D-07 exists.
