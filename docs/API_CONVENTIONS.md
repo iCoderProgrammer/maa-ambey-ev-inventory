@@ -377,6 +377,10 @@ HTTP/1.1 409 Conflict
   document lists it with the posting route (D-07).
 - Drafts (D-03) already refuse a chassis on another open or posted receipt (`DUPLICATE`, per unit); every registered
   unit so far comes from a posted receipt.
+- UI (D-05 frontend): `describeGRNError` puts the conflict on the matching unit's identifier field only when the path
+  names an identifier of a line and unit that exist in the form, otherwise shows a general message; entries are kept
+  and nothing is retried. Comparison uses `normaliseChassis` (`features/vehicles/lib/identifiers.ts`). No link to the
+  existing unit (the answer carries no identifier of it).
 
 ## Middleware chain
 

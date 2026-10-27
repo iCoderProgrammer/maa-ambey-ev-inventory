@@ -1,6 +1,7 @@
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form'
 import { ApiError } from '@/lib/api/client'
 import { describeError, type ActionError } from '@/features/catalogue/lib/presentation'
+import { isIdentifierPath, VehicleErrorCode } from '@/features/vehicles/lib/identifiers'
 import type {
   GRNDocumentType,
   GRNEvent,
@@ -95,6 +96,9 @@ export function describeGRNError<T extends FieldValues>(
   lineNos?: number[],
 ): ActionError {
   if (!(error instanceof ApiError)) return describeError(error)
+  if (error.code === VehicleErrorCode.DuplicateIdentifier) {
+    return describeDuplicateIdentifier(error, fields, lineNos)
+  }
   const listed = ['VALIDATION_FAILED', 'DUPLICATE', ...Object.values(GRNErrorCode)]
   if (!listed.includes(error.code)) {
     const base = describeError(error)
@@ -139,5 +143,44 @@ export function describeGRNError<T extends FieldValues>(
         blockers,
         message: 'Check the highlighted entries. Nothing was saved; your entries are kept:',
       }
+  }
+}
+
+export const DUPLICATE_IDENTIFIER_FIELD_MESSAGE =
+  'Already registered to another vehicle. Check the number and correct it.'
+
+/**
+ * 409 DUPLICATE_IDENTIFIER (D-05): an identifier is already registered to
+ * another vehicle unit. Only details naming an identifier field that exists on
+ * this form are placed and listed; anything else gets the general message. The
+ * response says nothing about the other vehicle, and neither does this.
+ */
+function describeDuplicateIdentifier<T extends FieldValues>(
+  error: ApiError,
+  fields: { setError: UseFormSetError<T>; isField: (path: string) => boolean } | undefined,
+  lineNos: number[] | undefined,
+): ActionError {
+  const placed = error.details.filter((d) => {
+    const path = formPath(d.field)
+    return isIdentifierPath(path) && fields?.isField(path) === true
+  })
+  for (const d of placed) {
+    fields?.setError(formPath(d.field) as Path<T>, { message: DUPLICATE_IDENTIFIER_FIELD_MESSAGE })
+  }
+  if (placed.length === 0) {
+    return {
+      requestId: error.requestId,
+      message:
+        'An identifier is already registered to another vehicle. Check the chassis/frame numbers and try again. Nothing was saved; your entries are kept.',
+    }
+  }
+  return {
+    requestId: error.requestId,
+    blockers: placed.map((d) => ({
+      key: fieldLabel(d.field, lineNos),
+      message: 'already registered to another vehicle',
+    })),
+    message:
+      'Already registered to another vehicle. Correct the highlighted number and try again. Nothing was saved; your entries are kept:',
   }
 }

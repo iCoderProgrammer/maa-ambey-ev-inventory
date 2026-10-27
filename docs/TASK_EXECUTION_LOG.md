@@ -49,7 +49,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-02 | Purchase order lifecycle | P0 | C-02, D-01, C-04, B-07 | NOT STARTED |
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | NOT STARTED |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
-| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend complete; frontend phase pending |
+| D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
@@ -2388,7 +2388,8 @@ COMPLETE — D-04 backend (`25a5578`) and frontend phase committed locally, not 
 
 ### D-05 — Duplicate vehicle identifier controls
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (user-requested backend-only session); frontend phase not started.
+- **Status:** IN PROGRESS — backend phase COMPLETE; frontend phase COMPLETE (2026-10-27). Live `DUPLICATE_IDENTIFIER`
+  integration is blocked until a route returns it (receipt posting, D-07).
   Chassis/frame only: motor/battery/charger policies are not approved (OQ-4, OQ-30, INV-003/004); separators OQ-26.
 - **Started:** 2026-10-26
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_05_duplicate-vehicle-identifier-controls.md
@@ -2436,8 +2437,25 @@ Result: NOT APPLICABLE in this phase (no UI change).
 - Motor/battery/charger uniqueness and its exception route (INV-003/004, OQ-4, OQ-30); separators (OQ-26).
 - D-03 drafts already refuse a chassis on another open/posted receipt; opening stock (G-07) will rely on the index.
 
+#### Frontend phase (2026-10-27; base `2679542`)
+- **UI:** `normaliseChassis` / `VehicleErrorCode` / identifier field names in `ui/src/features/vehicles/lib/identifiers.ts`;
+  the receipt editor's in-draft check uses it. `describeGRNError` maps 409 `DUPLICATE_IDENTIFIER` to the unit's
+  identifier field only when the path names an identifier of an existing line/unit (range-checked `isField`), otherwise a
+  general message; generic field text, entries kept, no retry, no "saved", other 409s unchanged. No link to the existing
+  unit: the answer carries no identifier of it and there is no unit detail route (D-08).
+- **Integration:** no route returns the conflict yet (no posting route; vehicle unit API read-only) → live check BLOCKED
+  BY D-07. No new endpoint, no mock success, no duplicate-check call.
+- **Checks:** Prettier, ESLint, tsc, build PASS; Vitest 26 files / 232 tests (+26: `identifiers.test.ts`,
+  `duplicateIdentifier.test.tsx`, API responses mocked); `make ci` exit 0 on a throwaway DB; golangci-lint not installed.
+- **Browser:** headed Chrome on a throwaway stack (migration 14): `goods-receipts.e2e.ts` 4 passed (desktop + mobile);
+  afterwards 0 vehicle units, PO received quantities unchanged. Live duplicate-identifier flow NOT RUN (no route).
+- Files: `ui/src/features/vehicles/lib/identifiers.ts`, `ui/src/features/vehicles/identifiers.test.ts`,
+  `ui/src/features/receiving/{lib/labels.ts,components/ReceiptEditor.tsx,duplicateIdentifier.test.tsx}`,
+  `docs/API_CONVENTIONS.md`, this log, `docs/evidence/D-05/frontend-verification.txt`. Shared dev DB still 12, untouched.
+
 #### Final status
-IN PROGRESS — D-05 backend phase complete and committed locally (not pushed). D-05 frontend phase not started.
+IN PROGRESS — D-05 backend and frontend phases complete, committed locally (not pushed). Remaining: exercise the
+conflict against the real posting route once D-07 exists.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { ActionErrorBox } from '@/features/catalogue/components/ActionErrorBox'
 import { formatDateTime, todayISO, type ActionError } from '@/features/catalogue/lib/presentation'
+import { normaliseChassis } from '@/features/vehicles/lib/identifiers'
 import { ApiError } from '@/lib/api/client'
 import { cn } from '@/lib/utils/cn'
 import {
@@ -78,7 +79,6 @@ const lineSchema = z.object({
 })
 
 const num = (v: string) => (v.trim() === '' ? 0 : Number(v))
-const normaliseChassis = (v: string) => v.trim().toUpperCase()
 
 const formSchema = z
   .object({
@@ -247,6 +247,15 @@ export function ReceiptEditor({ grn, documents }: { grn: GRNDetail; documents: R
   const lineNos = grn.lines.map((l) => l.lineNo)
   const errors = form.formState.errors
 
+  /** A server field path this form can show: a known field on a line and unit that exist here. */
+  const isField = (path: string) => {
+    if (!fieldPathRe.test(path)) return false
+    if (!path.startsWith('lines.')) return true
+    const m = /^lines\.(0|[1-9]\d*)(?:\.units\.(0|[1-9]\d*))?\./.exec(path)
+    if (!m) return false
+    const l = form.getValues('lines')[Number(m[1])]
+    return l !== undefined && (m[2] === undefined || Number(m[2]) < l.units.length)
+  }
   const goToErrors = (paths: string[]) => {
     if (paths.some((p) => /\.units(\.|$)/.test(p))) setStep('units')
     else if (paths.length > 0) setStep('lines')
@@ -261,13 +270,11 @@ export function ReceiptEditor({ grn, documents }: { grn: GRNDetail; documents: R
         setBase(saved.version)
         setSavedAt(saved.updatedAt)
       } catch (e) {
-        const f = describeGRNError(
-          e,
-          { setError: form.setError, isField: (p) => fieldPathRe.test(p) },
-          lineNos,
-        )
+        // Nothing is retried: a refusal waits for the user to correct and save again.
+        const f = describeGRNError(e, { setError: form.setError, isField }, lineNos)
         setFailure(f)
-        if (e instanceof ApiError) goToErrors(e.details.map((d) => formPath(d.field)))
+        if (e instanceof ApiError)
+          goToErrors(e.details.map((d) => formPath(d.field)).filter(isField))
       }
     },
     (errs) => {
