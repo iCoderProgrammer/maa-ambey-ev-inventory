@@ -1,0 +1,49 @@
+E-01 verification (FRONTEND ONLY) — 2026-10-27 — base 9efe1cf (E-01 backend; dev, local ahead of origin/dev by 1),
+clean tree at start. No Go, SQL, migration, OpenAPI or seed change.
+
+== Contract consumed (docs/openapi, API_CONVENTIONS "Stock movements (E-01)") ==
+POST /vehicle-units/{id}/put-on-display   (AVAILABLE -> DISPLAY, movement DISPLAY_ON)
+POST /vehicle-units/{id}/take-off-display (DISPLAY -> AVAILABLE, movement DISPLAY_OFF)
+Permission vehicle_units.display.manage. Header Idempotency-Key required (8-100 [A-Za-z0-9_-]), X-CSRF-Token (client).
+Body StockDisplayInput {version, note?}. 200 StockMoveResult {movement: StockMovement, unit: StockUnitState};
+replay = 200 + Idempotent-Replayed (first movement, unit as it is now). Errors 401, 403, 404, 409 VERSION_CONFLICT /
+INVALID_STATE / IDEMPOTENCY_KEY_REUSED, 415, 422.
+
+== Files ==
+ui/src/features/stock/api/stockMovements.ts   zod contracts (StockMovement, StockUnitState, StockMoveResult), DisplayMove
+                                               table, DisplayAction + newDisplayAction, sendDisplayAction
+ui/src/features/stock/hooks/useStockMovements.ts  useDisplayMove (mutation), useStockMovementPerms
+ui/src/features/stock/lib/errors.ts           describeDisplayMoveError
+ui/src/features/stock/stock.test.tsx          15 tests
+ui/src/features/access/api/access.ts          Permission.VehicleUnitDisplayManage
+
+== Behaviour ==
+- Idempotency: a DisplayAction (kind, unitId, version, trimmed note, key) is made once per user decision by
+  newDisplayAction (crypto.randomUUID, the project's existing key source) and frozen. The hook's variables are the
+  action, so mutate(sameAction) resends the same key, path and body; the hook and API function never create a key.
+  sendDisplayAction refuses a malformed action (key, version, unit) before any request. Mutations are not retried
+  automatically (queryClient: retry false).
+- Response: validated with zod; must be the movement type of the action and belong to the requested unit; the
+  movement must belong to the returned unit; statuses from the INV-005 enum; quantities 0/1.
+- Errors (describeDisplayMoveError): stale-version (VERSION_CONFLICT), invalid-state (INVALID_STATE, server message),
+  key-reused (IDEMPOTENCY_KEY_REUSED -> start a new action), signed-out (401), forbidden (403), not-found (404, never
+  says whether the unit exists), invalid-input (422 with field details), uncertain (network, 5xx, REQUEST_TIMEOUT ->
+  retry the same action; unreadable 2xx -> reload). No failure is described as "nothing happened" when unknown.
+  401/403 keep the shared queryClient handling (session ended / permissions re-read).
+- Cache: nothing optimistic. On success all vehicle-unit queries (vehicleUnitKeys.all: every list filter/page and
+  every detail) are invalidated and refetched; on VERSION_CONFLICT, INVALID_STATE or an unreadable 2xx they are
+  refetched too; other failures leave the cache untouched.
+- Permission: Permission.VehicleUnitDisplayManage; useStockMovementPerms().manageDisplay is true only when /me lists
+  it. No grant added anywhere; no button or screen.
+- Not added: movement list/history/timeline query or UI (E-02), PDI/receipt/transfer/reversal calls, any route.
+
+== Checks (ui/) ==
+Prettier --check PASS. ESLint (max-warnings 0) PASS. tsc -b --noEmit PASS. vite build PASS.
+Focused: src/features/stock 15/15 PASS (API mocked; DB guarantees are the Go tests in internal/modules/stock).
+Full Vitest: 27 files / 247 tests PASS. One earlier full run had 1 failure — a 5 s timeout in
+src/features/receiving/duplicateIdentifier.test.tsx (D-05, unchanged) at load average 9.8; that file passed 6/6 alone
+and the full suite passed 247/247 on the next run (same flake as during the E-01 backend checks).
+make ci on a fresh throwaway PostgreSQL (migrated 1..15, removed afterwards): exit 0. golangci-lint not installed
+(skipped by the Makefile). git diff --check: clean.
+Browser: NOT APPLICABLE (no screen consumes the hooks yet).
+Shared dev DB (:5436, version 12), dev API and Vite: not touched.

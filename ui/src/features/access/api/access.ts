@@ -75,6 +75,8 @@ export const Permission = {
   GoodsReceiptOverReceipt: 'goods_receipts.over_receipt',
   VehicleUnitView: 'vehicle_units.view',
   VehicleUnitCostView: 'vehicle_units.cost.view',
+  /** AVAILABLE <-> DISPLAY stock movements (E-01). No role holds it until the owner signs off. */
+  VehicleUnitDisplayManage: 'vehicle_units.display.manage',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

@@ -54,7 +54,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
-| E-01 | Append-only stock movement API | P0 | D-04, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase (typed contracts/hooks) not started |
+| E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | NOT STARTED |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
@@ -2513,8 +2513,8 @@ conflict against the real posting route once D-07 exists.
 
 ### E-01 — Append-only stock movement API
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase (typed movement contracts and hooks, no
-  screen) not started.
+- **Status:** COMPLETE — backend phase (2026-10-27, `9efe1cf`) and frontend phase (typed movement contracts and hooks,
+  no screen; 2026-10-27).
 - **Started:** 2026-10-27
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_01_append-only-stock-movement-api.md
 - Git at start: `dev` at `2d2c2a5` = `origin/dev`, clean tree. D-06 was stopped before coding because it needs E-01.
@@ -2576,8 +2576,25 @@ Result: NOT APPLICABLE (no screen in E-01).
 - `ui/src/features/access/api/access.ts` does not list `vehicle_units.display.manage` yet (frontend phase).
 - Shared dev DB still version 12 (needs 13–15); not migrated.
 
+#### Frontend phase (2026-10-27; base `9efe1cf`)
+- **Scope:** typed contracts and hooks only (no screen, no timeline — E-02). `ui/src/features/stock/`:
+  `api/stockMovements.ts` (zod `StockMovement`, `StockUnitState`, `StockMoveResult`; `newDisplayAction` /
+  `sendDisplayAction` for `POST /vehicle-units/{id}/put-on-display` and `/take-off-display`), `hooks/useStockMovements.ts`
+  (`useDisplayMove`, `useStockMovementPerms`), `lib/errors.ts` (`describeDisplayMoveError`);
+  `Permission.VehicleUnitDisplayManage` in `features/access/api/access.ts` (no grant anywhere).
+- **Idempotency:** one frozen `DisplayAction` (with its key) per user decision; retrying resends the same action (same
+  key, path, body); the hook never makes a key; no automatic mutation retries.
+- **Errors/cache:** stale version, invalid state and key reuse are told apart; network/5xx/timeout = unknown outcome
+  (retry the same action); nothing optimistic; vehicle-unit lists and details refetched after success, stale version,
+  wrong state or an unreadable 2xx.
+- **Checks:** Prettier, ESLint, tsc, build PASS; stock tests 15/15; Vitest 27 files / 247 tests; `make ci` exit 0 on a
+  fresh throwaway DB (removed). One earlier full Vitest run hit a 5 s timeout in the unchanged D-05
+  `duplicateIdentifier.test.tsx` under load (passed alone and on rerun). golangci-lint not installed.
+  Browser: NOT APPLICABLE (no screen). Evidence: `docs/evidence/E-01/frontend-verification.txt`.
+
 #### Final status
-IN PROGRESS — E-01 backend phase complete, committed locally (not pushed). D-06 not started.
+COMPLETE — E-01 backend (`9efe1cf`) and frontend phases, committed locally (not pushed). No screen in E-01; the
+movement timeline is E-02. D-06 not started (needs the PDI checklist and OQ-31).
 
 <!-- Copy this template for each started task. Update after every stage. -->
 
