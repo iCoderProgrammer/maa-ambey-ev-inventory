@@ -41,3 +41,12 @@ git diff --check: clean.
 == Not done (not approved) ==
 Motor/battery/charger uniqueness (INV-003, INV-004, OQ-4, OQ-30), separator rules (OQ-26), duplicate-serial exception
 route (INV-003). Browser: not applicable (backend only).
+
+== Re-verification 2026-10-27 (user request; HEAD e4c3fa3, no code change) ==
+Fresh throwaway postgres:18-alpine on 127.0.0.1:5464 (random password, never printed), removed afterwards.
+cmd/migrate up -> 14; down 1 -> 13 (vehicle_units_chassis_idx restored); up -> 14 (UNIQUE vehicle_units_chassis_key
+on chassis_normalised). gofmt clean; go vet clean.
+go test -count=1 -json ./... (REQUIRE_INTEGRATION_TESTS=1): 19 packages pass (9 without tests), 417 tests (227
+top-level) pass, 0 fail, 0 skip. D-05 tests incl. 2-way race and 8 parallel registrations (1 succeeded, 7 refused): PASS.
+make ci: exit 0 (swagger-check clean, Vitest 24 files / 206 tests). golangci-lint not installed (skipped).
+git diff --check: clean. Shared dev DB (:5436) read only: still version 12, not migrated; dev API not touched.
