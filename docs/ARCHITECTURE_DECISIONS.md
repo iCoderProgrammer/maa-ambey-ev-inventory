@@ -536,6 +536,47 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-021 — Spare part and accessory SKU master (E-03)
+
+- **Status:** Accepted (technical design; unit-of-measure list, SKU code correction, reactivation, batch/lot tracking,
+  part cost/price and grants pending — OQ-34…OQ-36, RB-5).
+- **Schema (migration 000016):** `stock_item_categories` (name unique ignoring case, ACTIVE/ARCHIVED with actor, time
+  and reason), `stock_items` (SKU, name, description, category, `uom`, `tracking_mode`, `reorder_level` numeric(12,3),
+  ACTIVE/ARCHIVED with actor, time and reason, `created_by`, `version`), `stock_item_suppliers` (one open link per item
+  and supplier; ended, never deleted; optional supplier part number), `stock_item_compatibility` (brand, optionally one
+  of its models). Permissions `stock_items.view`, `.manage`, `.archive` with **no grants**. Nothing seeded.
+- **SKU identity:** no approved convention existed, so: the code is trimmed and must be 1–40 of `A–Z a–z 0–9 . _ / -`
+  (no spaces, first character alphanumeric); it is compared upper-cased through the generated `sku_normalised` column
+  with the unique index `stock_items_sku_key` across all SKUs, archived ones included. Separators are significant
+  (`BRK-01` ≠ `BRK.01` ≠ `BRK01`). Only that index maps to `409 DUPLICATE` on `sku`; the service checks first for a
+  friendly answer and the index decides races (tested with 8 parallel creates). The code is fixed after creation.
+- **Tracking modes:** `QUANTITY` (counted in its unit of measure; reorder level up to 3 decimals) and `SERIAL` (each
+  piece identified; reorder level whole). Fixed after creation (DB guard), because stock records (E-04) depend on it.
+  No serial format, instance register, quantity, balance or movement exists in E-03.
+- **Unit of measure:** no approved list (OQ-34): a code of 1–10 letters/digits starting with a letter, stored
+  upper-case (`stock_items_uom_format`). Editable while no stock exists (E-04 must decide whether it can change after).
+- **Suppliers:** links name existing suppliers (FK); a supplier ARCHIVED cannot be newly linked
+  (`stock_item_suppliers_supplier_active`); pending-verification suppliers can be (the link records who supplies the
+  part; PO eligibility stays with D-02). Naming suppliers needs `suppliers.view`; without it the detail hides them
+  (`suppliersHidden`). A PATCH with `suppliers` replaces the set: dropped or changed links are **ended** (kept as
+  history), new ones inserted.
+- **Compatibility:** brand (whole brand, `modelId` null) or one model of that brand — the composite FK
+  `(model_id, brand_id) → models (id, brand_id)` makes a cross-brand pair impossible even by direct SQL. Archived brands
+  and models are refused for new entries. Brands come from the database (a brand added later needs no code change).
+  Naming them needs `catalogue.view`. Optional; staff-entered metadata, not an approved fitment; nothing inferred.
+  Replaced as a set on an ACTIVE item (audited before/after); frozen once the item is archived.
+- **Archive:** categories and SKUs are archived with a reason (`stock_items.archive`), never deleted (DB guard: no
+  DELETE/TRUNCATE); archived rows never change (no reactivation route — OQ-35), stay readable and listed with
+  `status=ARCHIVED`, keep their code, links and compatibility, and accept no new links. A category with ACTIVE SKUs
+  cannot be archived; archived categories receive no SKUs. Checks that decide under concurrency run in a trigger
+  under share locks.
+- **Not location-scoped:** the SKU master is global; stock per location is E-04.
+- **Not here:** cost and selling price of parts (approval rules as for C-04 pending, OQ-36), batch/lot tracking
+  (PRD mentions "lot/batch or serial tracking flag"; only QUANTITY/SERIAL are in the E-03 scope), stock in/out,
+  balances, negative-stock rules, reorder alerts (E-04 and later).
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -572,4 +613,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-31 | PDI dispositions (E-01 implements only the diagram's edges): may a failed PDI go straight from RECEIVED_PENDING_PDI to REJECTED (INV-008 says "quality hold or rejected"; the diagram only shows QUALITY_HOLD → REJECTED)? Can a QUALITY_HOLD unit be re-inspected and released to AVAILABLE? Is REJECTED final, and what follows it (RETURNED_TO_SUPPLIER)? | D-06, E-01 |
 | OQ-32 | Location transfers: who may move a unit between locations, with what approval (System Architecture §12 item 4)? E-01 records locations on every movement but has no transfer movement. | E-01, later |
 | OQ-33 | Stock movement corrections (LED-002): which mistakes may be corrected by a reversal movement, by whom, with what approval? Until then no reversal type exists. | E-01, E-05 |
+| OQ-34 | Units of measure for spare parts/accessories: is there an approved list (e.g. PCS, SET, PAIR, L, M) and may an item's unit change once stock exists? E-03 accepts any 1–10 character code. | E-03, E-04 |
+| OQ-35 | SKU code corrections and reactivation: may a mistyped SKU code be corrected (E-03 fixes it at creation; the workaround is archive + new SKU), and may an archived SKU or category be reactivated, by whom? | E-03 |
+| OQ-36 | Part cost and selling price (PRD "Spare/accessory item"): where are they recorded and approved (price lists as for vehicles, C-04?), and is batch/lot tracking needed besides quantity and serial? | E-03, E-04, later |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

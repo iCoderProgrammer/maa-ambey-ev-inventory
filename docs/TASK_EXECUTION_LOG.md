@@ -56,7 +56,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
-| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | NOT STARTED |
+| E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
@@ -2595,6 +2595,66 @@ Result: NOT APPLICABLE (no screen in E-01).
 #### Final status
 COMPLETE — E-01 backend (`9efe1cf`) and frontend phases, committed locally (not pushed). No screen in E-01; the
 movement timeline is E-02. D-06 not started (needs the PDI checklist and OQ-31).
+
+### E-03 — Spare/accessory SKU master
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_03_spare-accessory-sku-master.md
+- Git at start: `dev` at `21a28c0` (local ahead of `origin/dev` = `2d2c2a5` by 2), clean tree.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| B-05 | COMPLETE | migration framework, scratch-database tests pass |
+| D-01 | COMPLETE | `suppliers` (PENDING_VERIFICATION/VERIFIED/ARCHIVED); supplier tests pass |
+| B-07 | COMPLETE | deny-by-default `Require`/`Has`; permission catalogue test passes with the 3 new keys |
+
+#### Acceptance criteria
+- [x] AC1 SKU uniqueness and required fields enforced: `stock_items_sku_key` on the upper-cased code (archived included),
+  checked first, decided by the index under races (8 parallel creates → 1); required fields and formats in the
+  service and as named CHECKs
+- [x] AC2 Compatibility is brand-aware: brand + optional model via composite FK `(model_id, brand_id)`; unknown,
+  cross-brand and archived refused; brands from data
+- [x] AC3 Archived SKUs preserve history: archive (never delete), archived rows frozen by trigger, code stays taken,
+  links/compatibility kept, readable; supplier links ended not deleted
+- [ ] Pending decisions: unit-of-measure list (OQ-34), SKU code correction / reactivation (OQ-35), part cost/price and
+  batch/lot tracking (OQ-36); grants (RB-5)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000016_create_stock_items` (up/down): `stock_item_categories`, `stock_items`, `stock_item_suppliers`,
+  `stock_item_compatibility`; history guard (no delete/truncate, archived rows frozen, SKU code and tracking mode
+  immutable, links change only by ending); reference check under share locks (active category, item, supplier, brand,
+  model; no archiving a category with active SKUs); permissions `stock_items.view/manage/archive` (no grants).
+- `internal/modules/stockitems` (new): 9 routes (`/stock-item-categories` list/create/patch/archive, `/stock-items`
+  list/create/get/patch/archive), audit `stock_item_category.*` / `stock_item.*`; suppliers need `suppliers.view` to
+  set and to see, compatibility needs `catalogue.view` to set. Server/API wiring; OpenAPI regenerated (additions only).
+- Docs: ADR-021, OQ-34…OQ-36, API_CONVENTIONS "Spare part and accessory SKUs (E-03)".
+- Checks: 14 new tests; Go 21 packages / 448 tests (258 top-level) pass with PostgreSQL required; migration
+  up/down/up; `make ci` exit 0 (Vitest 247); golangci-lint not installed. Evidence: `docs/evidence/E-03/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Files changed
+`migrations/000016_create_stock_items.{up,down}.sql`, `internal/modules/stockitems/*` (new),
+`internal/modules/access/policy.go`, `internal/server/{server,server_test}.go`, `cmd/api/main.go`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log, `docs/evidence/E-03/verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-34 units of measure, OQ-35 SKU corrections/reactivation, OQ-36 part cost/price and batch/lot; RB-5 grants.
+- No stock, balance or movement for parts yet (E-04); `stock_movements.item_type` stays `VEHICLE_UNIT`.
+- Shared dev DB still version 12 (needs 13–16); not migrated.
+
+#### Final status
+IN PROGRESS — E-03 backend phase complete, committed locally (not pushed). Frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

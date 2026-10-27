@@ -423,6 +423,39 @@ Internal callers (inside their own transaction; they check their own permission)
   movement (0 → 1, none → RECEIVED_PENDING_PDI, source the goods receipt) by registering the unit, in the same
   transaction that marks the receipt POSTED and updates PO quantities. D-07 keeps its own posting `Idempotency-Key`.
 
+## Spare part and accessory SKUs (E-03)
+
+Rules: ADR-021. Schema: migration 000016. Package `internal/modules/stockitems`. Master data only: no route records
+stock, a balance or a movement (E-04). No DELETE (405).
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /stock-item-categories` | `stock_items.view` | `StockItemCategoryPage`; `q` (name), `status` (`ACTIVE`/`ARCHIVED`), `page`, `limit` |
+| `POST /stock-item-categories` | `stock_items.manage` | `{name, description?}` → 201 `StockItemCategory`; name unique ignoring case → 409 `DUPLICATE` (`name`) |
+| `PATCH /stock-item-categories/{id}` | `stock_items.manage` | `{version, name?, description?}`; archived → 409 `INVALID_STATE` |
+| `POST /stock-item-categories/{id}/archive` | `stock_items.archive` | `{version, reason}`; with ACTIVE SKUs → 409 `INVALID_STATE` |
+| `GET /stock-items` | `stock_items.view` | `StockItemPage` by SKU code; `q` (SKU code, case-insensitive, or name), `status`, `categoryId`, `trackingMode`, `supplierId` (current links; needs `suppliers.view`), `brandId` (compatibility), `page`, `limit` |
+| `POST /stock-items` | `stock_items.manage` | `StockItemCreate` → 201 `StockItemDetail` |
+| `GET /stock-items/{id}` | `stock_items.view` | `StockItemDetail` = `StockItem` + `suppliers` (current, then ended) + `suppliersHidden` + `compatibility`; archived SKUs stay readable |
+| `PATCH /stock-items/{id}` | `stock_items.manage` | `StockItemUpdate`; archived → 409 `INVALID_STATE` |
+| `POST /stock-items/{id}/archive` | `stock_items.archive` | `{version, reason}` → `StockItemDetail` |
+
+- `StockItemCreate`: `sku` (1–40 of `A–Z a–z 0–9 . _ / -`, no spaces; unique compared upper-cased, archived SKUs
+  included → 409 `DUPLICATE` on `sku`), `name`, `description?`, `categoryId` (ACTIVE), `uom` (1–10 letters/digits,
+  starts with a letter; stored upper-case), `trackingMode` (`QUANTITY` | `SERIAL`), `reorderLevel?` (decimal string ≥ 0,
+  up to 3 decimals; whole for `SERIAL`; returned as e.g. `"5.000"`), `suppliers?` (`[{supplierId, supplierPartNumber?}]`,
+  ≤ 20, not archived; needs `suppliers.view`), `compatibility?` (`[{brandId, modelId?}]`, ≤ 50; the model must belong
+  to the brand; not archived; a model under a brand already listed whole is refused; needs `catalogue.view`).
+- `StockItemUpdate`: `version` plus any of `name`, `description` (null clears), `categoryId`, `uom`, `reorderLevel`
+  (null clears), `suppliers` and `compatibility` (each replaces the set; removed supplier links are ended and kept).
+  `sku`, `trackingMode`, `status` and audit fields are 422 "cannot be set here".
+- Field errors name the entry: `suppliers[1].supplierId` ("does not exist", "is archived", "is listed twice"),
+  `compatibility[0].modelId` ("does not exist", "belongs to another brand", "is archived").
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`; 404 `NOT_FOUND`; 409 `DUPLICATE`, `VERSION_CONFLICT`, `INVALID_STATE`;
+  415; 422 `VALIDATION_FAILED`.
+- Audited in the same transaction: `stock_item_category.created/updated/archived`, `stock_item.created/updated/archived`
+  (summaries: SKU, name, category, uom, tracking mode, reorder level, supplier IDs, compatibility keys, reason).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;
