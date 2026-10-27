@@ -33,7 +33,7 @@ func requestHash(parts ...string) string {
 
 func receiptKey(receiptUnitID string) string { return "receipt-unit-" + receiptUnitID }
 
-const movementColumns = `m.id::text, m.item_type, m.vehicle_unit_id::text, m.movement_type, m.quantity_before, m.quantity_after,
+const movementColumns = `m.id::text, m.item_type, m.vehicle_unit_id::text, m.movement_type, m.quantity_before::int, m.quantity_after::int,
 	m.from_status, m.to_status, m.from_location_id::text, m.to_location_id::text, m.source_type, m.source_id::text,
 	m.source_reference, m.actor_id::text, m.note, m.created_at`
 
@@ -224,6 +224,20 @@ func insertError(err error, current, required string) error {
 // replay looks up the actor's earlier movement with key: the same operation
 // returns it with the unit as it is now; a different one is ErrIdempotencyKeyReused.
 func replay(ctx context.Context, q querier, actorID, key, hash string) (MoveResult, bool, error) {
+	// The key space is the actor's across the whole ledger: a key already used
+	// for a parts movement (E-04) is reused, not a vehicle replay.
+	var itemType string
+	err := q.QueryRow(ctx, `SELECT item_type FROM stock_movements WHERE actor_id = $1 AND idempotency_key = $2`,
+		actorID, key).Scan(&itemType)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MoveResult{}, false, nil
+	}
+	if err != nil {
+		return MoveResult{}, false, fmt.Errorf("look up idempotency key: %w", err)
+	}
+	if itemType != ItemVehicleUnit {
+		return MoveResult{}, false, ErrIdempotencyKeyReused
+	}
 	var stored string
 	var u UnitState
 	m, err := scanMovement(q.QueryRow(ctx, `SELECT `+movementColumns+`, m.request_hash,

@@ -55,6 +55,9 @@ const (
 	CodeDuplicateIdentifier = "DUPLICATE_IDENTIFIER"
 	// Stock movements (E-01): the same Idempotency-Key with a different request; 409.
 	CodeIdempotencyKeyReused = "IDEMPOTENCY_KEY_REUSED"
+	// Parts stock (E-04): an issue larger than the balance; a SERIAL SKU (no serial register yet). 409.
+	CodeInsufficientStock    = "INSUFFICIENT_STOCK"
+	CodeTrackingNotSupported = "TRACKING_NOT_SUPPORTED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

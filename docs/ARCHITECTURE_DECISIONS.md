@@ -577,6 +577,50 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-022 — Parts receipts and issues on the stock movement ledger (E-04)
+
+- **Status:** Accepted (technical design; issue reasons, non-supplier receipts, serial register, unit list and grants
+  pending — OQ-34, OQ-36…OQ-38, RB-5).
+- **One ledger, extended (migration 000017):** the approved data model has one `stock_movements` table for
+  "unit_id or stock_item_id" (System Architecture §5), so parts movements are E-01 ledger rows with
+  `item_type = 'STOCK_ITEM'`, `stock_item_id`, `uom`, `supplier_id`, `reason`; quantities became `numeric(12,3)`
+  (vehicle rows stay 0/1). Every 000015 vehicle rule is kept and now scoped to `item_type = 'VEHICLE_UNIT'`
+  (`stock_movements_item_ref_valid`, `_transition_valid`, `_quantity_valid`, `_source_complete`); the vehicle branch of
+  `stock_movement_apply` is unchanged. Not a second ledger: each receipt/issue is exactly one row.
+- **Types:** `PARTS_RECEIPT` (after > before; `source_type SUPPLIER_DELIVERY` with `supplier_id` and the challan/invoice
+  number in `source_reference`) and `PARTS_ISSUE` (after < before, after ≥ 0; `STAFF_ACTION` with a required free-text
+  `reason`, optional reference). A parts row has no status and happens at one location (`from = to = location`).
+- **Balances:** `stock_item_balances (stock_item_id, location_id, quantity numeric(12,3) ≥ 0, version)`. Inserting a
+  movement is what changes it: the apply trigger share-locks the SKU (ACTIVE, `QUANTITY`, unit equal to the movement's),
+  the location (active) and a receipt's supplier (not ARCHIVED), creates the row empty if missing, and updates it only
+  where `quantity = quantity_before` (`stock_movements_from_matches_balance`). A guard accepts that update alone
+  (trigger depth > 1, marker for the row, version + 1) and empty inserts (0, version 1); no other insert/update, no
+  delete or truncate. At commit each balance equals its latest movement, or 0 without one
+  (`stock_item_balances_ledger_reconciles`). `CHECK (quantity >= 0)` is the last guard against negative stock.
+- **Service (`stock.PostParts`, inside the caller's transaction):** validate (quantity > 0, ≤ 3 decimals, no
+  exponent/sign; unit given = SKU's; references; Idempotency-Key) → location in scope → early replay → share-lock SKU,
+  check location/supplier → create/lock the balance row (`INSERT … ON CONFLICT DO NOTHING` then `SELECT … FOR UPDATE`:
+  concurrent first receipts queue on the row) → replay check again → new quantity computed in SQL (no floats) →
+  `INSUFFICIENT_STOCK` if below 0 → insert movement (trigger applies) → audit `stock_item.received` /
+  `stock_item.issued` → return movement + balance. Refusals write nothing and leave the key free.
+- **Idempotency:** the ledger's unique `(actor_id, idempotency_key)` — one key space per user for vehicle and parts
+  movements; `request_hash` over type, SKU, location, canonical quantity (`5` = `5.000`), unit, supplier, reference,
+  reason, note. Same key + same request = first result (`Idempotent-Replayed`); otherwise `IDEMPOTENCY_KEY_REUSED`
+  (also when the key was used for the other kind of movement; the E-01 vehicle replay now checks this too).
+- **SERIAL SKUs fail closed** (`TRACKING_NOT_SUPPORTED`, and `stock_movements_item_quantity_tracked` in the database):
+  no serial register or serial policy exists, and a bulk count would claim serial tracking it does not do (OQ-38).
+- **No unit conversion** (OQ-34): the request's `uom` must equal the SKU's.
+- **Permissions:** `stock.parts.view` (balances, history), `stock.parts.receive` (+ `suppliers.view`, the receipt names a
+  supplier), `stock.parts.issue`; **no grants**. Every operation and read is limited to the caller's location scope
+  (out-of-scope `locationId` 422; reads filtered). Supplier ID/name are hidden in history without `suppliers.view`.
+- **API:** `GET /stock-items/{id}/balances`, `GET /stock-items/{id}/stock-movements`, `POST /stock-items/{id}/receipts`,
+  `POST /stock-items/{id}/issues`. The global movement timeline stays E-02.
+- **Not here:** adjustments/counts (E-05), reversals (OQ-33), transfers between locations (OQ-32), cost/price/valuation
+  and batch/lot (OQ-36), reorder alerts, receipts from sources other than a supplier (OQ-37).
+- **Rollback:** the down migration refuses while parts movements exist (append-only history is not destroyed).
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -616,4 +660,6 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-34 | Units of measure for spare parts/accessories: is there an approved list (e.g. PCS, SET, PAIR, L, M) and may an item's unit change once stock exists? E-03 accepts any 1–10 character code. | E-03, E-04 |
 | OQ-35 | SKU code corrections and reactivation: may a mistyped SKU code be corrected (E-03 fixes it at creation; the workaround is archive + new SKU), and may an archived SKU or category be reactivated, by whom? | E-03 |
 | OQ-36 | Part cost and selling price (PRD "Spare/accessory item"): where are they recorded and approved (price lists as for vehicles, C-04?), and is batch/lot tracking needed besides quantity and serial? | E-03, E-04, later |
+| OQ-37 | Parts issues and receipts: is there an approved list of issue/consumption reasons (E-04 takes free text, required), and may parts be received from anything other than a supplier delivery (customer returns, transfers, opening stock — G-07)? | E-04, E-05, G-07 |
+| OQ-38 | Serial-tracked parts: what identifies a piece (format, uniqueness, who registers it) and how are pieces received/issued? Until decided, E-04 refuses stock movements for SERIAL SKUs. | E-04 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

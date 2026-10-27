@@ -456,6 +456,35 @@ stock, a balance or a movement (E-04). No DELETE (405).
 - Audited in the same transaction: `stock_item_category.created/updated/archived`, `stock_item.created/updated/archived`
   (summaries: SKU, name, category, uom, tracking mode, reorder level, supplier IDs, compatibility keys, reason).
 
+## Parts receipts and issues (E-04)
+
+Rules: ADR-022. Schema: migration 000017 (`stock_item_balances`; `stock_movements` STOCK_ITEM rows). Package
+`internal/modules/stock`. Balances are computed by the server and change only through these posts.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /stock-items/{id}/balances` | `stock.parts.view` | `[PartsBalance]` at the caller's locations (a location never stocked has no row = 0) |
+| `GET /stock-items/{id}/stock-movements` | `stock.parts.view` | `PartsMovementPage`, newest first; `locationId` (in scope), `type` (`PARTS_RECEIPT`/`PARTS_ISSUE`), `page`, `limit` |
+| `POST /stock-items/{id}/receipts` | `stock.parts.receive` + `suppliers.view` | `PartsReceiptInput` → `PartsResult` |
+| `POST /stock-items/{id}/issues` | `stock.parts.issue` | `PartsIssueInput` → `PartsResult` |
+
+- Posts need `Idempotency-Key` (8–100 `[A-Za-z0-9_-]`, per user, shared with vehicle movements) and `X-CSRF-Token`.
+- `PartsReceiptInput`: `locationId`, `quantity` (decimal string > 0, ≤ 3 decimals), `uom` (= the SKU's unit),
+  `supplierId` (not archived), `sourceReference` (challan/invoice no., ≤ 100), `note?` (≤ 500).
+- `PartsIssueInput`: `locationId`, `quantity`, `uom`, `reason` (required, ≤ 300), `sourceReference?`, `note?`.
+  Unknown fields (`balance`, `quantityAfter`, `actorId`, `supplierId` on an issue, …) are 422.
+- `PartsResult` = `movement` (`PartsMovement`: `id`, `stockItemId`, `sku`, `movementType`, `locationId/Code/Name`,
+  `uom`, `quantity`, `quantityBefore`, `quantityAfter` (decimal strings, 3 decimals), `sourceType`, `supplierId`,
+  `supplierName` (null without `suppliers.view`), `sourceReference`, `reason`, `note`, `actorId`, `actorName`,
+  `createdAt`) + `balance` (`PartsBalance`: SKU, location, `uom`, `quantity`, `version`, `updatedAt`).
+- Replay: same key and same request → the first result, 200, `Idempotent-Replayed: true` (balance as it is now).
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`; 404 `NOT_FOUND` (SKU); 409 `INSUFFICIENT_STOCK` (field `quantity`; nothing
+  changed), `TRACKING_NOT_SUPPORTED` (SERIAL SKU), `INVALID_STATE` (archived SKU), `IDEMPOTENCY_KEY_REUSED`; 415; 422
+  `VALIDATION_FAILED` (`locationId` invalid/unknown/inactive/out of scope, `quantity`, `uom` wrong unit, `supplierId`
+  unknown/archived, `sourceReference`, `reason`, `note`, `Idempotency-Key`). Refused requests write nothing.
+- Audited in the same transaction: `stock_item.received`, `stock_item.issued` (movement, location, unit, quantity,
+  balance from/to, supplier, reference, reason).
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

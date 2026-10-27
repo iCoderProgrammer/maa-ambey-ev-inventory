@@ -5689,6 +5689,365 @@ const docTemplate = `{
                 }
             }
         },
+        "/stock-items/{id}/balances": {
+            "get": {
+                "description": "The SKU's quantity at each location in the caller's scope that has (or had) stock; a location never stocked has no row (its balance is 0). Balances are computed by the server from receipts and issues and cannot be set. Requires stock.parts.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "parts-stock"
+                ],
+                "summary": "Stock balances of a part",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SKU ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/PartsBalance"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-items/{id}/issues": {
+            "post": {
+                "description": "Takes the quantity from the SKU's balance at the location by recording one PARTS_ISSUE movement, in one transaction with the audit event stock_item.issued. The balance is locked and checked: more than is there is 409 INSUFFICIENT_STOCK and nothing changes (the database also refuses a negative balance). Same SKU, unit, quantity, idempotency and scope rules as receipts; reason is required, sourceReference (e.g. job card) optional. Requires stock.parts.issue and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "parts-stock"
+                ],
+                "summary": "Issue (consume) parts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SKU ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Issue",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PartsIssueInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recorded, or a replay (Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PartsResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "INSUFFICIENT_STOCK, INVALID_STATE (archived SKU), TRACKING_NOT_SUPPORTED or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (locationId, quantity, uom, reason, sourceReference, note, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-items/{id}/receipts": {
+            "post": {
+                "description": "Adds the quantity to the SKU's balance at the location by recording one PARTS_RECEIPT movement (balance, movement and audit stock_item.received in one transaction). The SKU must be ACTIVE and QUANTITY-tracked (SERIAL: 409 TRACKING_NOT_SUPPORTED) and uom must be its unit (no conversion); quantity \u003e 0 with up to 3 decimals; supplierId (not archived) and sourceReference (challan/invoice number) are required. Idempotency-Key is required: the same key and body by the same user returns the first result with Idempotent-Replayed: true and changes nothing; the same key with another request is 409 IDEMPOTENCY_KEY_REUSED. Requires stock.parts.receive, suppliers.view and X-CSRF-Token; the location must be in the caller's scope.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "parts-stock"
+                ],
+                "summary": "Receive parts from a supplier",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SKU ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Receipt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PartsReceiptInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recorded, or a replay (Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PartsResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "INVALID_STATE (archived SKU), TRACKING_NOT_SUPPORTED or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (locationId, quantity, uom, supplierId, sourceReference, note, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-items/{id}/stock-movements": {
+            "get": {
+                "description": "Newest first, at the locations in the caller's scope; filters locationId (must be in scope) and type. Each entry has the quantity, the balance before and after, unit, source, reference, reason, actor and server time. supplierId/supplierName are null without suppliers.view. Requires stock.parts.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "parts-stock"
+                ],
+                "summary": "Receipts and issues of a part",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SKU ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location ID (in the caller's scope)",
+                        "name": "locationId",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PARTS_RECEIPT",
+                            "PARTS_ISSUE"
+                        ],
+                        "type": "string",
+                        "description": "Movement type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PartsMovementPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (locationId, type, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/supplier-brand-links": {
             "get": {
                 "description": "By brand or by supplier (one is required); up to 200, open ones first. current=true means verified, supplier verified and today within the effective dates. Requires suppliers.view.",
@@ -9481,6 +9840,224 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "asha.verma"
+                }
+            }
+        },
+        "PartsBalance": {
+            "type": "object",
+            "properties": {
+                "locationCode": {
+                    "type": "string",
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "type": "string"
+                },
+                "locationName": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "string",
+                    "example": "15.000"
+                },
+                "sku": {
+                    "type": "string",
+                    "example": "BRK-PAD-01"
+                },
+                "stockItemId": {
+                    "type": "string"
+                },
+                "uom": {
+                    "type": "string",
+                    "example": "PCS"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "PartsIssueInput": {
+            "type": "object",
+            "properties": {
+                "locationId": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "description": "Quantity issued: decimal string \u003e 0, up to 3 decimals; not more than the balance.",
+                    "type": "string",
+                    "example": "2"
+                },
+                "reason": {
+                    "description": "Why the stock leaves (e.g. used in a repair); required.",
+                    "type": "string",
+                    "example": "Fitted to customer vehicle"
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "example": "JOB-0042"
+                },
+                "uom": {
+                    "type": "string",
+                    "example": "PCS"
+                }
+            }
+        },
+        "PartsMovement": {
+            "type": "object",
+            "properties": {
+                "actorId": {
+                    "type": "string"
+                },
+                "actorName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locationCode": {
+                    "type": "string",
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "type": "string"
+                },
+                "locationName": {
+                    "type": "string"
+                },
+                "movementType": {
+                    "type": "string",
+                    "enum": [
+                        "PARTS_RECEIPT",
+                        "PARTS_ISSUE"
+                    ],
+                    "example": "PARTS_RECEIPT"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "quantity": {
+                    "description": "Quantity moved (positive), and the location's balance before and after; decimal strings.",
+                    "type": "string",
+                    "example": "5.000"
+                },
+                "quantityAfter": {
+                    "type": "string",
+                    "example": "15.000"
+                },
+                "quantityBefore": {
+                    "type": "string",
+                    "example": "10.000"
+                },
+                "reason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sku": {
+                    "type": "string",
+                    "example": "BRK-PAD-01"
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "DC-1234"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "SUPPLIER_DELIVERY",
+                        "STAFF_ACTION"
+                    ]
+                },
+                "stockItemId": {
+                    "type": "string"
+                },
+                "supplierId": {
+                    "description": "SupplierID/SupplierName: receipts; null without suppliers.view.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "uom": {
+                    "type": "string",
+                    "example": "PCS"
+                }
+            }
+        },
+        "PartsMovementPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PartsMovement"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "PartsReceiptInput": {
+            "type": "object",
+            "properties": {
+                "locationId": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "description": "Quantity received: decimal string \u003e 0, up to 3 decimals.",
+                    "type": "string",
+                    "example": "5"
+                },
+                "sourceReference": {
+                    "description": "The supplier's delivery challan or invoice number.",
+                    "type": "string",
+                    "example": "DC-1234"
+                },
+                "supplierId": {
+                    "type": "string"
+                },
+                "uom": {
+                    "description": "UOM must be the SKU's unit (no conversion).",
+                    "type": "string",
+                    "example": "PCS"
+                }
+            }
+        },
+        "PartsResult": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "$ref": "#/definitions/PartsBalance"
+                },
+                "movement": {
+                    "$ref": "#/definitions/PartsMovement"
                 }
             }
         },

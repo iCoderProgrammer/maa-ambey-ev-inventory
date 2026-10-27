@@ -57,7 +57,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
-| E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | NOT STARTED |
+| E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | NOT STARTED |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
 | E-07 | Stock ageing calculations | P0 | D-04, D-07 | NOT STARTED |
@@ -2673,6 +2673,68 @@ Result: NOT APPLICABLE in this phase (no UI yet).
 
 #### Final status
 COMPLETE — E-03 backend (`78aa5e0`) and frontend, committed locally (not pushed). E-04 not started.
+
+### E-04 — Parts receipts and issues
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Started:** 2026-10-27
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_04_parts-receipts-and-issues.md
+- Git at start: `dev` at `3898301` = `origin/dev`, clean tree.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| E-03 | COMPLETE | `stock_items` (status, tracking_mode, uom); stockitems tests pass |
+| E-01 | COMPLETE | `stock_movements` ledger + apply trigger + per-actor idempotency; stock tests pass |
+| D-01 | COMPLETE | `suppliers` (ARCHIVED status); supplier tests pass |
+
+#### Acceptance criteria
+- [x] AC1 No negative stock: balance row locked and re-read in the transaction, new quantity computed in SQL,
+  `INSUFFICIENT_STOCK` otherwise; `CHECK (quantity >= 0)` and the movement quantity CHECK as final guards; parallel
+  issue tests (2 x 7 from 10; 8 x 1 from 1)
+- [x] AC2 Every posted receipt/issue is exactly one ledger movement (E-01 table, STOCK_ITEM rows); the balance changes
+  only through it and reconciles at commit
+- [x] AC3 Duplicate requests are safe: per-user key, request hash, replay; parallel same-key test (1 effect)
+- [x] AC4 Balance server-authoritative: no route sets it; client balance fields refused; database guard
+- [x] AC5 UOM must equal the SKU's (no conversion), QUANTITY tracking only, source reference/actor/reason validated
+- [ ] SERIAL-tracked parts not supported (refused, fail closed) until a serial register is approved (OQ-38)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000017_parts_stock_movements` (up/down): ledger extended to STOCK_ITEM rows (`stock_item_id`, `uom`,
+  `supplier_id`, `reason`; numeric quantities; PARTS_RECEIPT / PARTS_ISSUE; SUPPLIER_DELIVERY source) with every vehicle
+  rule kept for VEHICLE_UNIT rows; `stock_item_balances` with guard and commit-time reconciliation; apply trigger
+  parts branch; permissions `stock.parts.view/receive/issue` (no grants). Down refuses while parts movements exist.
+- `internal/modules/stock/parts.go` (new): `PostParts` (in-transaction), `ReplayParts`, store, service, routes
+  `GET /stock-items/{id}/balances`, `GET /stock-items/{id}/stock-movements`, `POST /stock-items/{id}/receipts`,
+  `POST /stock-items/{id}/issues`; audit `stock_item.received` / `stock_item.issued`; codes `INSUFFICIENT_STOCK`,
+  `TRACKING_NOT_SUPPORTED`. E-01 vehicle replay now refuses a key used by a parts movement.
+- Docs: ADR-022, OQ-37 (issue reasons, non-supplier receipts), OQ-38 (serial register); API_CONVENTIONS "Parts
+  receipts and issues (E-04)".
+- Checks: 12 new tests (29 in the stock package); Go 21 packages / 460 tests (270 top-level); migration up/down/up;
+  `make ci` exit 0 (Vitest 268); golangci-lint not installed. Evidence: `docs/evidence/E-04/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (frontend phase pending).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Files changed
+`migrations/000017_parts_stock_movements.{up,down}.sql`, `internal/modules/stock/{parts.go,ledger.go,service.go,http.go}`,
+`internal/modules/stock/{parts_integration_test.go,http_test.go}`, `internal/modules/access/policy.go`,
+`internal/httpx/response.go`, `docs/openapi/*`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`,
+`ui/src/features/stock/stock.test.tsx` (contract test), this log, `docs/evidence/E-04/verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-34 units (no conversion), OQ-36 cost/price and batch/lot, OQ-37 issue reasons and non-supplier receipts, OQ-38
+  serial register; RB-5 grants. Shared dev DB still version 12 (needs 13–17); not migrated.
+
+#### Final status
+IN PROGRESS — E-04 backend phase complete, committed locally (not pushed). Frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

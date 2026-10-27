@@ -1,0 +1,52 @@
+E-04 verification (BACKEND ONLY) — 2026-10-27 — base 3898301 (dev = origin/dev at start), clean tree at start.
+
+== Dependencies ==
+E-03 COMPLETE (stock_items: status, tracking_mode, uom), E-01 COMPLETE (stock_movements ledger, apply trigger,
+idempotency per actor), D-01 COMPLETE (suppliers with ARCHIVED status). Locations: B-07 table with `active`.
+
+== Design (ADR-022) ==
+E-01 ledger extended (approved model: one stock_movements for unit or stock item), not a second ledger. Vehicle rules
+of 000015 unchanged and scoped to item_type VEHICLE_UNIT; vehicle branch of stock_movement_apply unchanged.
+stock_item_balances per SKU/location, changed only by the movement trigger, CHECK quantity >= 0, reconciled at commit.
+SERIAL SKUs refused (no serial register; OQ-38). No unit conversion (OQ-34).
+
+== Environment ==
+Throwaway postgres:18-alpine e04-pg on 127.0.0.1:5475 (random password, never printed). Shared dev DB (:5436,
+version 12), dev API and Vite not touched.
+
+== Migration 000017_parts_stock_movements ==
+cmd/migrate: up 17 -> down 16 -> up 17 clean. Tests: TestPartsMigrationRoundTrip (16 with a vehicle movement -> up;
+vehicle PDI pass after up reconciles; down refused once a parts movement exists, "would destroy ledger history"),
+TestPartsMigrationDownWithoutPartsMovements (down removes balances, up restores), E-01 TestStockMovementMigrationRoundTrip
+(14 -> 17 -> 14) still passes.
+
+== Tests: internal/modules/stock (29 = 17 E-01 + 12 E-04, all PASS) ==
+No DB: TestPartsRoutesDenyByDefault (401; 403 with other parts/master keys; receipt needs suppliers.view),
+TestPartsInputIsCheckedBeforeTheDatabase.
+PostgreSQL: TestPartsReceiptAndIssueMoveTheBalance (10 -> 6.5, one movement + one audit each, reads, no vehicle unit),
+TestIssueCannotExceedTheBalance (409 INSUFFICIENT_STOCK, no rows, no empty balance row, key reusable),
+TestPartsRequestsAreValidated (404 unknown SKU, INVALID_STATE archived, TRACKING_NOT_SUPPORTED serial x2, 19 x 422:
+wrong unit, 4 decimals, 0, 0.000, -1, 1e3, supplier missing/archived/unknown, blank reference, location
+unknown/inactive, client-sent quantityAfter/balance/actorId, missing reason, supplier on issue, numeric quantity,
+missing key; nothing written), TestPartsPermissionsAndLocationScope, TestPartsIdempotency (5 = 5.000 replay; other
+quantity/location/reference/type 409; parts key refused for a vehicle move and vice versa),
+TestConcurrentIssuesNeverGoNegative (10: two parallel 7 -> 1 ok + 1 INSUFFICIENT_STOCK; 1: eight parallel 1 -> 1 ok +
+7 refused; balance 0), TestConcurrentReceipts (8 parallel first receipts of 1.5 at a new location -> 12.000; 8 parallel
+same key -> 1 movement + 7 replays), TestDatabaseGuardsPartsStock (balance UPDATE/INSERT non-zero/DELETE/TRUNCATE and
+movement UPDATE/DELETE: 42501; stale before, below zero, receipt down, other unit, serial, archived, vehicle type on a
+part: named CHECKs; valid direct movement applies and reconciles; parts type on a vehicle row refused).
+Every parts test checks reconciliation (balance = latest movement; each movement starts where the previous ended).
+
+== Regression ==
+E-01 frontend contract test (ui/src/features/stock/stock.test.tsx) listed every OpenAPI path containing "movement";
+it now also expects the read-only /stock-items/{id}/stock-movements and asserts it has GET only.
+E-01 Go: the vehicle replay checks the key's item type (a parts key is IDEMPOTENCY_KEY_REUSED, not a 500); vehicle
+movement quantities are read as ::int.
+
+== Quality gates ==
+gofmt clean; go vet PASS; golangci-lint NOT INSTALLED (skipped, not passed).
+OpenAPI regenerated; compared with HEAD: 6 definitions and 4 paths added, none removed or changed; swagger-check PASS.
+Full Go suite with PostgreSQL required: 21 packages ok, 460 tests (270 top-level), 0 failed, 0 skipped.
+make ci (throwaway DB): first run failed on the E-01 UI contract test above (fixed); rerun exit 0 — Go + UI lint, tsc,
+Go integration, Vitest 28 files / 268 tests, build. git diff --check clean.
+Browser: NOT APPLICABLE (backend only; the only UI change is the contract test).

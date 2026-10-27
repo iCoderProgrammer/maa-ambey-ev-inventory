@@ -191,9 +191,13 @@ describe('stock movement API client', () => {
       (p) => p.includes('movement') || p.includes('display') || p.endsWith('/status'),
     )
     expect(movementPaths.sort()).toEqual([
+      // Read-only receipt/issue history of one parts SKU (E-04); not a vehicle movement route.
+      '/stock-items/{id}/stock-movements',
       '/vehicle-units/{id}/put-on-display',
       '/vehicle-units/{id}/take-off-display',
     ])
+    // That route only lists: no write or delete method on it.
+    expect(Object.keys(spec.paths['/stock-items/{id}/stock-movements'] ?? {})).toEqual(['get'])
   })
 
   it('exposes only the display action calls: no generic, list or delete call', () => {

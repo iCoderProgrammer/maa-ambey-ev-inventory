@@ -131,3 +131,67 @@ func TestTransitionsAreTheApprovedEdgesOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestPartsRoutesDenyByDefault(t *testing.T) {
+	h, s := movementHarness(t)
+	routes := []struct{ method, path, perm string }{
+		{http.MethodGet, "/balances", access.PermPartsView},
+		{http.MethodGet, "/stock-movements", access.PermPartsView},
+		{http.MethodPost, "/receipts", access.PermPartsReceive},
+		{http.MethodPost, "/issues", access.PermPartsIssue},
+	}
+	for _, r := range routes {
+		path := "/api/v1/stock-items/" + someID + r.path
+		if w := h.raw(r.method, path, `{}`, nil, nil); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s without session: %d", path, w.Code)
+		}
+		// Every other parts key, stock-item master keys and every location grant nothing here.
+		var others []string
+		for _, p := range []string{access.PermPartsView, access.PermPartsReceive, access.PermPartsIssue} {
+			if p != r.perm {
+				others = append(others, p)
+			}
+		}
+		h.grant(s, append(others, access.PermStockItemView, access.PermStockItemManage, access.PermAdjustmentCreate,
+			access.PermAllLocations)...)
+		expectError(t, h.raw(r.method, path, `{}`, &s, map[string]string{stock.IdempotencyHeader: "key-00000001"}),
+			http.StatusForbidden, "FORBIDDEN")
+	}
+	// A receipt names a supplier, so it also needs suppliers.view.
+	h.grant(s, access.PermPartsReceive, access.PermAllLocations)
+	expectError(t, h.raw(http.MethodPost, "/api/v1/stock-items/"+someID+"/receipts", `{}`, &s,
+		map[string]string{stock.IdempotencyHeader: "key-00000001"}), http.StatusForbidden, "FORBIDDEN")
+}
+
+func TestPartsInputIsCheckedBeforeTheDatabase(t *testing.T) {
+	h, s := movementHarness(t)
+	h.grant(s, access.PermPartsReceive, access.PermPartsIssue, access.PermPartsView, access.PermSupplierView, access.PermAllLocations)
+	post := func(op, body, key string) httpx.ErrorBody {
+		return expectError(t, h.raw(http.MethodPost, "/api/v1/stock-items/"+someID+"/"+op, body, &s,
+			map[string]string{stock.IdempotencyHeader: key}), http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	}
+	e := post("receipts", `{"quantity":"1.2345","uom":"","locationId":"x"}`, "short")
+	for _, f := range []string{"Idempotency-Key", "locationId", "quantity", "uom", "supplierId", "sourceReference"} {
+		if !slices.ContainsFunc(e.Details, func(d httpx.FieldError) bool { return d.Field == f }) {
+			t.Errorf("receipt: missing %s in %+v", f, e.Details)
+		}
+	}
+	e = post("issues", `{"quantity":"0","uom":"PCS","locationId":"`+someID+`"}`, "key-00000001")
+	for _, f := range []string{"quantity", "reason"} {
+		if !slices.ContainsFunc(e.Details, func(d httpx.FieldError) bool { return d.Field == f }) {
+			t.Errorf("issue: missing %s in %+v", f, e.Details)
+		}
+	}
+	// An issue names no supplier; the client cannot send the balance or the result.
+	if e := post("issues", `{"quantity":"1","uom":"PCS","locationId":"`+someID+`","reason":"x","supplierId":"`+someID+`"}`,
+		"key-00000001"); e.Details[0].Field != "supplierId" {
+		t.Errorf("issue with supplier: %+v", e.Details)
+	}
+	e = post("issues", `{"quantity":"1","uom":"PCS","locationId":"`+someID+`","reason":"x","quantityAfter":"9"}`, "key-00000001")
+	if e.Details[0].Field != "quantityAfter" {
+		t.Errorf("details %+v", e.Details)
+	}
+	expectError(t, h.raw(http.MethodGet, "/api/v1/stock-items/"+someID+"/stock-movements?type=SALE&limit=0&locationId=x", "", &s, nil),
+		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	expectError(t, h.raw(http.MethodGet, "/api/v1/stock-items/not-a-uuid/balances", "", &s, nil), http.StatusNotFound, "NOT_FOUND")
+}

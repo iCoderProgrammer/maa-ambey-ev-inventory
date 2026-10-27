@@ -41,6 +41,12 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	display := h.access.Require(access.PermVehicleUnitDisplayManage)
 	rg.POST("/vehicle-units/:id/put-on-display", display, h.PutOnDisplay)
 	rg.POST("/vehicle-units/:id/take-off-display", display, h.TakeOffDisplay)
+	// Parts stock (E-04). Balances change only through these two posts.
+	partsView := h.access.Require(access.PermPartsView)
+	rg.GET("/stock-items/:id/balances", partsView, h.PartsBalances)
+	rg.GET("/stock-items/:id/stock-movements", partsView, h.PartsHistory)
+	rg.POST("/stock-items/:id/receipts", h.access.Require(access.PermPartsReceive), h.ReceiveParts)
+	rg.POST("/stock-items/:id/issues", h.access.Require(access.PermPartsIssue), h.IssueParts)
 }
 
 func (h *Handler) actor(c *gin.Context) audit.Actor {
@@ -77,20 +83,35 @@ func (h *Handler) decode(c *gin.Context, dst any) bool {
 	return false
 }
 
-func (h *Handler) respond(c *gin.Context, res MoveResult, replayed bool, err error) {
+func (h *Handler) respond(c *gin.Context, res any, replayed bool, err error) {
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	if replayed {
+		c.Header("Idempotent-Replayed", "true")
+	}
+	c.JSON(http.StatusOK, httpx.DataResponse{Data: res})
+}
+
+func (h *Handler) fail(c *gin.Context, err error) {
 	var verr *ValidationError
 	var inv *InvalidStateError
 	switch {
-	case err == nil:
-		c.Header("Cache-Control", "no-store")
-		if replayed {
-			c.Header("Idempotent-Replayed", "true")
-		}
-		c.JSON(http.StatusOK, httpx.DataResponse{Data: res})
+	case errors.Is(err, ErrInsufficientStock):
+		httpx.Error(c, http.StatusConflict, httpx.CodeInsufficientStock,
+			"There is not enough stock of this item at this location. Nothing was changed.",
+			httpx.FieldError{Field: "quantity", Message: "is more than the available balance"})
+	case errors.Is(err, ErrSerialNotSupported):
+		httpx.Error(c, http.StatusConflict, httpx.CodeTrackingNotSupported,
+			"Serial-tracked items cannot be received or issued yet: there is no serial register. Nothing was changed.")
+	case errors.Is(err, ErrItemArchived):
+		httpx.Error(c, http.StatusConflict, httpx.CodeInvalidState, "This SKU is archived and takes no new stock movements. Nothing was changed.")
 	case errors.Is(err, ErrForbidden):
 		access.Forbidden(c)
 	case errors.Is(err, ErrNotFound):
-		httpx.Error(c, http.StatusNotFound, httpx.CodeNotFound, "The vehicle unit was not found.")
+		httpx.Error(c, http.StatusNotFound, httpx.CodeNotFound, "The record was not found.")
 	case errors.As(err, &verr):
 		out := make([]httpx.FieldError, len(verr.Fields))
 		for i, f := range verr.Fields {
@@ -171,3 +192,117 @@ func (h *Handler) PutOnDisplay(c *gin.Context) { h.display(c, true) }
 //	@Failure		422				{object}	httpx.ErrorResponse	"VALIDATION_FAILED (version, note, Idempotency-Key)"
 //	@Router			/vehicle-units/{id}/take-off-display [post]
 func (h *Handler) TakeOffDisplay(c *gin.Context) { h.display(c, false) }
+
+// PartsBalances godoc
+//
+//	@Summary		Stock balances of a part
+//	@Description	The SKU's quantity at each location in the caller's scope that has (or had) stock; a location never stocked has no row (its balance is 0). Balances are computed by the server from receipts and issues and cannot be set. Requires stock.parts.view.
+//	@Tags			parts-stock
+//	@Produce		json
+//	@Param			id	path		string	true	"SKU ID"
+//	@Success		200	{object}	httpx.DataResponse{data=[]stock.PartsBalance}
+//	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
+//	@Failure		404	{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Router			/stock-items/{id}/balances [get]
+func (h *Handler) PartsBalances(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	b, err := h.svc.PartsBalances(c.Request.Context(), a, c.Param("id"))
+	h.respond(c, b, false, err)
+}
+
+// PartsHistory godoc
+//
+//	@Summary		Receipts and issues of a part
+//	@Description	Newest first, at the locations in the caller's scope; filters locationId (must be in scope) and type. Each entry has the quantity, the balance before and after, unit, source, reference, reason, actor and server time. supplierId/supplierName are null without suppliers.view. Requires stock.parts.view.
+//	@Tags			parts-stock
+//	@Produce		json
+//	@Param			id			path	string	true	"SKU ID"
+//	@Param			locationId	query	string	false	"Location ID (in the caller's scope)"
+//	@Param			type		query	string	false	"Movement type"	Enums(PARTS_RECEIPT, PARTS_ISSUE)
+//	@Param			page		query	int		false	"Page (from 1)"
+//	@Param			limit		query	int		false	"Page size (1-100, default 25)"
+//	@Success		200	{object}	httpx.DataResponse{data=stock.PartsPage}
+//	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
+//	@Failure		404	{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (locationId, type, page, limit)"
+//	@Router			/stock-items/{id}/stock-movements [get]
+func (h *Handler) PartsHistory(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	p, err := h.svc.PartsHistory(c.Request.Context(), a, c.Param("id"), PartsHistoryQuery{LocationID: c.Query("locationId"),
+		Type: c.Query("type"), Page: c.Query("page"), Limit: c.Query("limit")})
+	h.respond(c, p, false, err)
+}
+
+// ReceiveParts godoc
+//
+//	@Summary		Receive parts from a supplier
+//	@Description	Adds the quantity to the SKU's balance at the location by recording one PARTS_RECEIPT movement (balance, movement and audit stock_item.received in one transaction). The SKU must be ACTIVE and QUANTITY-tracked (SERIAL: 409 TRACKING_NOT_SUPPORTED) and uom must be its unit (no conversion); quantity > 0 with up to 3 decimals; supplierId (not archived) and sourceReference (challan/invoice number) are required. Idempotency-Key is required: the same key and body by the same user returns the first result with Idempotent-Replayed: true and changes nothing; the same key with another request is 409 IDEMPOTENCY_KEY_REUSED. Requires stock.parts.receive, suppliers.view and X-CSRF-Token; the location must be in the caller's scope.
+//	@Tags			parts-stock
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SKU ID"
+//	@Param			Idempotency-Key	header		string					true	"8-100 letters, digits, - or _"
+//	@Param			body			body		stock.PartsReceiptInput	true	"Receipt"
+//	@Success		200				{object}	httpx.DataResponse{data=stock.PartsResult}	"Recorded, or a replay (Idempotent-Replayed: true)"
+//	@Failure		400				{object}	httpx.ErrorResponse	"BAD_REQUEST"
+//	@Failure		401				{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403				{object}	httpx.ErrorResponse	"FORBIDDEN or CSRF_FAILED"
+//	@Failure		404				{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Failure		409				{object}	httpx.ErrorResponse	"INVALID_STATE (archived SKU), TRACKING_NOT_SUPPORTED or IDEMPOTENCY_KEY_REUSED"
+//	@Failure		415				{object}	httpx.ErrorResponse	"UNSUPPORTED_MEDIA_TYPE"
+//	@Failure		422				{object}	httpx.ErrorResponse	"VALIDATION_FAILED (locationId, quantity, uom, supplierId, sourceReference, note, Idempotency-Key)"
+//	@Router			/stock-items/{id}/receipts [post]
+func (h *Handler) ReceiveParts(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	var in PartsReceiptInput
+	if !h.decode(c, &in) {
+		return
+	}
+	res, replayed, err := h.svc.ReceiveParts(c.Request.Context(), a, h.actor(c), c.GetString(httpx.RequestIDKey), c.Param("id"),
+		in, c.GetHeader(IdempotencyHeader))
+	h.respond(c, res, replayed, err)
+}
+
+// IssueParts godoc
+//
+//	@Summary		Issue (consume) parts
+//	@Description	Takes the quantity from the SKU's balance at the location by recording one PARTS_ISSUE movement, in one transaction with the audit event stock_item.issued. The balance is locked and checked: more than is there is 409 INSUFFICIENT_STOCK and nothing changes (the database also refuses a negative balance). Same SKU, unit, quantity, idempotency and scope rules as receipts; reason is required, sourceReference (e.g. job card) optional. Requires stock.parts.issue and X-CSRF-Token.
+//	@Tags			parts-stock
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SKU ID"
+//	@Param			Idempotency-Key	header		string					true	"8-100 letters, digits, - or _"
+//	@Param			body			body		stock.PartsIssueInput	true	"Issue"
+//	@Success		200				{object}	httpx.DataResponse{data=stock.PartsResult}	"Recorded, or a replay (Idempotent-Replayed: true)"
+//	@Failure		400				{object}	httpx.ErrorResponse	"BAD_REQUEST"
+//	@Failure		401				{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403				{object}	httpx.ErrorResponse	"FORBIDDEN or CSRF_FAILED"
+//	@Failure		404				{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Failure		409				{object}	httpx.ErrorResponse	"INSUFFICIENT_STOCK, INVALID_STATE (archived SKU), TRACKING_NOT_SUPPORTED or IDEMPOTENCY_KEY_REUSED"
+//	@Failure		415				{object}	httpx.ErrorResponse	"UNSUPPORTED_MEDIA_TYPE"
+//	@Failure		422				{object}	httpx.ErrorResponse	"VALIDATION_FAILED (locationId, quantity, uom, reason, sourceReference, note, Idempotency-Key)"
+//	@Router			/stock-items/{id}/issues [post]
+func (h *Handler) IssueParts(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	var in PartsIssueInput
+	if !h.decode(c, &in) {
+		return
+	}
+	res, replayed, err := h.svc.IssueParts(c.Request.Context(), a, h.actor(c), c.GetString(httpx.RequestIDKey), c.Param("id"),
+		in, c.GetHeader(IdempotencyHeader))
+	h.respond(c, res, replayed, err)
+}
