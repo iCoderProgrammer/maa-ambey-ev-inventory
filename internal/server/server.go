@@ -19,6 +19,7 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/health"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pdi"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/receiving"
@@ -57,14 +58,16 @@ type Deps struct {
 	StockMovements *stock.Handler
 	// StockItems serves the spare part and accessory SKU master (E-03).
 	StockItems *stockitems.Handler
-	Version    string
+	// PDI serves PDI checklists and inspections (D-06).
+	PDI     *pdi.Handler
+	Version string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
-	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil || d.StockMovements == nil || d.StockItems == nil {
-		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts, VehicleUnits, StockMovements and StockItems dependencies are required")
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil || d.StockMovements == nil || d.StockItems == nil || d.PDI == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts, VehicleUnits, StockMovements, StockItems and PDI dependencies are required")
 	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
@@ -127,6 +130,7 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	d.GoodsReceipts.Register(api)
 	d.VehicleUnits.Register(api)
 	d.StockMovements.Register(api)
+	d.PDI.Register(api)
 	d.StockItems.Register(api)
 
 	return r, nil

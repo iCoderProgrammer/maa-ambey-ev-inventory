@@ -1233,6 +1233,353 @@ definitions:
         example: asha.verma
         type: string
     type: object
+  PDIChecklistItem:
+    properties:
+      brandId:
+        type: string
+        x-nullable: true
+      brandName:
+        type: string
+        x-nullable: true
+      code:
+        example: BRAKES
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      description:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      label:
+        example: Brakes
+        type: string
+      retireReason:
+        type: string
+        x-nullable: true
+      retiredAt:
+        type: string
+        x-nullable: true
+      retiredBy:
+        type: string
+        x-nullable: true
+      sortOrder:
+        example: 10
+        type: integer
+      status:
+        enum:
+        - ACTIVE
+        - RETIRED
+        example: ACTIVE
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PDIChecklistItemCreate:
+    properties:
+      brandId:
+        type: string
+        x-nullable: true
+      code:
+        example: BRAKES
+        type: string
+      description:
+        type: string
+        x-nullable: true
+      label:
+        example: Brakes
+        type: string
+      sortOrder:
+        example: 10
+        type: integer
+        x-nullable: true
+    type: object
+  PDIChecklistItemRetire:
+    properties:
+      reason:
+        example: Replaced by a brand-specific item
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  PDIChecklistPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/PDIChecklistItem'
+        type: array
+      limit:
+        example: 50
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  PDIEvidence:
+    properties:
+      attachmentId:
+        type: string
+      contentType:
+        example: image/jpeg
+        type: string
+      originalName:
+        example: brake.jpg
+        type: string
+      sizeBytes:
+        example: 204800
+        type: integer
+    type: object
+  PDIInspection:
+    properties:
+      disposition:
+        enum:
+        - PASS
+        - HOLD
+        - REJECT
+        example: HOLD
+        type: string
+      evidenceCount:
+        example: 2
+        type: integer
+      failedCount:
+        example: 1
+        type: integer
+      fromStatus:
+        example: RECEIVED_PENDING_PDI
+        type: string
+      id:
+        type: string
+      inspectedAt:
+        type: string
+      inspectedBy:
+        type: string
+      inspectedByName:
+        type: string
+        x-nullable: true
+      inspectionNumber:
+        example: PDI-000001
+        type: string
+      itemCount:
+        example: 12
+        type: integer
+      locationId:
+        type: string
+        x-nullable: true
+      movementId:
+        type: string
+      notes:
+        type: string
+        x-nullable: true
+      result:
+        enum:
+        - ALL_PASSED
+        - HAS_FAILURES
+        - NOT_CHECKED
+        example: HAS_FAILURES
+        type: string
+      toStatus:
+        example: QUALITY_HOLD
+        type: string
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+      vehicleUnitId:
+        type: string
+    type: object
+  PDIInspectionCreate:
+    properties:
+      attachmentIds:
+        items:
+          type: string
+        type: array
+      disposition:
+        enum:
+        - PASS
+        - HOLD
+        - REJECT
+        example: HOLD
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/PDIItemOutcomeInput'
+        type: array
+      notes:
+        example: Rear brake lever loose; supplier informed
+        type: string
+        x-nullable: true
+      version:
+        example: 1
+        type: integer
+    type: object
+  PDIInspectionDetail:
+    properties:
+      disposition:
+        enum:
+        - PASS
+        - HOLD
+        - REJECT
+        example: HOLD
+        type: string
+      evidence:
+        items:
+          $ref: '#/definitions/PDIEvidence'
+        type: array
+      evidenceCount:
+        example: 2
+        type: integer
+      evidenceHidden:
+        type: boolean
+      failedCount:
+        example: 1
+        type: integer
+      fromStatus:
+        example: RECEIVED_PENDING_PDI
+        type: string
+      id:
+        type: string
+      inspectedAt:
+        type: string
+      inspectedBy:
+        type: string
+      inspectedByName:
+        type: string
+        x-nullable: true
+      inspectionNumber:
+        example: PDI-000001
+        type: string
+      itemCount:
+        example: 12
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/PDIItemOutcome'
+        type: array
+      locationId:
+        type: string
+        x-nullable: true
+      movementId:
+        type: string
+      notes:
+        type: string
+        x-nullable: true
+      result:
+        enum:
+        - ALL_PASSED
+        - HAS_FAILURES
+        - NOT_CHECKED
+        example: HAS_FAILURES
+        type: string
+      toStatus:
+        example: QUALITY_HOLD
+        type: string
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+      vehicleUnitId:
+        type: string
+    type: object
+  PDIItemOutcome:
+    properties:
+      checklistItemId:
+        type: string
+      code:
+        example: BRAKES
+        type: string
+      label:
+        example: Brakes
+        type: string
+      lineNo:
+        example: 1
+        type: integer
+      note:
+        type: string
+        x-nullable: true
+      outcome:
+        enum:
+        - PASS
+        - FAIL
+        example: FAIL
+        type: string
+    type: object
+  PDIItemOutcomeInput:
+    properties:
+      checklistItemId:
+        type: string
+      note:
+        example: Rear brake lever loose
+        type: string
+        x-nullable: true
+      outcome:
+        enum:
+        - PASS
+        - FAIL
+        example: FAIL
+        type: string
+    type: object
+  PDIOverview:
+    properties:
+      allowedDispositions:
+        description: |-
+          AllowedDispositions are the dispositions the unit's status admits
+          (empty when no inspection can be recorded); recording also needs
+          vehicle_units.pdi.record (canRecord).
+        items:
+          type: string
+        type: array
+      canRecord:
+        type: boolean
+      checklist:
+        description: |-
+          Checklist is the active checklist that applies to the unit (every-brand
+          items and items of the unit's brand), in order. Empty = not configured:
+          a PASS is refused (409 PDI_CHECKLIST_NOT_CONFIGURED).
+        items:
+          $ref: '#/definitions/PDIChecklistItem'
+        type: array
+      inspections:
+        items:
+          $ref: '#/definitions/PDIInspection'
+        type: array
+      unit:
+        $ref: '#/definitions/PDIUnitState'
+    type: object
+  PDIRecordResult:
+    properties:
+      inspection:
+        $ref: '#/definitions/PDIInspectionDetail'
+      unit:
+        $ref: '#/definitions/PDIUnitState'
+    type: object
+  PDIUnitState:
+    properties:
+      brandId:
+        type: string
+      id:
+        type: string
+      locationId:
+        type: string
+        x-nullable: true
+      saleable:
+        description: Saleable is true only for AVAILABLE units (INV-006/007).
+        example: false
+        type: boolean
+      status:
+        example: RECEIVED_PENDING_PDI
+        type: string
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
   PartsBalance:
     properties:
       locationCode:
@@ -2855,6 +3202,7 @@ definitions:
         enum:
         - GOODS_RECEIPT
         - STAFF_ACTION
+        - PDI_INSPECTION
         example: STAFF_ACTION
         type: string
       toLocationId:
@@ -5504,6 +5852,216 @@ paths:
       summary: Verify a model
       tags:
       - catalogue
+  /pdi-checklist-items:
+    get:
+      description: 'The configurable PDI checklist (no item is seeded: an empty list
+        means it is not configured). Active items first, by sortOrder then code. brandId
+        lists the items that apply to that brand (every-brand items and the brand''s
+        own). Requires vehicle_units.view, vehicle_units.pdi.record or vehicle_units.pdi.checklist.manage.'
+      parameters:
+      - description: Status
+        enum:
+        - ACTIVE
+        - RETIRED
+        in: query
+        name: status
+        type: string
+      - description: 'Brand ID: items that apply to this brand'
+        in: query
+        name: brandId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIChecklistPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (status, brandId, page, limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List PDI checklist items
+      tags:
+      - pdi
+    post:
+      consumes:
+      - application/json
+      description: 'Adds an ACTIVE item for every brand (no brandId) or for one brand.
+        code (2-40 of A-Z, 0-9, _; upper-cased) is unique among active items of the
+        same brand scope (409 DUPLICATE). Items are never edited or deleted: retire
+        one and create another, so recorded outcomes keep their meaning. Mandatory
+        inspection criteria are the client''s to define; nothing is pre-filled. Requires
+        vehicle_units.pdi.checklist.manage and X-CSRF-Token. Audited (pdi_checklist_item.created).'
+      parameters:
+      - description: Checklist item
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PDIChecklistItemCreate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIChecklistItem'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: DUPLICATE (code)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (code, label, description, brandId, sortOrder)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Create a PDI checklist item
+      tags:
+      - pdi
+  /pdi-checklist-items/{id}/retire:
+    post:
+      consumes:
+      - application/json
+      description: ACTIVE -> RETIRED with a reason (1-500). A retired item no longer
+        applies to new inspections; recorded outcomes keep it. version must be the
+        item's current version. Requires vehicle_units.pdi.checklist.manage and X-CSRF-Token.
+        Audited (pdi_checklist_item.retired).
+      parameters:
+      - description: Checklist item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PDIChecklistItemRetire'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIChecklistItem'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT or INVALID_STATE (already retired)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, reason)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Retire a PDI checklist item
+      tags:
+      - pdi
+  /pdi-inspections/{id}:
+    get:
+      description: One inspection with its outcomes (checklist code and label, PASS/FAIL,
+        note) and evidence (attachment ID, name, type, size; download through the
+        attachments API). evidence is empty and evidenceHidden true without attachments.view.
+        An inspection of a unit outside the caller's scope is 404. Requires vehicle_units.view.
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIInspectionDetail'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a PDI inspection
+      tags:
+      - pdi
   /price-items:
     get:
       description: 'Drafts, approved and cancelled prices, newest effective date first.
@@ -9105,12 +9663,14 @@ paths:
       - catalogue
   /vehicle-units:
     get:
-      description: Newest first. q matches the unit number and the chassis/frame,
+      description: 'Newest first. q matches the unit number and the chassis/frame,
         motor, battery and charger identifiers after normalisation (trimmed, upper-case;
-        part of a value is enough). Filters combine. Only units without a location
-        or at a location in the caller's scope are listed; a locationId outside the
-        scope is refused. unitCost and costCurrency are null, and costHidden true,
-        without vehicle_units.cost.view. Requires vehicle_units.view.
+        part of a value is enough). Filters combine. saleable=true lists only AVAILABLE
+        units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY,
+        RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006).
+        Only units without a location or at a location in the caller''s scope are
+        listed; a locationId outside the scope is refused. unitCost and costCurrency
+        are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.'
       parameters:
       - description: Search unit number or identifier
         in: query
@@ -9158,6 +9718,11 @@ paths:
         in: query
         name: locationId
         type: string
+      - description: 'true: AVAILABLE units only (saleable, INV-006); false: every
+          other status (pending PDI, held, rejected, display, ...)'
+        in: query
+        name: saleable
+        type: boolean
       - description: Page (from 1)
         in: query
         name: page
@@ -9187,8 +9752,8 @@ paths:
           schema:
             $ref: '#/definitions/ErrorResponse'
         "422":
-          description: VALIDATION_FAILED (q, status, brandId, variantId, supplierId,
-            purchaseOrderId, goodsReceiptId, locationId, page, limit)
+          description: VALIDATION_FAILED (q, status, saleable, brandId, variantId,
+            supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)
           schema:
             $ref: '#/definitions/ErrorResponse'
       summary: List vehicle units
@@ -9235,6 +9800,147 @@ paths:
       summary: Get a vehicle unit
       tags:
       - vehicle-units
+  /vehicle-units/{id}/pdi:
+    get:
+      description: 'The unit as it is now (status, version, saleable), the dispositions
+        its status admits (PASS and HOLD while RECEIVED_PENDING_PDI; REJECT while
+        QUALITY_HOLD; none otherwise — OQ-31), canRecord (the caller holds vehicle_units.pdi.record),
+        the active checklist that applies to the unit (empty = not configured: PASS
+        is refused) and its inspections, newest first. A unit at a location outside
+        the caller''s scope is 404. Requires vehicle_units.view.'
+      parameters:
+      - description: Vehicle unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIOverview'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get a vehicle unit's PDI
+      tags:
+      - pdi
+    post:
+      consumes:
+      - application/json
+      description: 'Records one complete inspection and applies its disposition in
+        one transaction: the stock movement (PDI_PASS, QUALITY_HOLD or REJECT; source
+        PDI_INSPECTION with the inspection number), the unit''s new status and version,
+        the inspection with its outcomes, the evidence links and the audit events
+        (pdi_inspection.recorded, vehicle_unit.moved) commit together or not at all.
+        The actor is the session user and the time the database clock. Rules: version
+        must be the unit''s current version (409 VERSION_CONFLICT). PASS: RECEIVED_PENDING_PDI
+        -> AVAILABLE; needs at least one applicable checklist item (409 PDI_CHECKLIST_NOT_CONFIGURED)
+        and every outcome PASS. HOLD: RECEIVED_PENDING_PDI -> QUALITY_HOLD. REJECT:
+        QUALITY_HOLD -> REJECTED only. A direct reject of a unit awaiting PDI and
+        any release from hold are refused (409 INVALID_STATE, OQ-31). items must hold
+        exactly one outcome for every active checklist item that applies to the unit
+        (none missing, none unknown/retired/other brand); a FAIL needs a note. HOLD
+        and REJECT need notes and at least one evidence attachment (INV-008). attachmentIds
+        must be the caller''s own unlinked uploads (POST /attachments) at the unit''s
+        location; they become private PDI evidence (attachments.view + vehicle_units.view
+        to open). A unit without a chassis/frame number cannot leave RECEIVED_PENDING_PDI
+        (409 INVALID_STATE, INV-002). Idempotency-Key is required: the same key and
+        request by the same user returns the first inspection with 200 and Idempotent-Replayed:
+        true (nothing written again; concurrent repeats wait and replay); the same
+        key with another request is 409 IDEMPOTENCY_KEY_REUSED. Refusals for the unit''s
+        status, a missing checklist or a missing chassis number are audited (DENIED).
+        Unknown fields (status, actorId, inspectedAt, result, ...) are 422. A unit
+        outside the caller''s scope is 404. Requires vehicle_units.pdi.record and
+        X-CSRF-Token.'
+      parameters:
+      - description: Vehicle unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Inspection
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PDIInspectionCreate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Replay (Idempotent-Replayed: true)'
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIRecordResult'
+              type: object
+        "201":
+          description: Recorded
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/PDIRecordResult'
+              type: object
+        "400":
+          description: BAD_REQUEST
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT, INVALID_STATE, PDI_CHECKLIST_NOT_CONFIGURED
+            or IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, disposition, items, items[i].checklistItemId,
+            items[i].outcome, items[i].note, notes, attachmentIds, attachmentIds[i],
+            Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Record a PDI inspection
+      tags:
+      - pdi
   /vehicle-units/{id}/put-on-display:
     post:
       consumes:

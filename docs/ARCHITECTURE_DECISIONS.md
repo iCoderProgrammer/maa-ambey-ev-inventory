@@ -669,6 +669,66 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-024 — PDI checklist and disposition (D-06)
+
+- **Status:** Accepted (technical design; checklist content, PDI policy beyond the diagram, who may record and grants
+  pending — OQ-31, OQ-41, A-05, RB-5).
+- **One complete inspection per request (PRD §4.4, INV-008, FR-006; System Architecture §6, endpoint
+  `POST /api/v1/vehicle-units/:id/pdi`).** Migration 000019: `pdi_inspections` (number `PDI-000001`, unit, disposition
+  `PASS`/`HOLD`/`REJECT`, server-computed `result` `ALL_PASSED`/`HAS_FAILURES`/`NOT_CHECKED`, from/to status, the
+  unit's location, notes, the movement that applied it, `inspected_by` + database `inspected_at`, request id,
+  per-inspector idempotency key + request hash), `pdi_inspection_items` (one PASS/FAIL outcome per applicable
+  checklist item, note required for FAIL) and `pdi_inspection_attachments` (B-09 evidence). No draft: the inspection is
+  the decision. All three tables are append-only (guards; `insufficient_privilege` on UPDATE/DELETE/TRUNCATE); history
+  is the list of inspections per unit. No version column on an inspection (it never changes); concurrency is the
+  unit's `version`.
+- **Dispositions use only the approved lifecycle edges (OQ-31 unresolved):** PASS = RECEIVED_PENDING_PDI → AVAILABLE
+  (`PDI_PASS`), HOLD = RECEIVED_PENDING_PDI → QUALITY_HOLD (`QUALITY_HOLD`), REJECT = QUALITY_HOLD → REJECTED
+  (`REJECT`). A direct reject of a unit awaiting PDI and any release or re-hold of a QUALITY_HOLD unit are refused with
+  409 `INVALID_STATE` (audited DENIED), and the `pdi_inspections_transition_valid` CHECK mirrors them; the E-01 ledger
+  CHECKs are unchanged. When OQ-31 is answered the edges are added by migration in both places.
+- **PASS never makes unposted stock saleable:** a vehicle unit exists only once its goods receipt is POSTED
+  (`vehicles.RegisterFromReceiptUnit` inside D-07's posting transaction; the database refuses a unit whose receipt is
+  not posted at commit). PDI therefore always follows posting, and PASS → AVAILABLE is the approved edge (PRD/H-02
+  "GRN → PDI → available"). A unit without a chassis/frame number cannot pass or be held (INV-002).
+- **Through the ledger (INV-009):** the movement is written by `stock.MoveUnit` in the same transaction (unit lock,
+  scope, version, starting status, trigger applies status + `version + 1`, audit `vehicle_unit.moved`), with a new
+  optional `MoveRequest.Source` → `source_type PDI_INSPECTION`, `source_id` = inspection, `source_reference` = its
+  number (`stock_movements_source_complete`). Commit-time guards: `stock_movements_pdi_inspection` (a PDI_INSPECTION
+  movement needs its inspection), `pdi_inspections_movement_matches` (same unit, type, edge, source and location),
+  `pdi_inspections_pass_outcomes` (a pass has outcomes, all PASS), `pdi_inspections_evidence_required` (hold/reject
+  have evidence), `pdi_inspection_items_brand_matches`, `pdi_inspection_attachments_owner_matches`; unique
+  `stock_movements_pdi_once (source_id)`. `STAFF_ACTION` stays valid for PDI movement types at the database level so
+  the E-01 contract and its tests are unchanged; the only route that makes PDI movements always names the inspection.
+- **Checklist is data, not code:** `pdi_checklist_items` (code, label, description, optional brand, sort order,
+  ACTIVE/RETIRED; never edited or deleted — retire and create, so outcomes keep their meaning; one active code per
+  brand scope). **No item is seeded** (no approved checklist, OQ-41). The applicable checklist of a unit = active
+  every-brand items + its brand's items. Every applicable item must have exactly one outcome (none missing, none
+  unknown/retired/other-brand). A PASS needs at least one applicable item (409 `PDI_CHECKLIST_NOT_CONFIGURED`,
+  audited DENIED) and every outcome PASS: nothing unconfigured counts as passed. A HOLD/REJECT is allowed without a
+  configured checklist (`result NOT_CHECKED`) because it only removes the unit from saleable stock. There is no
+  NOT_APPLICABLE outcome and no mandatory/optional flag: that is policy (OQ-41).
+- **Evidence (INV-008 "issue notes and evidence"; FR-016):** HOLD and REJECT need notes and at least one attachment;
+  PASS may carry photos. Evidence must be the inspector's own unlinked upload (`POST /attachments`) whose location
+  equals the unit's (both null allowed); it is linked once (owner `pdi_inspection`) and can never serve another unit.
+  `attachments.canSee` for owner `pdi_inspection` needs `attachments.view` + `vehicle_units.view`, and the location
+  check covers the unit's scope. Inspection reads list evidence metadata only with `attachments.view`
+  (`evidenceHidden` otherwise); files open only through signed attachment links.
+- **Idempotency and concurrency:** `Idempotency-Key` required; unique `(inspected_by, idempotency_key)`; the lookup
+  runs after the unit row lock, so concurrent repeats wait and replay (200, `Idempotent-Replayed: true`); same key with
+  another request → `IDEMPOTENCY_KEY_REUSED`. Different concurrent requests on one unit: one wins, the rest get
+  `VERSION_CONFLICT` (or `INVALID_STATE`). The movement uses a derived key `pdi-<inspection id>`.
+- **Saleable stock (INV-006/007, PO-006):** `vehicles.IsSaleable` = AVAILABLE only; `GET /vehicle-units?saleable=true`
+  lists only AVAILABLE units (false = every other status); PDI responses carry `saleable`.
+- **Permissions:** `vehicle_units.pdi.record` (record) and `vehicle_units.pdi.checklist.manage` (create/retire items),
+  new, **no grants**; reading uses `vehicle_units.view`. All reads and writes respect location scope (units without a
+  location are in every scope, as in D-04/E-01).
+- **Not here:** PDI screens (D-06 frontend), receipt posting (D-07), the vehicle list/detail UI (D-08), PDI hold
+  reports/queues (G-04), service hold, returns to supplier, re-inspection policy.
+- **Rollback:** the down migration refuses while any checklist item, inspection or PDI movement exists.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -702,7 +762,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-28 | Internal vehicle unit number: D-04 uses `MAE-VEH-000001…` after the design specification example (`MAE-VEH-00042`). Confirm prefix, digits and whether it restarts per year or location. | D-04, D-09 |
 | OQ-29 | Vehicle unit cost basis (REP-003): D-04 records the PO line's agreed unit cost at registration. Should it be the supplier bill amount, include freight/landed costs, and who may see it (`vehicle_units.cost.view`)? | D-04, D-07, E-07, G-02, RB-5 |
 | OQ-30 | Batteries: one `battery_serial` per unit (as captured on receipts). Do any models carry several packs or swappable packs needing component history (INV-004, architecture "battery_units")? | D-04, D-05, D-06 |
-| OQ-31 | PDI dispositions (E-01 implements only the diagram's edges): may a failed PDI go straight from RECEIVED_PENDING_PDI to REJECTED (INV-008 says "quality hold or rejected"; the diagram only shows QUALITY_HOLD → REJECTED)? Can a QUALITY_HOLD unit be re-inspected and released to AVAILABLE? Is REJECTED final, and what follows it (RETURNED_TO_SUPPLIER)? | D-06, E-01 |
+| OQ-31 | PDI dispositions (E-01 implements only the diagram's edges): may a failed PDI go straight from RECEIVED_PENDING_PDI to REJECTED (INV-008 says "quality hold or rejected"; the diagram only shows QUALITY_HOLD → REJECTED)? Can a QUALITY_HOLD unit be re-inspected and released to AVAILABLE? Is REJECTED final, and what follows it (RETURNED_TO_SUPPLIER)? **Still open after D-06:** D-06 refuses both undecided paths (409 `INVALID_STATE`, audited DENIED; ADR-024). | D-06, E-01 |
 | OQ-32 | Location transfers: who may move a unit between locations, with what approval (System Architecture §12 item 4)? E-01 records locations on every movement but has no transfer movement. | E-01, later |
 | OQ-33 | Stock movement corrections (LED-002): which mistakes may be corrected by a reversal movement, by whom, with what approval? Until then no reversal type exists. | E-01, E-05 |
 | OQ-34 | Units of measure for spare parts/accessories: is there an approved list (e.g. PCS, SET, PAIR, L, M) and may an item's unit change once stock exists? E-03 accepts any 1–10 character code. | E-03, E-04 |
@@ -712,4 +772,5 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-38 | Serial-tracked parts: what identifies a piece (format, uniqueness, who registers it) and how are pieces received/issued? Until decided, E-04 refuses stock movements for SERIAL SKUs. | E-04 |
 | OQ-39 | Vehicle count discrepancies: when a counted unit is missing (or a unit is found that is recorded elsewhere), what happens — investigation status, write-off/loss movement, transfer — who approves it, and may a unit be counted at a location other than its recorded one? E-05 records the finding only and changes no unit. | E-05, E-01, OQ-32, OQ-33 |
 | OQ-40 | Stock adjustment approval policy: is there a value/quantity threshold below which no approval is needed (LED-005), who approves (owner only? inventory manager?), may the owner self-approve in a small team, should counters see the expected quantity (blind counts), and should count numbers restart per year/location? E-05: every count needs an approver who took no part in it; numbers `SC-000001…`. | E-05, A-05, RB-5 |
+| OQ-41 | PDI checklist policy: which inspection items does the client require (per brand/model?), is a NOT_APPLICABLE outcome allowed and for which items, must HOLD/REJECT always carry photo/document evidence (D-06 reads INV-008 "issue notes and evidence" as yes), may PASS be recorded without a photo, who may record PDI and decide holds/rejections (maker-checker?), and should inspection numbers restart per year/location? D-06: no item seeded, PASS refused until an item applies, every applicable item must be answered PASS/FAIL, HOLD/REJECT need notes + ≥ 1 attachment, numbers `PDI-000001…`. | D-06, A-05, RB-5 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |

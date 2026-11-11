@@ -13,6 +13,8 @@ import (
 // ListQuery is the raw list request.
 type ListQuery struct {
 	Query, Status, BrandID, VariantID, SupplierID, PurchaseOrderID, GoodsReceiptID, LocationID, Page, Limit string
+	// Saleable is "", "true" (AVAILABLE units only, INV-006) or "false" (every other status).
+	Saleable string
 }
 
 // ListFilter is a validated list request. Query is normalised like an
@@ -20,7 +22,7 @@ type ListQuery struct {
 // against the scope); without one, a caller who does not have every location
 // sees units without a location or at one of ScopeLocationIDs.
 type ListFilter struct {
-	Query, Status                                                   string
+	Query, Status, Saleable                                         string
 	BrandID, VariantID, SupplierID, PurchaseOrderID, GoodsReceiptID string
 	LocationIDs, ScopeLocationIDs                                   []string
 	AllLocations                                                    bool
@@ -59,6 +61,11 @@ func validateList(q ListQuery) (ListFilter, error) {
 	f.Query = NormaliseIdentifier(query)
 	if f.Status != "" && !slices.Contains(Statuses, f.Status) {
 		c.add("status", "must be one of "+strings.Join(Statuses, ", "))
+	}
+	switch f.Saleable = strings.TrimSpace(q.Saleable); f.Saleable {
+	case "", "true", "false":
+	default:
+		c.add("saleable", "must be true or false")
 	}
 	c.optionalID("brandId", &f.BrandID)
 	c.optionalID("variantId", &f.VariantID)

@@ -96,6 +96,12 @@ func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 			add(c.col+" = ?", c.v)
 		}
 	}
+	switch f.Saleable {
+	case "true":
+		add("v.status = ANY(?::text[])", SaleableStatuses)
+	case "false":
+		add("NOT (v.status = ANY(?::text[]))", SaleableStatuses)
+	}
 	switch {
 	case len(f.LocationIDs) > 0:
 		add("v.location_id = ANY(?::uuid[])", f.LocationIDs)

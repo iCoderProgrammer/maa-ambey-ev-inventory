@@ -351,7 +351,9 @@ movement ledger (E-01, below).
 - Location scope: units without a location are visible to every viewer; a unit at a location needs it in the caller's
   scope (list filtered; detail 404; a `locationId` filter outside the scope is 422 `VALIDATION_FAILED` on `locationId`).
 - Errors: 401, 403 `FORBIDDEN`, 404 `NOT_FOUND` (unknown/invalid id, or out of scope), 422 `VALIDATION_FAILED`
-  (`q`, `status`, the id filters, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
+  (`q`, `status`, `saleable`, the id filters, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
+- `saleable=true` (D-06) lists only `AVAILABLE` units (INV-006); `saleable=false` every other status (pending PDI,
+  `QUALITY_HOLD`, `REJECTED`, `DISPLAY`, …). `VehicleUnit` itself is unchanged.
 - The referenced PO, receipt and receipt documents open through their own routes and permissions.
 - Audited (by posting, D-07): `vehicle_unit.registered` (summary without the cost).
 
@@ -416,7 +418,8 @@ Internal callers (inside their own transaction; they check their own permission)
 
 - `stock.MoveUnit(ctx, tx, actor, scope, MoveRequest{UnitID, Type, ExpectedVersion, IdempotencyKey, Note, RequestID})`
   for the PDI moves `PDI_PASS` (RECEIVED_PENDING_PDI → AVAILABLE), `QUALITY_HOLD` (RECEIVED_PENDING_PDI → QUALITY_HOLD)
-  and `REJECT` (QUALITY_HOLD → REJECTED), owned by D-06. Errors: `ErrNotFound`, `ErrVersionConflict`,
+  and `REJECT` (QUALITY_HOLD → REJECTED), owned by D-06 (which sets `MoveRequest.Source` =
+  `{PDI_INSPECTION, inspection id, inspection number}`; a source on any other movement type is 422). Errors: `ErrNotFound`, `ErrVersionConflict`,
   `*InvalidStateError`, `ErrChassisRequired`, `ErrIdempotencyKeyReused`, `*ValidationError`; on `stock.IsKeyRace(err)`
   roll back and call `stock.Replay`. Roll back on any error.
 - `stock.RecordReceipt` is called by `vehicles.RegisterFromReceiptUnit`: receipt posting (D-07) gets the `RECEIPT`
@@ -531,6 +534,52 @@ different person approves it.
   and `stock_item.adjusted` per posted movement.
 - `GET /stock-items/{id}/stock-movements` (E-04) keeps listing receipts and issues only; adjustments are read through
   their count (and the E-02 timeline later).
+
+## PDI checklist and disposition (D-06)
+
+Rules: ADR-024. Schema: migration 000019 (`pdi_checklist_items`, `pdi_inspections`, `pdi_inspection_items`,
+`pdi_inspection_attachments`; `stock_movements` source `PDI_INSPECTION`). Package `internal/modules/pdi`.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /pdi-checklist-items` | `vehicle_units.view`, `vehicle_units.pdi.record` or `vehicle_units.pdi.checklist.manage` | `PDIChecklistPage`; `status` (`ACTIVE`/`RETIRED`), `brandId` (items that apply to that brand: every-brand + its own), `page`, `limit` (1–100, default 50); active first by `sortOrder`, `code` |
+| `POST /pdi-checklist-items` | `vehicle_units.pdi.checklist.manage` | `PDIChecklistItemCreate` (`code` 2–40 `A-Z0-9_`, upper-cased; `label` ≤ 200; `description?` ≤ 1000; `brandId?`; `sortOrder?` 0–9999) → 201 `PDIChecklistItem`; 409 `DUPLICATE` (`code`, active item in the same brand scope) |
+| `POST /pdi-checklist-items/{id}/retire` | `vehicle_units.pdi.checklist.manage` | `PDIChecklistItemRetire` (`version`, `reason` ≤ 500) → `PDIChecklistItem` (RETIRED); 409 `VERSION_CONFLICT` / `INVALID_STATE` (already retired) |
+| `GET /vehicle-units/{id}/pdi` | `vehicle_units.view` | `PDIOverview` |
+| `POST /vehicle-units/{id}/pdi` | `vehicle_units.pdi.record` | `PDIInspectionCreate` → 201 `PDIRecordResult`; `Idempotency-Key` |
+| `GET /pdi-inspections/{id}` | `vehicle_units.view` | `PDIInspectionDetail` |
+
+- `PDIOverview`: `unit` (`PDIUnitState`: `id`, `unitNumber`, `status`, `brandId`, `locationId`, `version`,
+  `saleable`), `allowedDispositions` (`["PASS","HOLD"]` while `RECEIVED_PENDING_PDI`, `["REJECT"]` while
+  `QUALITY_HOLD`, `[]` otherwise), `canRecord` (caller holds `vehicle_units.pdi.record`), `checklist` (the active
+  `PDIChecklistItem`s that apply to the unit, in order; empty = not configured), `inspections` (`PDIInspection`,
+  newest first).
+- `PDIInspectionCreate`: `version` (the unit's current version, required), `disposition` (`PASS`/`HOLD`/`REJECT`),
+  `items` (`[{checklistItemId, outcome PASS|FAIL, note?}]` — exactly one per applicable item; `note` ≤ 500, required
+  for FAIL), `notes?` (≤ 2000; required for HOLD/REJECT), `attachmentIds` (≤ 20; ≥ 1 for HOLD/REJECT; each the
+  caller's own unlinked upload with the unit's `locationId`). Unknown fields (`status`, `inspectedBy`, `result`, …)
+  are 422: the server derives the movement, statuses, result, actor and time.
+- `PDIRecordResult` = `inspection` (`PDIInspectionDetail`) + `unit` (as it is now). `PDIInspection`: `id`,
+  `inspectionNumber` (`PDI-000001`), `vehicleUnitId`, `unitNumber`, `disposition`, `result` (`ALL_PASSED`,
+  `HAS_FAILURES`, `NOT_CHECKED`), `fromStatus`, `toStatus`, `locationId`, `notes`, `movementId`, `inspectedBy`,
+  `inspectedByName`, `inspectedAt`, `itemCount`, `failedCount`, `evidenceCount`. `PDIInspectionDetail` adds `items`
+  (`lineNo`, `checklistItemId`, `code`, `label`, `outcome`, `note`), `evidence` (`attachmentId`, `originalName`,
+  `contentType`, `sizeBytes`; empty with `evidenceHidden: true` without `attachments.view`).
+- Evidence files: `GET /attachments/{id}` + signed link (B-09); owner `pdi_inspection` needs `attachments.view` and
+  `vehicle_units.view`, within the file's (= the unit's) location.
+- Replay: the same user, key and request → the first inspection, 200, `Idempotent-Replayed: true`, nothing written
+  again (concurrent repeats wait and replay); same key with another request → 409 `IDEMPOTENCY_KEY_REUSED`.
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`; 404 `NOT_FOUND` (unknown/invalid id, or the unit outside the caller's
+  scope); 409 `VERSION_CONFLICT`, `INVALID_STATE` (status does not admit the disposition — including the OQ-31 refusals
+  — or no chassis/frame number, INV-002), `PDI_CHECKLIST_NOT_CONFIGURED` (PASS with no applicable item),
+  `IDEMPOTENCY_KEY_REUSED`; 415; 422 `VALIDATION_FAILED` (`version`, `disposition`, `items`,
+  `items[i].checklistItemId|outcome|note`, `notes`, `attachmentIds`, `attachmentIds[i]`, `Idempotency-Key`). A refused
+  request writes nothing and does not use up its key.
+- Atomic: movement (`PDI_PASS`/`QUALITY_HOLD`/`REJECT`, source `PDI_INSPECTION`, reference = inspection number), unit
+  status + version, inspection, outcomes, evidence links, audit `pdi_inspection.recorded` (summary: unit, disposition,
+  result, status from/to, movement, location, counts) and `vehicle_unit.moved`. Refusals for status, missing checklist
+  or chassis are audited `pdi_inspection.recorded` DENIED (entity `vehicle_unit`). Checklist changes are audited
+  `pdi_checklist_item.created` / `.retired`.
 
 ## Middleware chain
 

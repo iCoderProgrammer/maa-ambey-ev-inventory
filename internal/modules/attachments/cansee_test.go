@@ -8,12 +8,13 @@ import (
 
 // Supplier documents (D-01) are visible to holders of attachments.view and
 // suppliers.view, goods receipt documents (D-03) to holders of attachments.view
-// and goods_receipts.view; other linked owners stay denied until their module
-// adds a check (fail closed).
+// and goods_receipts.view, PDI evidence (D-06) to holders of attachments.view
+// and vehicle_units.view within the file's location; other linked owners stay
+// denied until their module adds a check (fail closed).
 func TestCanSeeLinkedAttachments(t *testing.T) {
 	supplierDoc := Attachment{UploadedBy: "u1", OwnerType: "supplier", OwnerID: "s1"}
 	receiptDoc := Attachment{UploadedBy: "u1", OwnerType: "goods_receipt", OwnerID: "g1"}
-	other := Attachment{UploadedBy: "u1", OwnerType: "pdi_inspection", OwnerID: "p1"}
+	other := Attachment{UploadedBy: "u1", OwnerType: "sales_order", OwnerID: "o1"}
 	both := access.NewAccess("u2", nil, []string{access.PermAttachmentsView, access.PermSupplierView}, nil, false)
 	onlyFiles := access.NewAccess("u2", nil, []string{access.PermAttachmentsView}, nil, false)
 	onlySuppliers := access.NewAccess("u2", nil, []string{access.PermSupplierView}, nil, false)
@@ -36,6 +37,18 @@ func TestCanSeeLinkedAttachments(t *testing.T) {
 	}
 	if canSee(both, other) || canSee(receiptViewer, other) {
 		t.Fatal("unknown owner type visible")
+	}
+	pdiDoc := Attachment{UploadedBy: "u1", OwnerType: "pdi_inspection", OwnerID: "p1", LocationID: "loc-1"}
+	unitViewer := access.NewAccess("u2", nil, []string{access.PermAttachmentsView, access.PermVehicleUnitView},
+		[]access.Location{{ID: "loc-1"}}, false)
+	otherLocation := access.NewAccess("u2", nil, []string{access.PermAttachmentsView, access.PermVehicleUnitView},
+		[]access.Location{{ID: "loc-2"}}, false)
+	onlyUnits := access.NewAccess("u2", nil, []string{access.PermVehicleUnitView, access.PermAllLocations}, nil, false)
+	if !canSee(unitViewer, pdiDoc) {
+		t.Fatal("unit viewer with attachments.view cannot see PDI evidence at their location")
+	}
+	if canSee(otherLocation, pdiDoc) || canSee(onlyUnits, pdiDoc) || canSee(receiptViewer, pdiDoc) || canSee(unitViewer, other) {
+		t.Fatal("PDI evidence visible outside its location or without both permissions")
 	}
 	// The uploader no longer has special access once the file is linked.
 	uploader := access.NewAccess("u1", nil, []string{access.PermAttachmentsView}, nil, false)

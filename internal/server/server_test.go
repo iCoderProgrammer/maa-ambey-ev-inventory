@@ -21,6 +21,7 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth/authtest"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pdi"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/receiving"
@@ -107,6 +108,12 @@ func testGoodsReceipts() *receiving.Handler {
 }
 
 // testStockItems builds the real SKU master routes without a database.
+// testPDI builds the real PDI routes without a database.
+func testPDI() *pdi.Handler {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return pdi.NewHandler(pdi.NewService(nil, log), testAccess(), log)
+}
+
 func testStockItems() *stockitems.Handler {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return stockitems.NewHandler(stockitems.NewService(nil, log), testAccess(), log)
@@ -141,7 +148,7 @@ func testConfig() config.Config {
 
 func newTestRouter(t *testing.T, cfg config.Config) *gin.Engine {
 	t.Helper()
-	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"})
+	r, err := NewRouter(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +307,7 @@ func TestTimeoutKeepsHandlerResponse(t *testing.T) {
 
 func TestPanicIsAccessLoggedWithRequestID(t *testing.T) {
 	var buf strings.Builder
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewJSONHandler(&buf, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,10 +370,10 @@ func TestCORSIgnoresSameHostOrigin(t *testing.T) {
 
 func TestNewRouterRequiresSchemaCheckerAndAuth(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"}); err == nil {
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"}); err == nil {
 		t.Error("NewRouter must refuse to start without a schema checker")
 	}
-	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"}); err == nil {
+	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"}); err == nil {
 		t.Error("NewRouter must refuse to start without authentication")
 	}
 	if _, err := NewRouter(Deps{Config: testConfig(), Log: log, DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Version: "test"}); err == nil {
@@ -376,7 +383,7 @@ func TestNewRouterRequiresSchemaCheckerAndAuth(t *testing.T) {
 
 // Only health, readiness and the sign-in routes are reachable without a session.
 func TestAPIRoutesArePrivateByDefault(t *testing.T) {
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +413,7 @@ func TestAPIRoutesArePrivateByDefault(t *testing.T) {
 // B-08: audit history is append-only. No API route may change or remove audit
 // records; a future audit read API is allowed only with GET.
 func TestNoAPIRouteCanModifyAuditEvents(t *testing.T) {
-	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), Version: "test"})
+	r, err := NewRouter(Deps{Config: testConfig(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: okPinger{}, Schema: okSchema{}, Auth: testAuth(t), Access: testAccess(), Attachments: testAttachments(t), Catalogue: testCatalogue(), Pricing: testPricing(), Suppliers: testSuppliers(), PurchaseOrders: testPurchaseOrders(), GoodsReceipts: testGoodsReceipts(), VehicleUnits: testVehicleUnits(), StockMovements: testStockMovements(), StockItems: testStockItems(), PDI: testPDI(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}

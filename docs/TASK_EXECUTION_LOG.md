@@ -50,7 +50,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | COMPLETE |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
-| D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | NOT STARTED |
+| D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
@@ -2863,6 +2863,85 @@ The frontend was committed without a log entry; this section records it from the
 #### Final status
 COMPLETE (mechanism) — backend (`ab77cbe`) and frontend (`893dd43`) verified 2026-11-11; remediation uncommitted at
 time of writing. Pending client decisions: OQ-39, OQ-40, RB-5. D-06 not started.
+
+### D-06 — PDI checklist and disposition
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-11); frontend phase not started.
+  Pending client decisions: OQ-31 (direct reject / release from hold), OQ-41 (checklist content and policy), RB-5.
+- **Started:** 2026-11-11
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_06_pdi-checklist-and-disposition.md
+- Git at start: `dev` at `2c6fd81` (E-05 remediation committed first at the user's choice), clean tree; local ahead of
+  `origin/dev` by 3 (`ab77cbe`, `893dd43`, `2c6fd81`).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units` (status, version, brand, location; guard + ledger trigger), `RegisterFromReceiptUnit` only after POSTED receipt; vehicles tests pass |
+| B-07 | COMPLETE | `Require`/`RequireAny`/`Has`, `Scope.Allows`, `TestPermissionCatalogueMatchesDatabase` (passes with the 2 new keys) |
+| B-08 | COMPLETE | `audit.Record` in the caller's transaction, DENIED outcome; audit tests pass |
+| B-09 | COMPLETE | attachments metadata, link-once guard, `canSee` fail-closed per owner; attachment tests pass |
+| (used) E-01 | COMPLETE | `stock.MoveUnit` with PDI_PASS / QUALITY_HOLD / REJECT edges reserved for D-06 (ADR-020) |
+
+#### Acceptance criteria
+- [x] AC1 PDI decision is attributable: actor = session user, time = database clock, checklist outcomes, notes,
+  evidence and the movement are stored together; audit `pdi_inspection.recorded` + `vehicle_unit.moved`
+- [x] AC2 Failed/held units excluded from saleable search: QUALITY_HOLD/REJECTED never saleable;
+  `GET /vehicle-units?saleable=true` = AVAILABLE only; PDI responses carry `saleable`
+- [x] AC3 Attached evidence remains private: own unlinked uploads at the unit's location only, linked once; visible
+  only with `attachments.view` + `vehicle_units.view` in scope; metadata hidden without `attachments.view`
+- [x] AC4 Statuses are tested: PASS, HOLD, REJECT, refused edges (OQ-31), no inspection after AVAILABLE, no chassis
+- [x] AC5 Server-side validation, deny-by-default permissions, location scope, version + idempotency, concurrency
+- [ ] Checklist content, NOT_APPLICABLE, evidence policy, who may record (OQ-41) and the OQ-31 paths — client decisions
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only session by instruction; frontend phase follows).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000019_pdi_inspections` (up/down): permissions `vehicle_units.pdi.record`,
+  `vehicle_units.pdi.checklist.manage` (no grants); `pdi_checklist_items` (data-driven, every-brand or per brand,
+  retire-only, nothing seeded); append-only `pdi_inspections` (PDI-000001, disposition, result, edge CHECK,
+  movement FK, actor/time, idempotency), `pdi_inspection_items`, `pdi_inspection_attachments`; commit-time guards
+  linking inspection ↔ movement, outcome brand, evidence owner/location, PASS outcomes, HOLD/REJECT evidence; ledger
+  source `PDI_INSPECTION` + `stock_movements_pdi_once`. Down refuses while PDI data exists.
+- Package `internal/modules/pdi` (types, validate, service, pgstore, http); `stock.MoveRequest.Source` (additive);
+  attachments `canSee` owner `pdi_inspection`; vehicles `IsSaleable` + `saleable` filter; error code
+  `PDI_CHECKLIST_NOT_CONFIGURED`; wiring in `cmd/api` and `internal/server`.
+- Routes: `GET/POST /pdi-checklist-items`, `POST /pdi-checklist-items/{id}/retire`, `GET/POST /vehicle-units/{id}/pdi`,
+  `GET /pdi-inspections/{id}`.
+- OQ-31 kept open: only the approved edges (PASS RECEIVED_PENDING_PDI→AVAILABLE, HOLD →QUALITY_HOLD, REJECT
+  QUALITY_HOLD→REJECTED); the rest 409 `INVALID_STATE`, audited DENIED. PASS needs ≥ 1 applicable checklist item
+  (409 `PDI_CHECKLIST_NOT_CONFIGURED`) and all outcomes PASS. PASS cannot make unposted stock saleable: units exist
+  only after receipt posting (D-07).
+- Docs: ADR-024, OQ-31 note, OQ-41 (new); API_CONVENTIONS "PDI checklist and disposition (D-06)" + vehicles `saleable`
+  + E-01 internal-caller note; OpenAPI regenerated.
+- Checks: gofmt, build, vet clean; Go with PostgreSQL all packages ok, 495 passing tests (pdi 16: 6 unit + 10
+  integration; Concurrency/Evidence also `-race -count=5`); `make ci` lint/typecheck/Go steps pass; Vitest: contract
+  test caught a `saleable` field on `VehicleUnit` (removed, filter kept), then two D-05 UI tests timed out under machine
+  load (load average 12–14); they pass alone and the full suite passes with `--maxWorkers=2` (302/302); `make build`
+  ok. golangci-lint not installed. Evidence: `docs/evidence/D-06/backend-verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase (frontend phase pending). Contract for the frontend: API_CONVENTIONS D-06 section.
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Files changed
+`migrations/000019_pdi_inspections.{up,down}.sql`, `internal/modules/pdi/*` (new), `internal/modules/stock/{types,ledger}.go`,
+`internal/modules/access/policy.go`, `internal/modules/attachments/{service,cansee_test}.go`,
+`internal/modules/vehicles/{types,validate,pgstore,http}.go`, `internal/httpx/response.go`,
+`internal/server/{server,server_test}.go`, `cmd/api/main.go`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md`, this log, `docs/evidence/D-06/backend-verification.txt`.
+
+#### Known issues / pending approvals
+- OQ-31, OQ-41, RB-5 (no grants; no checklist item, so no PASS until configured). No NOT_APPLICABLE outcome.
+- `STAFF_ACTION` is still accepted for PDI movement types at the database level (E-01 contract/tests unchanged); no
+  route reaches it.
+- Shared dev DB still at migration 12 (needs 13–19); not migrated (by instruction).
+
+#### Final status
+IN PROGRESS — D-06 backend phase complete, not committed (by instruction). Frontend phase not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

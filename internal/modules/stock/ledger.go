@@ -98,6 +98,13 @@ func validateMove(req MoveRequest) error {
 	if req.ExpectedVersion != nil && *req.ExpectedVersion < 1 {
 		probs = append(probs, FieldProblem{"version", "must be 1 or more"})
 	}
+	if src := req.Source; src != nil {
+		pdi := req.Type == TypePDIPass || req.Type == TypeQualityHold || req.Type == TypeReject
+		_, idErr := uuid.Parse(src.ID)
+		if src.Type != SourcePDIInspection || !pdi || idErr != nil || strings.TrimSpace(src.Reference) == "" {
+			probs = append(probs, FieldProblem{"source", "must name the PDI inspection of a PDI movement"})
+		}
+	}
 	if req.Note != nil {
 		n := strings.TrimSpace(*req.Note)
 		switch {
@@ -120,6 +127,9 @@ func moveHash(req MoveRequest) string {
 	}
 	if req.Note != nil {
 		note = strings.TrimSpace(*req.Note)
+	}
+	if src := req.Source; src != nil {
+		return requestHash(req.Type, req.UnitID, version, note, src.Type, src.ID, src.Reference)
 	}
 	return requestHash(req.Type, req.UnitID, version, note)
 }
@@ -178,11 +188,15 @@ func MoveUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, scope access.Sc
 	if u.Status != edge.From {
 		return MoveResult{}, false, &InvalidStateError{Current: u.Status, Required: edge.From}
 	}
+	sourceType, sourceID, sourceRef := SourceStaffAction, any(nil), any(nil)
+	if src := req.Source; src != nil {
+		sourceType, sourceID, sourceRef = src.Type, src.ID, src.Reference
+	}
 	m, err := scanMovement(tx.QueryRow(ctx, `INSERT INTO stock_movements AS m (vehicle_unit_id, movement_type, quantity_before,
-			quantity_after, from_status, to_status, from_location_id, to_location_id, source_type, actor_id, request_id,
-			idempotency_key, request_hash, note)
-		VALUES ($1, $2, 1, 1, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11) RETURNING `+movementColumns,
-		u.ID, req.Type, edge.From, edge.To, u.LocationID, SourceStaffAction, actor.UserID, nullable(req.RequestID),
+			quantity_after, from_status, to_status, from_location_id, to_location_id, source_type, source_id, source_reference,
+			actor_id, request_id, idempotency_key, request_hash, note)
+		VALUES ($1, $2, 1, 1, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING `+movementColumns,
+		u.ID, req.Type, edge.From, edge.To, u.LocationID, sourceType, sourceID, sourceRef, actor.UserID, nullable(req.RequestID),
 		req.IdempotencyKey, hash, req.Note))
 	if err != nil {
 		return MoveResult{}, false, insertError(err, u.Status, edge.From)

@@ -51,7 +51,18 @@ const ReceivedStatus = "RECEIVED_PENDING_PDI"
 const (
 	SourceGoodsReceipt = "GOODS_RECEIPT"
 	SourceStaffAction  = "STAFF_ACTION"
+	// SourcePDIInspection: a PDI movement recorded by an inspection (D-06).
+	SourcePDIInspection = "PDI_INSPECTION"
 )
+
+// MoveSource names the record a vehicle movement comes from. Only PDI
+// inspections (D-06) use it, for PDI_PASS, QUALITY_HOLD and REJECT; without a
+// source the movement is a STAFF_ACTION.
+type MoveSource struct {
+	Type      string // SourcePDIInspection
+	ID        string // the inspection's ID
+	Reference string // the inspection's number
+}
 
 // ItemVehicleUnit is the only item type until spare parts exist (E-03).
 const ItemVehicleUnit = "VEHICLE_UNIT"
@@ -68,7 +79,7 @@ type Movement struct {
 	ToStatus        string    `json:"toStatus" example:"DISPLAY"`
 	FromLocationID  *string   `json:"fromLocationId" extensions:"x-nullable"`
 	ToLocationID    *string   `json:"toLocationId" extensions:"x-nullable"`
-	SourceType      string    `json:"sourceType" example:"STAFF_ACTION" enums:"GOODS_RECEIPT,STAFF_ACTION"`
+	SourceType      string    `json:"sourceType" example:"STAFF_ACTION" enums:"GOODS_RECEIPT,STAFF_ACTION,PDI_INSPECTION"`
 	SourceID        *string   `json:"sourceId" extensions:"x-nullable"`
 	SourceReference *string   `json:"sourceReference" extensions:"x-nullable" example:"GRN-000001"`
 	ActorID         string    `json:"actorId"`
@@ -102,6 +113,8 @@ type MoveRequest struct {
 	IdempotencyKey string
 	Note           *string
 	RequestID      string
+	// Source, when set, names the record the movement comes from (see MoveSource).
+	Source *MoveSource
 }
 
 // FieldProblem is one invalid input field.

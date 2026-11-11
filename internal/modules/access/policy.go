@@ -17,7 +17,7 @@ import (
 )
 
 // Permission keys. Every key must exist in the permissions table (migrations
-// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015, 000016, 000017, 000018); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015, 000016, 000017, 000018, 000019); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -80,6 +80,10 @@ const (
 	// Stock counts (E-05, migration 000018). Creating/submitting counts uses
 	// PermAdjustmentCreate, approving/rejecting PermAdjustmentApprove (000004).
 	PermAdjustmentView = "stock.adjustment.view"
+	// PDI checklist and disposition (D-06, migration 000019). Reading inspections
+	// and their checklist uses PermVehicleUnitView.
+	PermPDIRecord          = "vehicle_units.pdi.record"
+	PermPDIChecklistManage = "vehicle_units.pdi.checklist.manage"
 )
 
 // AllPermissions lists every key the code knows.
@@ -96,6 +100,7 @@ var AllPermissions = []string{
 	PermVehicleUnitView, PermVehicleUnitCostView, PermVehicleUnitDisplayManage,
 	PermStockItemView, PermStockItemManage, PermStockItemArchive,
 	PermPartsView, PermPartsReceive, PermPartsIssue, PermAdjustmentView,
+	PermPDIRecord, PermPDIChecklistManage,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

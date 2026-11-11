@@ -60,6 +60,8 @@ const (
 	CodeTrackingNotSupported = "TRACKING_NOT_SUPPORTED"
 	// Stock counts (E-05): stock moved after a line was counted; details name the lines. 409.
 	CodeStockChanged = "STOCK_CHANGED_SINCE_COUNT"
+	// PDI (D-06): a PASS needs at least one applicable checklist item; 409.
+	CodePDIChecklistNotConfigured = "PDI_CHECKLIST_NOT_CONFIGURED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

@@ -2889,6 +2889,320 @@ const docTemplate = `{
                 }
             }
         },
+        "/pdi-checklist-items": {
+            "get": {
+                "description": "The configurable PDI checklist (no item is seeded: an empty list means it is not configured). Active items first, by sortOrder then code. brandId lists the items that apply to that brand (every-brand items and the brand's own). Requires vehicle_units.view, vehicle_units.pdi.record or vehicle_units.pdi.checklist.manage.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "List PDI checklist items",
+                "parameters": [
+                    {
+                        "enum": [
+                            "ACTIVE",
+                            "RETIRED"
+                        ],
+                        "type": "string",
+                        "description": "Status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Brand ID: items that apply to this brand",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIChecklistPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (status, brandId, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds an ACTIVE item for every brand (no brandId) or for one brand. code (2-40 of A-Z, 0-9, _; upper-cased) is unique among active items of the same brand scope (409 DUPLICATE). Items are never edited or deleted: retire one and create another, so recorded outcomes keep their meaning. Mandatory inspection criteria are the client's to define; nothing is pre-filled. Requires vehicle_units.pdi.checklist.manage and X-CSRF-Token. Audited (pdi_checklist_item.created).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "Create a PDI checklist item",
+                "parameters": [
+                    {
+                        "description": "Checklist item",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PDIChecklistItemCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIChecklistItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "DUPLICATE (code)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (code, label, description, brandId, sortOrder)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/pdi-checklist-items/{id}/retire": {
+            "post": {
+                "description": "ACTIVE -\u003e RETIRED with a reason (1-500). A retired item no longer applies to new inspections; recorded outcomes keep it. version must be the item's current version. Requires vehicle_units.pdi.checklist.manage and X-CSRF-Token. Audited (pdi_checklist_item.retired).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "Retire a PDI checklist item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Checklist item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PDIChecklistItemRetire"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIChecklistItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT or INVALID_STATE (already retired)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, reason)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/pdi-inspections/{id}": {
+            "get": {
+                "description": "One inspection with its outcomes (checklist code and label, PASS/FAIL, note) and evidence (attachment ID, name, type, size; download through the attachments API). evidence is empty and evidenceHidden true without attachments.view. An inspection of a unit outside the caller's scope is 404. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "Get a PDI inspection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Inspection ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIInspectionDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/price-items": {
             "get": {
                 "description": "Drafts, approved and cancelled prices, newest effective date first. Only price types the caller may see are returned (COST needs catalogue.cost_price.view); asking for another type is 403. brandId, priceListId and variantId of different brands are a cross-brand mismatch: 422 (C-06).",
@@ -8361,7 +8675,7 @@ const docTemplate = `{
         },
         "/vehicle-units": {
             "get": {
-                "description": "Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "description": "Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
                 "produces": [
                     "application/json"
                 ],
@@ -8434,6 +8748,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "true: AVAILABLE units only (saleable, INV-006); false: every other status (pending PDI, held, rejected, display, ...)",
+                        "name": "saleable",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page (from 1)",
                         "name": "page",
@@ -8478,7 +8798,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "VALIDATION_FAILED (q, status, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)",
+                        "description": "VALIDATION_FAILED (q, status, saleable, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -8538,6 +8858,183 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-units/{id}/pdi": {
+            "get": {
+                "description": "The unit as it is now (status, version, saleable), the dispositions its status admits (PASS and HOLD while RECEIVED_PENDING_PDI; REJECT while QUALITY_HOLD; none otherwise — OQ-31), canRecord (the caller holds vehicle_units.pdi.record), the active checklist that applies to the unit (empty = not configured: PASS is refused) and its inspections, newest first. A unit at a location outside the caller's scope is 404. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "Get a vehicle unit's PDI",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIOverview"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Records one complete inspection and applies its disposition in one transaction: the stock movement (PDI_PASS, QUALITY_HOLD or REJECT; source PDI_INSPECTION with the inspection number), the unit's new status and version, the inspection with its outcomes, the evidence links and the audit events (pdi_inspection.recorded, vehicle_unit.moved) commit together or not at all. The actor is the session user and the time the database clock. Rules: version must be the unit's current version (409 VERSION_CONFLICT). PASS: RECEIVED_PENDING_PDI -\u003e AVAILABLE; needs at least one applicable checklist item (409 PDI_CHECKLIST_NOT_CONFIGURED) and every outcome PASS. HOLD: RECEIVED_PENDING_PDI -\u003e QUALITY_HOLD. REJECT: QUALITY_HOLD -\u003e REJECTED only. A direct reject of a unit awaiting PDI and any release from hold are refused (409 INVALID_STATE, OQ-31). items must hold exactly one outcome for every active checklist item that applies to the unit (none missing, none unknown/retired/other brand); a FAIL needs a note. HOLD and REJECT need notes and at least one evidence attachment (INV-008). attachmentIds must be the caller's own unlinked uploads (POST /attachments) at the unit's location; they become private PDI evidence (attachments.view + vehicle_units.view to open). A unit without a chassis/frame number cannot leave RECEIVED_PENDING_PDI (409 INVALID_STATE, INV-002). Idempotency-Key is required: the same key and request by the same user returns the first inspection with 200 and Idempotent-Replayed: true (nothing written again; concurrent repeats wait and replay); the same key with another request is 409 IDEMPOTENCY_KEY_REUSED. Refusals for the unit's status, a missing checklist or a missing chassis number are audited (DENIED). Unknown fields (status, actorId, inspectedAt, result, ...) are 422. A unit outside the caller's scope is 404. Requires vehicle_units.pdi.record and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pdi"
+                ],
+                "summary": "Record a PDI inspection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Inspection",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PDIInspectionCreate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay (Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIRecordResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Recorded",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/PDIRecordResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT, INVALID_STATE, PDI_CHECKLIST_NOT_CONFIGURED or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, disposition, items, items[i].checklistItemId, items[i].outcome, items[i].note, notes, attachmentIds, attachmentIds[i], Idempotency-Key)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -10480,6 +10977,483 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "asha.verma"
+                }
+            }
+        },
+        "PDIChecklistItem": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "code": {
+                    "type": "string",
+                    "example": "BRAKES"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Brakes"
+                },
+                "retireReason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "retiredAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "retiredBy": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sortOrder": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ACTIVE",
+                        "RETIRED"
+                    ],
+                    "example": "ACTIVE"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PDIChecklistItemCreate": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "code": {
+                    "type": "string",
+                    "example": "BRAKES"
+                },
+                "description": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Brakes"
+                },
+                "sortOrder": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 10
+                }
+            }
+        },
+        "PDIChecklistItemRetire": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Replaced by a brand-specific item"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PDIChecklistPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIChecklistItem"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "PDIEvidence": {
+            "type": "object",
+            "properties": {
+                "attachmentId": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string",
+                    "example": "image/jpeg"
+                },
+                "originalName": {
+                    "type": "string",
+                    "example": "brake.jpg"
+                },
+                "sizeBytes": {
+                    "type": "integer",
+                    "example": 204800
+                }
+            }
+        },
+        "PDIInspection": {
+            "type": "object",
+            "properties": {
+                "disposition": {
+                    "type": "string",
+                    "enum": [
+                        "PASS",
+                        "HOLD",
+                        "REJECT"
+                    ],
+                    "example": "HOLD"
+                },
+                "evidenceCount": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "failedCount": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inspectedAt": {
+                    "type": "string"
+                },
+                "inspectedBy": {
+                    "type": "string"
+                },
+                "inspectedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "inspectionNumber": {
+                    "type": "string",
+                    "example": "PDI-000001"
+                },
+                "itemCount": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "movementId": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "result": {
+                    "type": "string",
+                    "enum": [
+                        "ALL_PASSED",
+                        "HAS_FAILURES",
+                        "NOT_CHECKED"
+                    ],
+                    "example": "HAS_FAILURES"
+                },
+                "toStatus": {
+                    "type": "string",
+                    "example": "QUALITY_HOLD"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "vehicleUnitId": {
+                    "type": "string"
+                }
+            }
+        },
+        "PDIInspectionCreate": {
+            "type": "object",
+            "properties": {
+                "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "disposition": {
+                    "type": "string",
+                    "enum": [
+                        "PASS",
+                        "HOLD",
+                        "REJECT"
+                    ],
+                    "example": "HOLD"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIItemOutcomeInput"
+                    }
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "Rear brake lever loose; supplier informed"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "PDIInspectionDetail": {
+            "type": "object",
+            "properties": {
+                "disposition": {
+                    "type": "string",
+                    "enum": [
+                        "PASS",
+                        "HOLD",
+                        "REJECT"
+                    ],
+                    "example": "HOLD"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIEvidence"
+                    }
+                },
+                "evidenceCount": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "evidenceHidden": {
+                    "type": "boolean"
+                },
+                "failedCount": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inspectedAt": {
+                    "type": "string"
+                },
+                "inspectedBy": {
+                    "type": "string"
+                },
+                "inspectedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "inspectionNumber": {
+                    "type": "string",
+                    "example": "PDI-000001"
+                },
+                "itemCount": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIItemOutcome"
+                    }
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "movementId": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "result": {
+                    "type": "string",
+                    "enum": [
+                        "ALL_PASSED",
+                        "HAS_FAILURES",
+                        "NOT_CHECKED"
+                    ],
+                    "example": "HAS_FAILURES"
+                },
+                "toStatus": {
+                    "type": "string",
+                    "example": "QUALITY_HOLD"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "vehicleUnitId": {
+                    "type": "string"
+                }
+            }
+        },
+        "PDIItemOutcome": {
+            "type": "object",
+            "properties": {
+                "checklistItemId": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "BRAKES"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Brakes"
+                },
+                "lineNo": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "outcome": {
+                    "type": "string",
+                    "enum": [
+                        "PASS",
+                        "FAIL"
+                    ],
+                    "example": "FAIL"
+                }
+            }
+        },
+        "PDIItemOutcomeInput": {
+            "type": "object",
+            "properties": {
+                "checklistItemId": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "Rear brake lever loose"
+                },
+                "outcome": {
+                    "type": "string",
+                    "enum": [
+                        "PASS",
+                        "FAIL"
+                    ],
+                    "example": "FAIL"
+                }
+            }
+        },
+        "PDIOverview": {
+            "type": "object",
+            "properties": {
+                "allowedDispositions": {
+                    "description": "AllowedDispositions are the dispositions the unit's status admits\n(empty when no inspection can be recorded); recording also needs\nvehicle_units.pdi.record (canRecord).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "canRecord": {
+                    "type": "boolean"
+                },
+                "checklist": {
+                    "description": "Checklist is the active checklist that applies to the unit (every-brand\nitems and items of the unit's brand), in order. Empty = not configured:\na PASS is refused (409 PDI_CHECKLIST_NOT_CONFIGURED).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIChecklistItem"
+                    }
+                },
+                "inspections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PDIInspection"
+                    }
+                },
+                "unit": {
+                    "$ref": "#/definitions/PDIUnitState"
+                }
+            }
+        },
+        "PDIRecordResult": {
+            "type": "object",
+            "properties": {
+                "inspection": {
+                    "$ref": "#/definitions/PDIInspectionDetail"
+                },
+                "unit": {
+                    "$ref": "#/definitions/PDIUnitState"
+                }
+            }
+        },
+        "PDIUnitState": {
+            "type": "object",
+            "properties": {
+                "brandId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "saleable": {
+                    "description": "Saleable is true only for AVAILABLE units (INV-006/007).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "status": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
@@ -12726,7 +13700,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "GOODS_RECEIPT",
-                        "STAFF_ACTION"
+                        "STAFF_ACTION",
+                        "PDI_INSPECTION"
                     ],
                     "example": "STAFF_ACTION"
                 },

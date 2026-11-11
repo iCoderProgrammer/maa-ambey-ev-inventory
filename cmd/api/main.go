@@ -19,6 +19,7 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/attachments"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pdi"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/receiving"
@@ -111,10 +112,11 @@ func run() error {
 	goodsReceiptHandler := receiving.NewHandler(receiving.NewService(receiving.NewPGStore(pool), log), accessHandler, log)
 	vehicleUnitHandler := vehicles.NewHandler(vehicles.NewService(vehicles.NewPGStore(pool), log), accessHandler, log)
 	stockHandler := stock.NewHandler(stock.NewService(stock.NewPGStore(pool), log), accessHandler, log)
+	pdiHandler := pdi.NewHandler(pdi.NewService(pdi.NewPGStore(pool), log), accessHandler, log)
 	stockItemHandler := stockitems.NewHandler(stockitems.NewService(stockitems.NewPGStore(pool), log), accessHandler, log)
 	log.Info("attachment storage ready", slog.String("driver", objects.Driver()), slog.Int64("max_bytes", cfg.AttachmentMaxBytes))
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, StockMovements: stockHandler, StockItems: stockItemHandler, Version: version})
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, StockMovements: stockHandler, StockItems: stockItemHandler, PDI: pdiHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

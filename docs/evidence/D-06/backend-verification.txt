@@ -1,0 +1,102 @@
+D-06 PDI checklist and disposition — BACKEND verification (2026-11-11)
+=====================================================================
+
+Scope: Go backend only (migration, module, routes, ledger source, attachment owner check, saleable filter, tests,
+OpenAPI, docs). No UI change. Base: dev at 2c6fd81 (E-05 remediation committed first, by the user's choice).
+Rules: docs/ARCHITECTURE_DECISIONS.md ADR-024; contract: docs/API_CONVENTIONS.md "PDI checklist and disposition (D-06)".
+
+Files
+-----
+New
+- migrations/000019_pdi_inspections.{up,down}.sql
+- internal/modules/pdi/{types,validate,service,pgstore,http}.go
+- internal/modules/pdi/{rules_test,harness_test,pdi_integration_test}.go
+Changed
+- internal/modules/stock/{types,ledger}.go       MoveRequest.Source (PDI_INSPECTION, id, number); validated; hashed
+- internal/modules/access/policy.go               vehicle_units.pdi.record, vehicle_units.pdi.checklist.manage
+- internal/modules/attachments/service.go         canSee: owner pdi_inspection -> attachments.view + vehicle_units.view
+- internal/modules/attachments/cansee_test.go     PDI cases (the old "unknown owner" sample used pdi_inspection)
+- internal/modules/vehicles/{types,validate,pgstore,http}.go   IsSaleable/SaleableStatuses, ?saleable=true|false
+- internal/httpx/response.go                      PDI_CHECKLIST_NOT_CONFIGURED
+- internal/server/{server,server_test}.go, cmd/api/main.go     wiring
+- docs/openapi/*                                  regenerated (make swagger)
+- docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md, docs/TASK_EXECUTION_LOG.md, this file
+
+Schema (000019)
+---------------
+- permissions: vehicle_units.pdi.record, vehicle_units.pdi.checklist.manage (no grants)
+- pdi_checklist_items: code/label/description/brand_id(NULL = all)/sort_order/status ACTIVE|RETIRED/version;
+  unique active (code, brand_id) NULLS NOT DISTINCT; guard: no delete, only ACTIVE -> RETIRED once. No item seeded.
+- pdi_inspections (append-only): PDI-000001 numbers, unit, disposition, result, from/to (CHECK = approved edges only),
+  location, notes (required unless PASS), movement_id (unique FK), inspected_by/at, idempotency (unique per inspector)
+- pdi_inspection_items (append-only): PASS/FAIL per checklist item, note required for FAIL
+- pdi_inspection_attachments (append-only): attachment linked once (unique attachment_id)
+- deferred guards: pdi_inspections_check (movement matches; outcome brand; evidence owner + location; PASS has
+  all-PASS outcomes; HOLD/REJECT have evidence), stock_movements_pdi_check (PDI_INSPECTION movement has its inspection)
+- stock_movements: source PDI_INSPECTION for PDI_PASS/QUALITY_HOLD/REJECT (source_id + reference required);
+  unique stock_movements_pdi_once (source_id). E-01 CHECKs on transitions unchanged.
+- down: refuses while any checklist item, inspection or PDI movement exists; restores the 000018 source CHECKs.
+
+Routes
+------
+GET  /api/v1/pdi-checklist-items              vehicle_units.view | pdi.record | pdi.checklist.manage
+POST /api/v1/pdi-checklist-items              vehicle_units.pdi.checklist.manage
+POST /api/v1/pdi-checklist-items/{id}/retire  vehicle_units.pdi.checklist.manage
+GET  /api/v1/vehicle-units/{id}/pdi           vehicle_units.view
+POST /api/v1/vehicle-units/{id}/pdi           vehicle_units.pdi.record (Idempotency-Key, X-CSRF-Token)
+GET  /api/v1/pdi-inspections/{id}             vehicle_units.view
+GET  /api/v1/vehicle-units?saleable=true|false (existing route, new filter)
+
+Checks (throwaway PostgreSQL 18 container maa-d06-pg :5496; shared dev DB not used)
+-----------------------------------------------------------------------------------
+- gofmt -l cmd internal: clean. go build ./...: ok. go vet ./...: ok.
+- go test (REQUIRE_INTEGRATION_TESTS=1): all packages ok; 495 passing tests (incl. subtests; 472 before D-06).
+  pdi: 16 tests (6 unit, 10 integration) pass; Concurrency + Evidence tests also with -race -count=5: pass.
+  Regression: stock (E-01/E-04/E-05), vehicles, attachments, access (permission catalogue), database (migration
+  round trip incl. 19 down/up) pass.
+- make ci (TEST_DATABASE_URL = throwaway): swagger-check, gofmt, vet, mod tidy, ESLint, Prettier, tsc and Go tests
+  with DB passed. Vitest in make ci: first run 1 failure — the frontend contract test pins VehicleUnit fields to
+  OpenAPI; a new `saleable` field was removed from VehicleUnit (filter kept) so the UI contract is unchanged. Two later
+  make ci runs: src/features/receiving/duplicateIdentifier.test.tsx 2 tests "timed out in 5000ms" with machine load
+  average 12-14 (WebStorm/Chrome); the file passes alone (6/6) and the full suite passes with
+  `vitest run --maxWorkers=2` (30 files / 302 tests). Not a D-06 change (no UI file touched). make build: ok.
+- golangci-lint: not installed (skipped by the Makefile).
+
+Tests (internal/modules/pdi)
+----------------------------
+Unit: validateRecord pass/hold/reject + refusals; requestHash order-independent; AllowedDispositions = approved
+edges only; matchChecklist; checklist create validation.
+Integration:
+- TestPDIPassMovesThePostedUnitToAvailable: PASS -> AVAILABLE, one PDI_PASS movement source PDI_INSPECTION + number,
+  audit pdi_inspection.recorded + vehicle_unit.moved, evidence owner set, receipt POSTED, history/detail,
+  evidenceHidden without attachments.view, no inspection after AVAILABLE; brand-B item not applicable to brand A.
+- TestPDIHoldThenRejectKeepsTheUnitOutOfSaleableStock: HOLD (notes, evidence, HAS_FAILURES), held unit refuses
+  PASS/HOLD (OQ-31), REJECT by another inspector, history order, saleable=true lists only the passed unit,
+  saleable=false the held + pending, ledger = unit state for every unit.
+- TestPDIValidation: missing outcome, other-brand item, FAIL without note, HOLD without notes/evidence, PASS with a
+  failure, invalid disposition, missing version, server-owned fields (status, inspectedBy), bad key, retired item;
+  nothing written.
+- TestPDIChecklistNotConfiguredAndDeniedAudit: PASS without checklist 409 PDI_CHECKLIST_NOT_CONFIGURED, direct REJECT
+  409 INVALID_STATE, both audited DENIED; HOLD without checklist = NOT_CHECKED; no chassis -> 409, unit unchanged.
+- TestPDIPermissionsAndLocationScope: viewer/nobody 403, checklist manage 403 for inspector, L2-scoped inspector 404
+  on L1 unit/inspection, can inspect L2 unit; unknown/invalid ids 404.
+- TestPDIEvidenceStaysPrivate: another user's upload, wrong location, no location, unknown id -> 422 per index;
+  evidence of one unit refused for another; attachments service: visible to unit viewer with attachments.view in
+  scope; hidden from viewer without attachments.view, other-location inspector, manager, and from the uploader
+  without vehicle_units.view.
+- TestPDIConcurrencyVersionsAndIdempotency: 8 parallel requests (different keys, 2 users) -> 1 x 201, 7 x 409, one
+  inspection, one movement; stale version 409; same key x5 in parallel -> one inspection, 1 fresh + 4 replays, same
+  id; same key different request 409 IDEMPOTENCY_KEY_REUSED.
+- TestPDIChecklistConfiguration: duplicate code per brand scope 409, unknown brand 422, retire version conflict,
+  retire once, code reusable after retirement, brand filter, audits, direct UPDATE/DELETE refused (42501).
+- TestPDIDatabaseGuards: UPDATE/DELETE on inspections/outcomes/evidence refused (42501); PDI_INSPECTION movement
+  without inspection refused at commit (23514), unit unchanged; source on a display move refused (422 validation).
+- TestPDIMigrationRollbackKeepsHistory: 19 -> 18 -> 19 while empty; down refused once a checklist item exists.
+
+Decisions / blockers recorded
+-----------------------------
+- OQ-31 still open: direct RECEIVED_PENDING_PDI -> REJECTED and QUALITY_HOLD -> AVAILABLE/re-hold refused.
+- OQ-41 (new): checklist content, NOT_APPLICABLE, evidence mandatory reading of INV-008, who records/decides,
+  numbering. No checklist item seeded -> PASS impossible until the client's checklist is configured.
+- RB-5: no grants for vehicle_units.pdi.*; test grants exist only in the in-memory test harness.
+- No browser test: backend-only session (frontend phase is the next step).

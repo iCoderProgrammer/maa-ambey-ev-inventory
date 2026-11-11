@@ -20,6 +20,7 @@ package vehicles
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"time"
 )
@@ -42,6 +43,15 @@ const (
 	StatusReturnPendingInspection = "RETURN_PENDING_INSPECTION"
 	StatusReturnedToSupplier      = "RETURNED_TO_SUPPLIER"
 )
+
+// IsSaleable reports whether a unit in status may be newly reserved or sold:
+// AVAILABLE only (INV-006). DISPLAY needs an authorised saleable transition
+// first; RECEIVED_PENDING_PDI, QUALITY_HOLD, SERVICE_HOLD, REJECTED, SOLD and
+// DELIVERED are never saleable stock (INV-007, PO-006).
+func IsSaleable(status string) bool { return slices.Contains(SaleableStatuses, status) }
+
+// SaleableStatuses are the statuses IsSaleable accepts.
+var SaleableStatuses = []string{StatusAvailable}
 
 // Statuses lists every status in the approved order (INV-005).
 var Statuses = []string{StatusOrdered, StatusInTransit, StatusReceivedPendingPDI, StatusQualityHold, StatusAvailable,

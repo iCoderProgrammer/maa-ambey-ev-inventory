@@ -85,7 +85,7 @@ func WriteDuplicateIdentifier(c *gin.Context, err error, field string) bool {
 // List godoc
 //
 //	@Summary		List vehicle units
-//	@Description	Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.
+//	@Description	Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.
 //	@Tags			vehicle-units
 //	@Produce		json
 //	@Param			q				query	string	false	"Search unit number or identifier"
@@ -96,12 +96,13 @@ func WriteDuplicateIdentifier(c *gin.Context, err error, field string) bool {
 //	@Param			purchaseOrderId	query	string	false	"Purchase order ID"
 //	@Param			goodsReceiptId	query	string	false	"Goods receipt ID"
 //	@Param			locationId		query	string	false	"Location ID (must be in the caller's scope)"
+//	@Param			saleable		query	bool	false	"true: AVAILABLE units only (saleable, INV-006); false: every other status (pending PDI, held, rejected, display, ...)"
 //	@Param			page			query	int		false	"Page (from 1)"
 //	@Param			limit			query	int		false	"Page size (1-100, default 25)"
 //	@Success		200	{object}	httpx.DataResponse{data=vehicles.UnitPage}
 //	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
 //	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
-//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (q, status, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)"
+//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (q, status, saleable, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)"
 //	@Router			/vehicle-units [get]
 func (h *Handler) List(c *gin.Context) {
 	a, ok := h.access.Current(c)
@@ -111,7 +112,7 @@ func (h *Handler) List(c *gin.Context) {
 	p, err := h.svc.List(c.Request.Context(), a, ListQuery{Query: c.Query("q"), Status: c.Query("status"),
 		BrandID: c.Query("brandId"), VariantID: c.Query("variantId"), SupplierID: c.Query("supplierId"),
 		PurchaseOrderID: c.Query("purchaseOrderId"), GoodsReceiptID: c.Query("goodsReceiptId"),
-		LocationID: c.Query("locationId"), Page: c.Query("page"), Limit: c.Query("limit")})
+		LocationID: c.Query("locationId"), Saleable: c.Query("saleable"), Page: c.Query("page"), Limit: c.Query("limit")})
 	h.respond(c, UnitPage{Items: p.Items, Page: p.Page, Limit: p.Limit, Total: p.Total}, err)
 }
 
