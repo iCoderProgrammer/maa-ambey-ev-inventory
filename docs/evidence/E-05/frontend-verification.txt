@@ -1,0 +1,89 @@
+E-05 Stock count and adjustment approval — FRONTEND verification and remediation (2026-11-11)
+==========================================================================================
+
+Scope: React UI for stock counts (list, approval queue, detail, start/record/submit/approve/reject dialogs) over the
+E-05 backend (ab77cbe). Frontend committed in 893dd43 ("implement") without a log entry; this file records its
+verification and the remediation done on 2026-11-11. No Go, SQL, migration or OpenAPI change.
+
+Files (893dd43)
+---------------
+- ui/src/features/counts/api/stockCounts.ts          typed client + zod schemas; Idempotency-Key per create/approve/reject
+- ui/src/features/counts/hooks/useStockCounts.ts     TanStack Query keys/hooks; invalidates counts after mutations
+- ui/src/features/counts/lib/countErrors.ts          error mapping (VERSION_CONFLICT, STOCK_CHANGED_SINCE_COUNT,
+                                                     SELF_APPROVAL_NOT_ALLOWED, FORBIDDEN, unknown outcome, ...)
+- ui/src/features/counts/lib/labels.ts               status/outcome labels
+- ui/src/features/counts/components/CountDialogs.tsx start, record line, submit, approve, reject dialogs
+- ui/src/features/counts/StockCountPages.tsx         StockCountsPage, CountApprovalsPage, StockCountDetailPage
+- ui/src/features/counts/counts.test.tsx             16 Vitest tests
+- ui/src/app/routes.tsx, ui/src/app/navigation.ts    /inventory/counts, /inventory/counts/approvals, /inventory/counts/:id;
+                                                     nav gated by stock.adjustment.view
+- ui/src/features/access/api/access.ts               AdjustmentView / AdjustmentCreate / AdjustmentApprove codes
+- ui/e2e/stock-counts.e2e.ts                         Playwright flow
+
+Remediation (2026-11-11, ui/e2e/stock-counts.e2e.ts only)
+----------------------------------------------------------
+1. ESLint @typescript-eslint/no-unnecessary-type-assertion (line 59): removed `as string` from
+   `locations[0]?.id` (already typed string); added `expect(locationId, ...).toBeTruthy()` so a user without a
+   location fails with a clear message instead of an opaque API error. No rule disabled, no `any`.
+2. Prettier --write on that file only (4 long lines wrapped).
+3. Spec defect found by the first real run: `getByRole('button', { name: 'Approve' })` / `'Reject'` are substring
+   matches and also hit the header account button "Account: E2E Approver" (the documented setup name
+   "E2E Price Approver" matches too) -> strict-mode violation on desktop and mobile. Added `exact: true` to the three
+   approver Approve/Reject locators. Application code unchanged.
+
+Endpoints used (E-05 backend, unchanged)
+----------------------------------------
+GET  /api/v1/stock-counts?locationId&status&page&limit
+GET  /api/v1/stock-counts/{id}
+POST /api/v1/stock-counts                (Idempotency-Key)
+POST /api/v1/stock-counts/{id}/lines     (version)
+POST /api/v1/stock-counts/{id}/submit    (version)
+POST /api/v1/stock-counts/{id}/approve   (version, Idempotency-Key)
+POST /api/v1/stock-counts/{id}/reject    (version, reason, Idempotency-Key)
+
+Checks (2026-11-11)
+-------------------
+- ESLint (`eslint . --max-warnings=0`): 0 problems. Prettier --check: all files formatted. tsc -b: pass.
+- Vitest: 30 files / 302 tests pass (counts.test.tsx 16).
+- make ci with TEST_DATABASE_URL = throwaway container (postgres:18-alpine, :5497, migration 18): exit 0
+  (swagger-check, gofmt, go vet, go mod tidy -diff, ESLint, Prettier, tsc, Go tests with DB, Vitest, builds).
+  golangci-lint not installed (skipped by the Makefile, go vet ran). Vite chunk-size warning only.
+- Go with PostgreSQL (REQUIRE_INTEGRATION_TESTS=1, scratch DB): 21 packages ok, 472 tests pass.
+
+Browser tests (isolated stack: DB :5497, API :8099 from this tree, Vite :5186; test-only PROPOSED grants with
+RBAC_ALLOW_PROPOSED_GRANTS=true; shared dev DB/API not used)
+------------------------------------------------------------------------------------------
+Accounts/grants (throwaway DB only): e2e.catalogue (owner) stock_items.view/manage, stock.parts.view/receive/issue,
+suppliers.view/manage, stock.adjustment.view/create; e2e.priceapprover (sales_executive) stock.adjustment.view/approve;
+e2e.catviewer (accountant) stock.adjustment.view (+ stock_items.view, stock.parts.view for the E-04 spec);
+e2e.active no grants; all three granted users scoped to location E05.
+
+- Playwright e2e/stock-counts.e2e.ts, first run: 2 failed (locator defect 3 above). After the fix: 2 passed
+  (desktop + Pixel 7). Re-run together with e2e/parts-stock.e2e.ts (E-04 regression): 4 passed.
+  Covered: list, start count, record line (reason required for a difference, value kept), counter does not see the
+  stock record, submit (no stock change, no decision buttons for the counter), approval queue, variance (10 / 8 / −2),
+  approve with double click -> exactly one adjustment, balance 10 -> 8 only after approval, stock moved after
+  submission -> STOCK_CHANGED_SINCE_COUNT, nothing posted, reject with reason, reload from server, no horizontal
+  overflow, viewer read-only, no-grant user "Access denied", no console errors.
+- API probes (curl, same stack):
+  counter (no approve permission) approve -> 403 FORBIDDEN; viewer approve -> 403; viewer create -> 403;
+  no-grant list -> 403; stale version approve -> 409 VERSION_CONFLICT; approve -> 200 APPROVED, same key replay ->
+  200 with Idempotent-Replayed: true, still 1 adjustment; new key on decided count -> 409 INVALID_STATE;
+  with stock.adjustment.approve temporarily granted to the counter's role: approving own count ->
+  403 SELF_APPROVAL_NOT_ALLOWED, count stays SUBMITTED, 0 movements, audit stock_count.approved DENIED (grant revoked).
+- Database checks: every APPROVED count has exactly 1 COUNT_ADJUSTMENT per varied SKU; SUBMITTED/REJECTED counts 0;
+  every stock_item_balances quantity equals the last ledger quantity_after for that SKU/location;
+  audit events stock_count.created/line_recorded/submitted/approved/rejected and stock_item.adjusted present.
+- Chrome (user's browser, Claude in Chrome, new tab): signed in as e2e.priceapprover, approval queue showed SC-000002,
+  detail showed 8 / 10 / −2 PCS with reason, approve dialog "1 parts adjustment will be posted", approved ->
+  "1 adjustment was posted", line outcome "Adjustment posted"; DB balance 10 -> 8, 1 movement; no console errors.
+
+Known limitations / pending (documented, not implemented)
+---------------------------------------------------------
+- No cancel of a draft/submitted count and no line removal (a line is re-recorded). No approved requirement defines
+  these (03_Business_Rules LED-005/006, E-05 prompt); a submitted count that should not post is rejected instead.
+- OQ-40: approval threshold (LED-005 "configurable value/quantity threshold"), approver role, owner self-approval,
+  blind counts, numbering. Until decided every count needs an approver who took no part in it.
+- OQ-39: vehicle count discrepancies are recorded only; no unit/ledger change.
+- RB-5: no production or shared-dev grants for stock.adjustment.*.
+- Shared dev DB still at migration 12 (needs 13–18); not migrated (by instruction).

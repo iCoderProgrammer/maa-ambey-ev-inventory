@@ -58,7 +58,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
-| E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
+| E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | COMPLETE (mechanism; threshold/approver OQ-40, vehicle discrepancies OQ-39, grants RB-5 pending) |
 | E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
 | E-07 | Stock ageing calculations | P0 | D-04, D-07 | NOT STARTED |
 | F-01 | Customer master | P0 | B-06, B-07, B-08 | NOT STARTED |
@@ -2761,7 +2761,9 @@ COMPLETE — E-04 backend (`98a5207`) and frontend, committed locally (not pushe
 
 ### E-05 — Stock count and adjustment approval
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-10-27); frontend phase not started.
+- **Status:** COMPLETE (mechanism; threshold/approver OQ-40, vehicle discrepancies OQ-39, grants RB-5 pending) —
+  backend phase COMPLETE (2026-10-27, `ab77cbe`); frontend phase committed in `893dd43` and verified 2026-11-11
+  (see "Frontend phase" below).
 - **Started:** 2026-10-27
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_05_stock-count-and-adjustment-approval.md
 - Git at start: `dev` at `43c250e` = `origin/dev` (E-04 frontend; `98a5207` E-04 backend in history), clean tree.
@@ -2817,8 +2819,50 @@ counts_integration_test.go,http.go,http_test.go,parts.go,service.go}`, `internal
   grants. No cancel of a draft/submitted count and no line removal (re-record instead).
 - Shared dev DB still version 12 (needs 13–18); not migrated.
 
-#### Final status
+#### Final status (backend phase, 2026-10-27)
 IN PROGRESS — E-05 backend phase complete, committed locally (not pushed). Frontend phase not started.
+
+#### Frontend phase (committed `893dd43` "implement"; verified and remediated 2026-11-11)
+The frontend was committed without a log entry; this section records it from the commit and the source files.
+- **UI:** `ui/src/features/counts/` — `StockCountPages.tsx` (`/inventory/counts` list with location/status filters,
+  `/inventory/counts/approvals` queue, `/inventory/counts/:countId` detail), `components/CountDialogs.tsx` (start,
+  record line, submit, approve, reject), `api/stockCounts.ts` (Zod, decimal strings), `hooks/useStockCounts.ts`,
+  `lib/{countErrors,labels}.ts`; routes in `ui/src/app/routes.tsx`, nav gated by `stock.adjustment.view` in
+  `ui/src/app/navigation.ts`; permission codes in `ui/src/features/access/api/access.ts`. Loading, empty, error,
+  permission-denied, validation (reason for a difference), stale-version, stock-changed and unknown-outcome states.
+  Counters do not see the expected quantity; participants get no decision buttons; no cancel/delete/line removal.
+- **Integration:** production path uses only the typed client + TanStack Query against the E-05 routes; no mock.
+  Create/approve/reject send one `Idempotency-Key` per action (same key on "send again unchanged"); lines/submit carry
+  `version`. Success shown only after the server answer validates.
+- **Remediation 2026-11-11 (`ui/e2e/stock-counts.e2e.ts` only):** (1) ESLint
+  `no-unnecessary-type-assertion` line 59 — removed `as string` from `locations[0]?.id` (already `string`), added an
+  explicit `expect(locationId).toBeTruthy()`; (2) Prettier on that file; (3) spec defect found by the first real
+  run — `getByRole('button', { name: 'Approve' | 'Reject' })` substring-matched the header button
+  "Account: E2E Approver" → strict-mode failure; added `exact: true` (3 locators). No application code changed.
+  `docs/DEVELOPMENT_SETUP.md` gained the E-05 E2E grant note.
+- **Checks:** ESLint 0 problems; Prettier clean; tsc pass; Vitest 30 files / 302 tests (counts 16); Go with
+  PostgreSQL 21 packages / 472 tests; `make ci` exit 0 on a throwaway DB (migration 18). golangci-lint not installed.
+- **Browser:** isolated stack (DB :5497, API :8099, Vite :5186; test-only PROPOSED grants). Playwright
+  `stock-counts.e2e.ts` first run 2 failed (locator defect above), after fix 2 passed (desktop + Pixel 7); with
+  `parts-stock.e2e.ts` 4 passed. API probes: 403 without permission, 403 `SELF_APPROVAL_NOT_ALLOWED` (audited DENIED,
+  nothing posted), 409 `VERSION_CONFLICT` on a stale version, same-key replay 200 `Idempotent-Replayed: true` with one
+  adjustment, 409 `INVALID_STATE` for a new key on a decided count. DB: one `COUNT_ADJUSTMENT` per approved varied
+  SKU, none for submitted/rejected counts; every balance equals the ledger's last `quantity_after`. Chrome (user's
+  browser): approver queue → detail (8 / 10 / −2 PCS) → approve → balance 10 → 8; no console errors.
+  Evidence: `docs/evidence/E-05/frontend-verification.txt`.
+- **Limitations (documented, not implemented — no approved requirement defines them):** no cancel of a
+  draft/submitted count (reject instead) and no line removal (re-record); OQ-40 threshold/approver/self-approval/blind
+  counts/numbering; OQ-39 vehicle discrepancies recorded only; RB-5 grants. Shared dev DB still at 12, untouched.
+- **Repository issues (classified 2026-11-11):** unpushed `ab77cbe`, `893dd43` — environment/tooling (push needs the
+  user's go-ahead); shared dev DB at 12 vs 18 migrations — environment/tooling; golangci-lint missing —
+  environment/tooling; no production grants (RB-5) — pending client decision and deployment blocker; no reversal
+  movement (OQ-33), no location transfers (OQ-32), serial-tracked parts refused (OQ-38) — pending client decisions.
+  Code defects found: only the e2e locator/lint/format issues above (fixed). Documentation defects: this missing
+  frontend entry and the missing E-05 grant note in DEVELOPMENT_SETUP (fixed).
+
+#### Final status
+COMPLETE (mechanism) — backend (`ab77cbe`) and frontend (`893dd43`) verified 2026-11-11; remediation uncommitted at
+time of writing. Pending client decisions: OQ-39, OQ-40, RB-5. D-06 not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

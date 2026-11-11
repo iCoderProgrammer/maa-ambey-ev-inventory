@@ -58,10 +58,12 @@ test.describe('stock counts', () => {
     const meRes = await page.request.get('/api/v1/me')
     const locationId = (
       (await meRes.json()) as { data: { locationScope: { locations: { id: string }[] } } }
-    ).data.locationScope.locations[0]?.id as string
+    ).data.locationScope.locations[0]?.id
+    expect(locationId, 'E2E_CATALOGUE needs a location in scope').toBeTruthy()
 
     // Disposable stock: a SKU with 10 PCS received at the location.
-    const categoryId = (await post(page, '/stock-item-categories', { name: `Count test ${tag}` })).id
+    const categoryId = (await post(page, '/stock-item-categories', { name: `Count test ${tag}` }))
+      .id
     const itemId = (
       await post(page, '/stock-items', {
         sku: `CNT-${tag}`,
@@ -125,7 +127,7 @@ test.describe('stock counts', () => {
     await approver.getByRole('link', { name: countNumber }).filter({ visible: true }).click()
     await expect(visible(approver, '10 PCS')).toBeVisible()
     await expect(visible(approver, '−2 PCS')).toBeVisible()
-    await approver.getByRole('button', { name: 'Approve' }).click()
+    await approver.getByRole('button', { name: 'Approve', exact: true }).click()
     dialog = approver.getByRole('dialog', { name: `Approve ${countNumber}?` })
     await expect(dialog.getByText(/1 parts adjustment will be posted/)).toBeVisible()
     await dialog.getByRole('button', { name: 'Approve and post' }).dblclick()
@@ -155,7 +157,7 @@ test.describe('stock counts', () => {
       `iss-${tag}`,
     )
     await approver.goto(`/inventory/counts/${c2.id}`)
-    await approver.getByRole('button', { name: 'Approve' }).click()
+    await approver.getByRole('button', { name: 'Approve', exact: true }).click()
     dialog = approver.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Approve and post' }).click()
     await expect(dialog.getByText(/Stock moved after some lines were counted/)).toBeVisible()
@@ -163,7 +165,7 @@ test.describe('stock counts', () => {
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(visible(approver, 'Stock moved since counted')).toBeVisible()
     expect(await balance(page, itemId)).toBe('7.000')
-    await approver.getByRole('button', { name: 'Reject' }).click()
+    await approver.getByRole('button', { name: 'Reject', exact: true }).click()
     dialog = approver.getByRole('dialog')
     await dialog.getByLabel(/Reason/).fill('Stock moved; recount')
     await dialog.getByRole('button', { name: 'Reject count' }).click()
@@ -181,7 +183,9 @@ test.describe('stock counts', () => {
     // The counter's view after reload: approved, no decision buttons, no cancel/delete.
     await page.goto(countUrl)
     await expect(visible(page, 'Adjustment posted')).toBeVisible()
-    await expect(page.getByRole('button', { name: /Approve|Reject|Delete|Remove|Cancel count/ })).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: /Approve|Reject|Delete|Remove|Cancel count/ }),
+    ).toHaveCount(0)
 
     // A viewer reads only; a user without grants is denied.
     if (hasAccount('catalogueViewer')) {
@@ -189,7 +193,9 @@ test.describe('stock counts', () => {
       const viewer = await vctx.newPage()
       await signIn(viewer, countUrl.replace(/^https?:\/\/[^/]+/, ''), 'catalogueViewer')
       await expect(visible(viewer, 'Adjustment posted')).toBeVisible()
-      await expect(viewer.getByRole('button', { name: /Record item|Approve|New count/ })).toHaveCount(0)
+      await expect(
+        viewer.getByRole('button', { name: /Record item|Approve|New count/ }),
+      ).toHaveCount(0)
       await vctx.close()
     }
     const nctx = await browser.newContext()
