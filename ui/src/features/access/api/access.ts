@@ -85,6 +85,10 @@ export const Permission = {
   PartsView: 'stock.parts.view',
   PartsReceive: 'stock.parts.receive',
   PartsIssue: 'stock.parts.issue',
+  /** Stock counts and adjustment approval (E-05). No role holds these until the owner signs off. */
+  AdjustmentView: 'stock.adjustment.view',
+  AdjustmentCreate: 'stock.adjustment.create',
+  AdjustmentApprove: 'stock.adjustment.approve',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

@@ -90,8 +90,10 @@ export const navigation: NavSection[] = [
         label: 'Stock Counts & Adjustments',
         path: '/inventory/counts',
         icon: ClipboardCheck,
-        backlog: ['E-05', 'E-06'],
-        summary: 'Cycle counts, variances and approved adjustments.',
+        backlog: [],
+        summary:
+          'Stock counts at a location, approval by another person and the adjustments it posts.',
+        permission: 'stock.adjustment.view',
       },
     ],
   },

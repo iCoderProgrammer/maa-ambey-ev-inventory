@@ -17,6 +17,11 @@ import {
   PurchaseOrdersPage,
 } from '@/features/purchasing/PurchaseOrderPages'
 import { GoodsReceiptDetailPage, GoodsReceiptsPage } from '@/features/receiving/GoodsReceiptPages'
+import {
+  CountApprovalsPage,
+  StockCountDetailPage,
+  StockCountsPage,
+} from '@/features/counts/StockCountPages'
 import { PartCategoriesPage, PartDetailPage, PartsPage } from '@/features/parts/PartsPages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
 import { NotFoundPage } from './NotFoundPage'
@@ -45,6 +50,9 @@ export const routes: RouteObject[] = [
               { path: 'inventory/parts', element: <PartsPage /> },
               { path: 'inventory/parts/categories', element: <PartCategoriesPage /> },
               { path: 'inventory/parts/:itemId', element: <PartDetailPage /> },
+              { path: 'inventory/counts', element: <StockCountsPage /> },
+              { path: 'inventory/counts/approvals', element: <CountApprovalsPage /> },
+              { path: 'inventory/counts/:countId', element: <StockCountDetailPage /> },
               { path: 'procurement/suppliers', element: <SuppliersPage /> },
               { path: 'procurement/suppliers/:supplierId', element: <SupplierDetailPage /> },
               { path: 'procurement/purchase-orders', element: <PurchaseOrdersPage /> },
