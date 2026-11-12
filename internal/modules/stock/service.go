@@ -18,6 +18,8 @@ type Repository interface {
 	PostParts(ctx context.Context, actor audit.Actor, scope access.Scope, req PartsRequest) (PartsResult, bool, error)
 	PartsBalances(ctx context.Context, itemID string, scopeIDs []string, all bool) ([]PartsBalance, error)
 	PartsHistory(ctx context.Context, f PartsHistoryFilter) (PartsPage, error)
+	// Timeline (E-02): one page of the ledger, visibility and filters applied.
+	Timeline(ctx context.Context, f TimelineFilter) (TimelinePage, error)
 	// Stock counts (E-05).
 	CreateCount(ctx context.Context, actor audit.Actor, scope access.Scope, requestID string, in CountCreateInput, key string) (StockCount, bool, error)
 	RecordLine(ctx context.Context, actor audit.Actor, scope access.Scope, requestID, countID string, in CountLineInput) (StockCount, error)

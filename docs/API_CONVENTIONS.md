@@ -461,7 +461,7 @@ vehicle unit's stock state is one append-only movement; inserting it is what cha
   `VALIDATION_FAILED` (`version`, `note`, `Idempotency-Key`). A refused request writes nothing and does not use up its key.
 - Atomic: the movement, the unit's new status and `version + 1`, and the audit event `vehicle_unit.moved` (summary:
   `movementId`, `movementType`, `status` from/to, `locationId`, `version`) commit together or not at all.
-- No route writes an arbitrary movement or status, or edits/deletes one. Listing movements is E-02.
+- No route writes an arbitrary movement or status, or edits/deletes one. Listing movements: see the timeline (E-02) below.
 
 Internal callers (inside their own transaction; they check their own permission):
 
@@ -474,6 +474,44 @@ Internal callers (inside their own transaction; they check their own permission)
 - `stock.RecordReceipt` is called by `vehicles.RegisterFromReceiptUnit`: receipt posting (D-07) gets the `RECEIPT`
   movement (0 → 1, none → RECEIVED_PENDING_PDI, source the goods receipt) by registering the unit, in the same
   transaction that marks the receipt POSTED and updates PO quantities. D-07 keeps its own posting `Idempotency-Key`.
+
+## Stock movement timeline (E-02)
+
+Rules: ADR-027. Package `internal/modules/stock` (`timeline.go`). Read-only: the ledger exactly as recorded, across
+items and locations. No migration; no new permission.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /stock-movements` | `vehicle_units.view` or `stock.parts.view` | paginated list, filters below |
+| `GET /stock-movements/{id}` | `vehicle_units.view` or `stock.parts.view` | one entry, same visibility and shaping |
+
+- Rows: `VEHICLE_UNIT` movements need `vehicle_units.view` and a unit whose **current** location is in the caller's
+  scope or that has none yet (the D-04/D-08 rule, so the timeline never shows a unit the vehicle screens hide);
+  `STOCK_ITEM` movements need `stock.parts.view` at a location in scope (the E-04 rule). Per-user brand scope does not
+  exist yet (RB-5).
+- Filters (AND): `itemType` (`VEHICLE_UNIT`, `STOCK_ITEM`), `vehicleUnitId`, `stockItemId` (not with `vehicleUnitId`),
+  `q` (substring of unit number, chassis/frame or SKU code; case-insensitive; ≤ 100), `movementType` (the 9 ledger
+  types), `sourceType` (`GOODS_RECEIPT`, `PDI_INSPECTION`, `STAFF_ACTION`, `SUPPLIER_DELIVERY`, `STOCK_COUNT`),
+  `sourceReference` (case-insensitive **exact**; ≤ 100), `actorId`, `locationId` (the movement's location; outside the
+  scope is 422, never dropped), `from` (inclusive) / `to` (exclusive) as **RFC 3339 instants with an offset** (the
+  client converts its calendar day; the server assumes no business time zone), `order` `desc` (default) | `asc`,
+  `page` (≥ 1), `limit` (1–100, default 25). Invalid values are 422 `VALIDATION_FAILED` with `details[].field`.
+- Order: the ledger sequence (`seq`, unique), so pages are stable; `createdAt` is the server time of the transaction.
+  Count and page use one WHERE; every join is to one row, so no movement repeats.
+- 200 `TimelineMovementPage` = `items`, `page`, `limit`, `total`. `TimelineMovement`: `id`, `itemType`, `movementType`,
+  `createdAt`, `vehicleUnit` (`id`, `unitNumber`, `chassisNumber`) or `stockItem` (`id`, `sku`, `name`),
+  `quantityBefore`/`quantityAfter` (decimal strings), `uom` (parts), `fromStatus`/`toStatus` (vehicles; `fromStatus`
+  null on a receipt), `fromLocation*`/`toLocation*` (`Id`, `Code`, `Name`), `sourceType`, `sourceId`, `sourceReference`,
+  `sourceHidden`, `supplierId`/`supplierName`, `reason`, `note`, `actorId`, `actorName` (display name only).
+- Linked records: a visible movement does **not** open its source. `sourceHidden: true` (and `sourceId`,
+  `sourceReference`, `reason`, `note` null) when the caller may not open the source: a goods receipt without
+  `goods_receipts.view`, a stock count without `stock.adjustment.view`. A hidden reference never matches
+  `sourceReference`, so it cannot be probed. PDI inspections are readable with `vehicle_units.view` (D-06); supplier
+  challan numbers carry no linked record (E-04). Supplier fields need `suppliers.view`. A location outside the scope
+  keeps its ID, code/name null. No cost, price, document, storage key, idempotency key or request hash is returned.
+- Errors: 401; 403 `FORBIDDEN` (neither permission); 404 `NOT_FOUND` (detail: unknown or malformed ID, or a movement
+  the caller may not see — its existence is not revealed); 422 `VALIDATION_FAILED`.
+- `GET /vehicle-units/{id}/stock-movements` (D-08) and `GET /stock-items/{id}/stock-movements` (E-04) are unchanged.
 
 ## Spare part and accessory SKUs (E-03)
 

@@ -36,7 +36,8 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 
 // Register mounts the routes: the two moves no other workflow owns, parts
 // receipts/issues and stock counts. There is no route that writes an arbitrary
-// movement or status, and none that edits or deletes one; listing movements is E-02.
+// movement or status, and none that edits or deletes one. The timeline (E-02)
+// only reads the ledger.
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	display := h.access.Require(access.PermVehicleUnitDisplayManage)
 	rg.POST("/vehicle-units/:id/put-on-display", display, h.PutOnDisplay)
@@ -49,6 +50,10 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	rg.POST("/stock-items/:id/issues", h.access.Require(access.PermPartsIssue), h.IssueParts)
 	// Stock counts and adjustment approval (E-05).
 	h.registerCounts(rg)
+	// Movement timeline (E-02): read-only; rows are shaped per item type inside.
+	timeline := h.access.RequireAny(access.PermVehicleUnitView, access.PermPartsView)
+	rg.GET("/stock-movements", timeline, h.ListTimeline)
+	rg.GET("/stock-movements/:id", timeline, h.GetTimelineMovement)
 }
 
 func (h *Handler) actor(c *gin.Context) audit.Actor {
@@ -114,6 +119,8 @@ func (h *Handler) fail(c *gin.Context, err error) {
 		access.Forbidden(c)
 	case errors.Is(err, ErrNotFound):
 		httpx.Error(c, http.StatusNotFound, httpx.CodeNotFound, "The record was not found.")
+	case errors.Is(err, ErrMovementNotFound):
+		httpx.Error(c, http.StatusNotFound, httpx.CodeNotFound, "The stock movement was not found.")
 	case errors.As(err, &verr):
 		out := make([]httpx.FieldError, len(verr.Fields))
 		for i, f := range verr.Fields {

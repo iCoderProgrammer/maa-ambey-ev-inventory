@@ -55,7 +55,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | COMPLETE — backend `1b3b2ad` + frontend (separate commit); OQ-8 resolved (ADR-026); RB-5 pending |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
-| E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
+| E-02 | Stock movement timeline UI | P0 | E-01, D-08 | IN PROGRESS — backend phase COMPLETE (ADR-027); frontend next |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | COMPLETE (mechanism; threshold/approver OQ-40, vehicle discrepancies OQ-39, grants RB-5 pending) |
@@ -3129,6 +3129,57 @@ Evidence: `docs/evidence/D-08/frontend-verification.txt`.
 
 #### Final status
 COMPLETE — backend `1b3b2ad`; frontend complete, verified and committed separately. Not started: D-09.
+
+### E-02 — Stock movement timeline UI
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase next.
+  Pending: per-user brand scope and grants (RB-5).
+- **Started:** 2026-11-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_02_stock-movement-timeline-ui.md
+
+#### Dependencies
+| Dependency | Verified status | Evidence (code/tests/log) |
+| --- | --- | --- |
+| E-01 | COMPLETE | `stock_movements` (000015, extended by 000017/18/19): append-only triggers (UPDATE/DELETE/TRUNCATE refused), `seq`, from/to status + location, quantity, source type/id/reference, actor, `created_at`, idempotency key; writes only via `MoveUnit`/`RecordReceipt`/parts/count/PDI/posting services; `ledger_integration_test.go` |
+| D-08 | COMPLETE | `GET /vehicle-units/{id}/stock-movements` (`1b3b2ad`), detail history UI (`02a109a`); ADR-026 split (D-08 per unit, E-02 whole ledger) kept |
+
+#### Acceptance criteria
+- [x] AC1 Timeline matches ledger data and filters (unit, event, location, actor, date, source reference) — backend
+- [x] AC2 Unauthorized linked records are not leaked (row visibility per item permission + scope; hidden GRN/count sources
+      not returned or searchable; supplier needs suppliers.view; no cost/document data) — backend
+- [x] AC3 No edit/delete: read-only routes; no write route; ledger triggers unchanged — backend
+- [ ] AC4 Screens: timeline/table with filters, detail, links where authorized, states, timezone — frontend phase
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in the backend phase (backend first by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Routes: `GET /stock-movements` (filters itemType, vehicleUnitId, stockItemId, q, movementType, sourceType,
+  sourceReference, actorId, locationId, from/to RFC 3339, order, page, limit), `GET /stock-movements/{id}`; both need
+  `vehicle_units.view` or `stock.parts.view` (no new permission, ADR-027). Migrations: none.
+- Files: `internal/modules/stock/timeline.go`, `timeline_http.go`, `service.go` (Repository.Timeline), `http.go`
+  (routes, 404 mapping); tests `timeline_test.go`, `timeline_integration_test.go`; `docs/openapi/*` regenerated;
+  `docs/API_CONVENTIONS.md`; ADR-027.
+- Checks: gofmt clean; `make lint-backend` exit 0 (go vet + swagger drift; golangci-lint not installed — skipped);
+  `go build ./...` OK; `go test ./... -count=1` with `REQUIRE_INTEGRATION_TESTS=1` on a throwaway PostgreSQL 18:
+  every package ok (stock, vehicles, pdi, receiving included). Mutation check: disabling source hiding or the location
+  scope makes `TestTimelineVisibilityAndShaping` fail.
+- Performance: 30,011 movements — page 8–21 ms, count ~12 ms, no index added (see ADR-027).
+- Evidence: `docs/evidence/E-02/backend-verification.txt`.
+
+#### Stage 3 — API integration
+Result: pending (frontend phase).
+
+#### Stage 4 — Browser testing
+Result: pending (frontend phase).
+
+#### Known issues / pending approvals
+- No per-user brand scope (RB-5); production grants for the two view permissions are pending (RB-5).
+- Offset paging with a count; `seq` index / keyset paging is the follow-up at ~10⁵–10⁶ movements (ADR-027).
+
+#### Final status
+IN PROGRESS — backend complete; frontend phase next.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

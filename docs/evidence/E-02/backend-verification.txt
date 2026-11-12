@@ -1,0 +1,60 @@
+E-02 Stock movement timeline — BACKEND verification (2026-11-12)
+================================================================
+
+Base: dev at 02a109a (D-08 frontend). Throwaway PostgreSQL 18 (docker maa-bt-pg :5494); integration tests create and
+drop a scratch database per test (maa_test_*; none left behind). Shared dev DB (:5436, migration 12) not touched.
+
+Dependencies verified
+---------------------
+E-01  stock_movements: append-only (UPDATE/DELETE/TRUNCATE triggers), seq, quantity/status/location before+after,
+      source type/id/reference, actor, created_at, idempotency key; written only by MoveUnit/RecordReceipt, parts
+      receipts/issues, count approval, PDI and receipt posting. 9 movement types, 5 source types (live CHECKs read).
+D-08  GET /vehicle-units/{id}/stock-movements (vehicle_units.view, unit's current location) unchanged; ADR-026 split kept.
+
+API (no migration, no new permission)
+-------------------------------------
+GET /stock-movements        vehicle_units.view or stock.parts.view
+GET /stock-movements/{id}   same visibility; unknown/malformed/invisible -> 404
+Filters (AND): itemType, vehicleUnitId, stockItemId, q (unit no./chassis/SKU substring), movementType, sourceType,
+sourceReference (exact, any case, visible sources only), actorId, locationId (in scope or 422), from (incl.) / to
+(excl.) RFC 3339 with offset, order desc|asc (ledger seq), page, limit 1-100 (default 25).
+Shaping: vehicle rows need vehicle_units.view + unit's current location in scope (or none); parts rows need
+stock.parts.view + location in scope; GRN source needs goods_receipts.view, count source stock.adjustment.view
+(else sourceHidden, id/reference/reason/note null); supplier needs suppliers.view; out-of-scope location -> id only.
+No cost, price, document, storage key, idempotency key, request hash or username in the payload.
+
+Tests (go test, REQUIRE_INTEGRATION_TESTS=1)
+--------------------------------------------
+timeline_test.go (no DB: nil repository must not be reached)
+  TestTimelineDeniesByDefault ............................ PASS  401 without session; 403 with no / neighbouring perms
+  TestTimelineHasNoWriteRoutes ........................... PASS  POST/PUT/PATCH/DELETE -> 404/405
+  TestTimelineFiltersAreValidatedBeforeTheDatabase ....... PASS  21 invalid inputs -> 422 with the right field
+  TestTimelineDetailMalformedIDIsNotFound ................ PASS
+timeline_integration_test.go (ledger built only through the real write paths: registration, MoveUnit, display,
+parts receipt/issue, count approval; every expectation compared with stock_movements itself)
+  TestTimelineMatchesTheLedger ........................... PASS  11 rows = ledger, every field equal, desc = reverse,
+                                                                  pages of 3 cover it once, past-the-end, empty, detail
+  TestTimelineFiltersMatchTheLedger (23 cases) ........... PASS  each filter + combinations (unit+type, location+date,
+                                                                  actor+type, sourceType+ref, location+actor+date,
+                                                                  unit+ref, contradictory -> empty)
+  TestTimelineVisibilityAndShaping ....................... PASS  vehicles-only, L2-scoped, parts-only, full access;
+                                                                  hidden refs not probeable; 404 on invisible detail;
+                                                                  no cost/storage/idempotency/username in payload
+  TestTimelineIsReadOnly ................................. PASS  ledger + audit unchanged after reads; DB refuses
+                                                                  UPDATE/DELETE
+Mutation check: disabling source hiding -> FAIL; disabling vehicle location scope -> FAIL (both restored).
+Regression: go test ./... -count=1 -> every package ok (stock incl. E-01 ledger/parts/counts, vehicles incl. D-08
+movements, pdi, receiving incl. D-07 posting, server).
+
+Checks
+------
+gofmt -l ............................. clean
+make lint-backend .................... exit 0 (go vet + OpenAPI drift; golangci-lint not installed -> skipped)
+make swagger ......................... regenerated (docs/openapi: /stock-movements, /stock-movements/{id})
+go build ./... ....................... OK
+
+Performance (temporary probe test, deleted; 30,011 movements, every location)
+------------------------------------------------------------------------------
+page newest 16.1 ms, count 11.8 ms, type 7.9 ms, ref 7.4 ms, q 21.5 ms, date+offset 2000 17.0 ms, actor 11.9 ms.
+With a btree on (seq): page 0.2 ms, type 0.08 ms, actor 0.07 ms, date 2.4 ms — count still 10.7 ms. Not added: the
+count dominates and the request is well within budget (ADR-027 follow-up at ~10^5-10^6 rows).

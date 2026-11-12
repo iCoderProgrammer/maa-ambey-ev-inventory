@@ -808,6 +808,35 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   fleet grows by orders of magnitude; per-unit movements use `stock_movements_unit_idx`. No migration in D-08.
 - **Not here:** QR/barcode (D-09), reservations/sales/transfers/status changes, colour capture, E-02's timeline.
 
+## ADR-027 — Stock movement timeline (E-02)
+
+- **Status:** Accepted (read model; per-user brand scope and production grants pending — RB-5).
+- **Builds on ADR-020/022/023/024/025/026.** One read-only list/detail over the existing `stock_movements` ledger
+  (vehicle and parts rows): `GET /stock-movements`, `GET /stock-movements/{id}`. It reads rows as recorded — no new
+  movement type, status, write path, correction or derived history. D-08's per-unit route and E-04's per-SKU route
+  stay as they are (ADR-026 split kept: D-08 = one unit's history, E-02 = the whole ledger).
+- **No new permission.** A movement is part of its item's history, so a row is visible exactly when that history is:
+  `vehicle_units.view` (+ the unit's current location in scope, or none yet — D-04/D-08) for vehicle rows,
+  `stock.parts.view` (+ the movement's location in scope — E-04) for parts rows. The route needs either; inside,
+  rows are filtered per item type. A dedicated `stock.movements.view` key was not invented: it would let someone read
+  units or parts the vehicle/parts screens deny.
+- **Linked records are not opened by a movement.** The source ID/reference (and the reason/note that came from it) is
+  returned only when the caller could open that source: `goods_receipts.view` for GRNs, `stock.adjustment.view` for
+  stock counts; otherwise `sourceHidden: true`. The `sourceReference` filter matches only visible sources, so a hidden
+  reference cannot be confirmed by searching for it. PDI inspections are readable with `vehicle_units.view` (D-06's
+  own rule); supplier challan numbers (E-04) have no linked record; supplier fields need `suppliers.view`. Actor =
+  user ID + display name (no username or contact data). No cost, price, document or storage data is part of a movement.
+- **Ordering and paging:** ledger sequence `seq` (unique; asc/desc), offset paging with count; one WHERE for both, every
+  join one-to-one. Date filters are RFC 3339 instants with an offset (`from` inclusive, `to` exclusive) on
+  `created_at` — the API is UTC and no business time zone is documented, so the client converts the user's calendar day.
+- **Performance (throwaway DB, 30,011 movements, every location):** list page 8–21 ms and count 11–12 ms without new
+  indexes (sequential scan + hash join to `vehicle_units` for the scope rule); substring `q` 21 ms. A btree on
+  `stock_movements (seq)` would make the page 0.1–2.4 ms, but the count dominates the request, so it was **not added**
+  (no migration). Follow-up when the ledger reaches ~10⁵–10⁶ rows: the `seq` index and/or keyset paging, and a cheaper
+  total.
+- **Not here:** brand scope (none exists, RB-5); reversals/corrections (no approved flow, LED-002); sale/reservation
+  movements (F-04/F-07); E-06 reconciliation; any write.
+
 ---
 
 ## Open questions (need client / accountant sign-off)
