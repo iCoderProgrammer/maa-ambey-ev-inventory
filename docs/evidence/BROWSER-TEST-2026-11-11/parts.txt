@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/parts.e2e.ts:37:3 › spare parts and accessories › are denied without stock_items.view (1.7s)
+  ✓  2 [desktop] › e2e/parts.e2e.ts:44:3 › spare parts and accessories › categories and SKUs: create, duplicates, links, edit, archive (11.9s)
+  ✓  3 [desktop] › e2e/parts.e2e.ts:182:3 › spare parts and accessories › a viewer reads SKUs without actions; suppliers only with suppliers.view (1.8s)
+  ✓  4 [mobile] › e2e/parts.e2e.ts:37:3 › spare parts and accessories › are denied without stock_items.view (1.4s)
+  ✓  5 [mobile] › e2e/parts.e2e.ts:44:3 › spare parts and accessories › categories and SKUs: create, duplicates, links, edit, archive (13.5s)
+  ✓  6 [mobile] › e2e/parts.e2e.ts:182:3 › spare parts and accessories › a viewer reads SKUs without actions; suppliers only with suppliers.view (1.7s)
+
+  6 passed (33.7s)

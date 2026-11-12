@@ -1,0 +1,9 @@
+
+Running 4 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access (2.4s)
+  ✓  2 [desktop] › e2e/access.e2e.ts:34:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off (2.6s)
+  ✓  3 [mobile] › e2e/access.e2e.ts:5:3 › roles and permissions (B-07) › a user without grants sees no gated links and is denied on direct access (2.2s)
+  ✓  4 [mobile] › e2e/access.e2e.ts:34:3 › roles and permissions (B-07) › a user with the permission sees the roles pending owner sign-off (3.1s)
+
+  4 passed (11.9s)

@@ -1,0 +1,508 @@
+page loads: 495
+flagged: 9
+approver desktop /procurement/pdi/:id: h1=0
+approver tablet /procurement/pdi/:id: h1=0
+approver mobile /procurement/pdi/:id: h1=0
+nogrants desktop /procurement/pdi/:id: h1=0
+nogrants tablet /procurement/pdi/:id: h1=0
+nogrants mobile /procurement/pdi/:id: h1=0
+roles desktop /procurement/pdi/:id: h1=0
+roles tablet /procurement/pdi/:id: h1=0
+roles mobile /procurement/pdi/:id: h1=0
+
+all rows (who viewport route | h1 | denied):
+owner desktop / | Dashboard | 
+owner desktop /documents | Documents | 
+owner desktop /admin/users | Users & Roles | denied
+owner desktop /admin/catalogue | Catalogue & Brands | 
+owner desktop /admin/catalogue/models | Catalogue & Brands | 
+owner desktop /admin/catalogue/variants | Catalogue & Brands | 
+owner desktop /admin/catalogue/brands/:id | Ceeon India | 
+owner desktop /procurement/suppliers | Suppliers | 
+owner desktop /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+owner desktop /procurement/purchase-orders | Purchase Orders | 
+owner desktop /procurement/purchase-orders/:id | PO-000007 | 
+owner desktop /procurement/goods-receipts | Goods Receipts | 
+owner desktop /procurement/goods-receipts/:id | GRN-000005 | 
+owner desktop /procurement/pdi | Vehicle Inspections (PDI) | 
+owner desktop /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+owner desktop /procurement/pdi/checklist | PDI checklist | 
+owner desktop /procurement/pdi/:id | MAE-VEH-000004 | 
+owner desktop /inventory/parts | Spare Parts & Accessories | 
+owner desktop /inventory/parts/categories | Part categories | 
+owner desktop /inventory/parts/:id | brk-dmwc191lb | 
+owner desktop /inventory/counts | Stock Counts & Adjustments | 
+owner desktop /inventory/counts/approvals | Counts awaiting approval | 
+owner desktop /inventory/counts/:id | SC-000004 | 
+owner desktop /inventory/vehicles | Vehicle Units | 
+owner desktop /inventory/movements | Stock Movements | 
+owner desktop /sales/customers | Customers | 
+owner desktop /sales/quotations | Quotations | 
+owner desktop /sales/reservations | Reservations | 
+owner desktop /sales/orders | Sales Orders & Delivery | 
+owner desktop /reports | Reports | 
+owner desktop /admin/settings | Store Settings | 
+owner desktop /admin/audit | Audit Log | 
+owner desktop /no-such-page | Page not found | 
+owner tablet / | Dashboard | 
+owner tablet /documents | Documents | 
+owner tablet /admin/users | Users & Roles | denied
+owner tablet /admin/catalogue | Catalogue & Brands | 
+owner tablet /admin/catalogue/models | Catalogue & Brands | 
+owner tablet /admin/catalogue/variants | Catalogue & Brands | 
+owner tablet /admin/catalogue/brands/:id | Ceeon India | 
+owner tablet /procurement/suppliers | Suppliers | 
+owner tablet /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+owner tablet /procurement/purchase-orders | Purchase Orders | 
+owner tablet /procurement/purchase-orders/:id | PO-000007 | 
+owner tablet /procurement/goods-receipts | Goods Receipts | 
+owner tablet /procurement/goods-receipts/:id | GRN-000005 | 
+owner tablet /procurement/pdi | Vehicle Inspections (PDI) | 
+owner tablet /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+owner tablet /procurement/pdi/checklist | PDI checklist | 
+owner tablet /procurement/pdi/:id | MAE-VEH-000004 | 
+owner tablet /inventory/parts | Spare Parts & Accessories | 
+owner tablet /inventory/parts/categories | Part categories | 
+owner tablet /inventory/parts/:id | brk-dmwc191lb | 
+owner tablet /inventory/counts | Stock Counts & Adjustments | 
+owner tablet /inventory/counts/approvals | Counts awaiting approval | 
+owner tablet /inventory/counts/:id | SC-000004 | 
+owner tablet /inventory/vehicles | Vehicle Units | 
+owner tablet /inventory/movements | Stock Movements | 
+owner tablet /sales/customers | Customers | 
+owner tablet /sales/quotations | Quotations | 
+owner tablet /sales/reservations | Reservations | 
+owner tablet /sales/orders | Sales Orders & Delivery | 
+owner tablet /reports | Reports | 
+owner tablet /admin/settings | Store Settings | 
+owner tablet /admin/audit | Audit Log | 
+owner tablet /no-such-page | Page not found | 
+owner mobile / | Dashboard | 
+owner mobile /documents | Documents | 
+owner mobile /admin/users | Users & Roles | denied
+owner mobile /admin/catalogue | Catalogue & Brands | 
+owner mobile /admin/catalogue/models | Catalogue & Brands | 
+owner mobile /admin/catalogue/variants | Catalogue & Brands | 
+owner mobile /admin/catalogue/brands/:id | Ceeon India | 
+owner mobile /procurement/suppliers | Suppliers | 
+owner mobile /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+owner mobile /procurement/purchase-orders | Purchase Orders | 
+owner mobile /procurement/purchase-orders/:id | PO-000007 | 
+owner mobile /procurement/goods-receipts | Goods Receipts | 
+owner mobile /procurement/goods-receipts/:id | GRN-000005 | 
+owner mobile /procurement/pdi | Vehicle Inspections (PDI) | 
+owner mobile /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+owner mobile /procurement/pdi/checklist | PDI checklist | 
+owner mobile /procurement/pdi/:id | MAE-VEH-000004 | 
+owner mobile /inventory/parts | Spare Parts & Accessories | 
+owner mobile /inventory/parts/categories | Part categories | 
+owner mobile /inventory/parts/:id | brk-dmwc191lb | 
+owner mobile /inventory/counts | Stock Counts & Adjustments | 
+owner mobile /inventory/counts/approvals | Counts awaiting approval | 
+owner mobile /inventory/counts/:id | SC-000004 | 
+owner mobile /inventory/vehicles | Vehicle Units | 
+owner mobile /inventory/movements | Stock Movements | 
+owner mobile /sales/customers | Customers | 
+owner mobile /sales/quotations | Quotations | 
+owner mobile /sales/reservations | Reservations | 
+owner mobile /sales/orders | Sales Orders & Delivery | 
+owner mobile /reports | Reports | 
+owner mobile /admin/settings | Store Settings | 
+owner mobile /admin/audit | Audit Log | 
+owner mobile /no-such-page | Page not found | 
+viewer desktop / | Dashboard | 
+viewer desktop /documents | Documents | denied
+viewer desktop /admin/users | Users & Roles | denied
+viewer desktop /admin/catalogue | Catalogue & Brands | 
+viewer desktop /admin/catalogue/models | Catalogue & Brands | 
+viewer desktop /admin/catalogue/variants | Catalogue & Brands | 
+viewer desktop /admin/catalogue/brands/:id | Ceeon India | 
+viewer desktop /procurement/suppliers | Suppliers | 
+viewer desktop /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+viewer desktop /procurement/purchase-orders | Purchase Orders | 
+viewer desktop /procurement/purchase-orders/:id | PO-000007 | 
+viewer desktop /procurement/goods-receipts | Goods Receipts | 
+viewer desktop /procurement/goods-receipts/:id | GRN-000005 | 
+viewer desktop /procurement/pdi | Vehicle Inspections (PDI) | 
+viewer desktop /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+viewer desktop /procurement/pdi/checklist | PDI checklist | 
+viewer desktop /procurement/pdi/:id | MAE-VEH-000004 | 
+viewer desktop /inventory/parts | Spare Parts & Accessories | 
+viewer desktop /inventory/parts/categories | Part categories | 
+viewer desktop /inventory/parts/:id | brk-dmwc191lb | 
+viewer desktop /inventory/counts | Stock Counts & Adjustments | 
+viewer desktop /inventory/counts/approvals | Counts awaiting approval | 
+viewer desktop /inventory/counts/:id | SC-000004 | 
+viewer desktop /inventory/vehicles | Vehicle Units | 
+viewer desktop /inventory/movements | Stock Movements | 
+viewer desktop /sales/customers | Customers | 
+viewer desktop /sales/quotations | Quotations | 
+viewer desktop /sales/reservations | Reservations | 
+viewer desktop /sales/orders | Sales Orders & Delivery | 
+viewer desktop /reports | Reports | 
+viewer desktop /admin/settings | Store Settings | 
+viewer desktop /admin/audit | Audit Log | 
+viewer desktop /no-such-page | Page not found | 
+viewer tablet / | Dashboard | 
+viewer tablet /documents | Documents | denied
+viewer tablet /admin/users | Users & Roles | denied
+viewer tablet /admin/catalogue | Catalogue & Brands | 
+viewer tablet /admin/catalogue/models | Catalogue & Brands | 
+viewer tablet /admin/catalogue/variants | Catalogue & Brands | 
+viewer tablet /admin/catalogue/brands/:id | Ceeon India | 
+viewer tablet /procurement/suppliers | Suppliers | 
+viewer tablet /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+viewer tablet /procurement/purchase-orders | Purchase Orders | 
+viewer tablet /procurement/purchase-orders/:id | PO-000007 | 
+viewer tablet /procurement/goods-receipts | Goods Receipts | 
+viewer tablet /procurement/goods-receipts/:id | GRN-000005 | 
+viewer tablet /procurement/pdi | Vehicle Inspections (PDI) | 
+viewer tablet /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+viewer tablet /procurement/pdi/checklist | PDI checklist | 
+viewer tablet /procurement/pdi/:id | MAE-VEH-000004 | 
+viewer tablet /inventory/parts | Spare Parts & Accessories | 
+viewer tablet /inventory/parts/categories | Part categories | 
+viewer tablet /inventory/parts/:id | brk-dmwc191lb | 
+viewer tablet /inventory/counts | Stock Counts & Adjustments | 
+viewer tablet /inventory/counts/approvals | Counts awaiting approval | 
+viewer tablet /inventory/counts/:id | SC-000004 | 
+viewer tablet /inventory/vehicles | Vehicle Units | 
+viewer tablet /inventory/movements | Stock Movements | 
+viewer tablet /sales/customers | Customers | 
+viewer tablet /sales/quotations | Quotations | 
+viewer tablet /sales/reservations | Reservations | 
+viewer tablet /sales/orders | Sales Orders & Delivery | 
+viewer tablet /reports | Reports | 
+viewer tablet /admin/settings | Store Settings | 
+viewer tablet /admin/audit | Audit Log | 
+viewer tablet /no-such-page | Page not found | 
+viewer mobile / | Dashboard | 
+viewer mobile /documents | Documents | denied
+viewer mobile /admin/users | Users & Roles | denied
+viewer mobile /admin/catalogue | Catalogue & Brands | 
+viewer mobile /admin/catalogue/models | Catalogue & Brands | 
+viewer mobile /admin/catalogue/variants | Catalogue & Brands | 
+viewer mobile /admin/catalogue/brands/:id | Ceeon India | 
+viewer mobile /procurement/suppliers | Suppliers | 
+viewer mobile /procurement/suppliers/:id | Count Supplier DMWC1A98D | 
+viewer mobile /procurement/purchase-orders | Purchase Orders | 
+viewer mobile /procurement/purchase-orders/:id | PO-000007 | 
+viewer mobile /procurement/goods-receipts | Goods Receipts | 
+viewer mobile /procurement/goods-receipts/:id | GRN-000005 | 
+viewer mobile /procurement/pdi | Vehicle Inspections (PDI) | 
+viewer mobile /procurement/pdi/holds | Vehicle Inspections (PDI) | 
+viewer mobile /procurement/pdi/checklist | PDI checklist | 
+viewer mobile /procurement/pdi/:id | MAE-VEH-000004 | 
+viewer mobile /inventory/parts | Spare Parts & Accessories | 
+viewer mobile /inventory/parts/categories | Part categories | 
+viewer mobile /inventory/parts/:id | brk-dmwc191lb | 
+viewer mobile /inventory/counts | Stock Counts & Adjustments | 
+viewer mobile /inventory/counts/approvals | Counts awaiting approval | 
+viewer mobile /inventory/counts/:id | SC-000004 | 
+viewer mobile /inventory/vehicles | Vehicle Units | 
+viewer mobile /inventory/movements | Stock Movements | 
+viewer mobile /sales/customers | Customers | 
+viewer mobile /sales/quotations | Quotations | 
+viewer mobile /sales/reservations | Reservations | 
+viewer mobile /sales/orders | Sales Orders & Delivery | 
+viewer mobile /reports | Reports | 
+viewer mobile /admin/settings | Store Settings | 
+viewer mobile /admin/audit | Audit Log | 
+viewer mobile /no-such-page | Page not found | 
+approver desktop / | Dashboard | 
+approver desktop /documents | Documents | 
+approver desktop /admin/users | Users & Roles | denied
+approver desktop /admin/catalogue | Catalogue & Brands | 
+approver desktop /admin/catalogue/models | Catalogue & Brands | 
+approver desktop /admin/catalogue/variants | Catalogue & Brands | 
+approver desktop /admin/catalogue/brands/:id | Ceeon India | 
+approver desktop /procurement/suppliers | Suppliers | denied
+approver desktop /procurement/suppliers/:id | Supplier | denied
+approver desktop /procurement/purchase-orders | Purchase Orders | 
+approver desktop /procurement/purchase-orders/:id | PO-000007 | 
+approver desktop /procurement/goods-receipts | Goods Receipts | 
+approver desktop /procurement/goods-receipts/:id | GRN-000005 | 
+approver desktop /procurement/pdi | Vehicle Inspections (PDI) | denied
+approver desktop /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+approver desktop /procurement/pdi/checklist | PDI checklist | denied
+approver desktop /procurement/pdi/:id |  | denied
+approver desktop /inventory/parts | Spare Parts & Accessories | denied
+approver desktop /inventory/parts/categories | Part categories | denied
+approver desktop /inventory/parts/:id | SKU | denied
+approver desktop /inventory/counts | Stock Counts & Adjustments | 
+approver desktop /inventory/counts/approvals | Counts awaiting approval | 
+approver desktop /inventory/counts/:id | SC-000004 | 
+approver desktop /inventory/vehicles | Vehicle Units | 
+approver desktop /inventory/movements | Stock Movements | 
+approver desktop /sales/customers | Customers | 
+approver desktop /sales/quotations | Quotations | 
+approver desktop /sales/reservations | Reservations | 
+approver desktop /sales/orders | Sales Orders & Delivery | 
+approver desktop /reports | Reports | 
+approver desktop /admin/settings | Store Settings | 
+approver desktop /admin/audit | Audit Log | 
+approver desktop /no-such-page | Page not found | 
+approver tablet / | Dashboard | 
+approver tablet /documents | Documents | 
+approver tablet /admin/users | Users & Roles | denied
+approver tablet /admin/catalogue | Catalogue & Brands | 
+approver tablet /admin/catalogue/models | Catalogue & Brands | 
+approver tablet /admin/catalogue/variants | Catalogue & Brands | 
+approver tablet /admin/catalogue/brands/:id | Ceeon India | 
+approver tablet /procurement/suppliers | Suppliers | denied
+approver tablet /procurement/suppliers/:id | Supplier | denied
+approver tablet /procurement/purchase-orders | Purchase Orders | 
+approver tablet /procurement/purchase-orders/:id | PO-000007 | 
+approver tablet /procurement/goods-receipts | Goods Receipts | 
+approver tablet /procurement/goods-receipts/:id | GRN-000005 | 
+approver tablet /procurement/pdi | Vehicle Inspections (PDI) | denied
+approver tablet /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+approver tablet /procurement/pdi/checklist | PDI checklist | denied
+approver tablet /procurement/pdi/:id |  | denied
+approver tablet /inventory/parts | Spare Parts & Accessories | denied
+approver tablet /inventory/parts/categories | Part categories | denied
+approver tablet /inventory/parts/:id | SKU | denied
+approver tablet /inventory/counts | Stock Counts & Adjustments | 
+approver tablet /inventory/counts/approvals | Counts awaiting approval | 
+approver tablet /inventory/counts/:id | SC-000004 | 
+approver tablet /inventory/vehicles | Vehicle Units | 
+approver tablet /inventory/movements | Stock Movements | 
+approver tablet /sales/customers | Customers | 
+approver tablet /sales/quotations | Quotations | 
+approver tablet /sales/reservations | Reservations | 
+approver tablet /sales/orders | Sales Orders & Delivery | 
+approver tablet /reports | Reports | 
+approver tablet /admin/settings | Store Settings | 
+approver tablet /admin/audit | Audit Log | 
+approver tablet /no-such-page | Page not found | 
+approver mobile / | Dashboard | 
+approver mobile /documents | Documents | 
+approver mobile /admin/users | Users & Roles | denied
+approver mobile /admin/catalogue | Catalogue & Brands | 
+approver mobile /admin/catalogue/models | Catalogue & Brands | 
+approver mobile /admin/catalogue/variants | Catalogue & Brands | 
+approver mobile /admin/catalogue/brands/:id | Ceeon India | 
+approver mobile /procurement/suppliers | Suppliers | denied
+approver mobile /procurement/suppliers/:id | Supplier | denied
+approver mobile /procurement/purchase-orders | Purchase Orders | 
+approver mobile /procurement/purchase-orders/:id | PO-000007 | 
+approver mobile /procurement/goods-receipts | Goods Receipts | 
+approver mobile /procurement/goods-receipts/:id | GRN-000005 | 
+approver mobile /procurement/pdi | Vehicle Inspections (PDI) | denied
+approver mobile /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+approver mobile /procurement/pdi/checklist | PDI checklist | denied
+approver mobile /procurement/pdi/:id |  | denied
+approver mobile /inventory/parts | Spare Parts & Accessories | denied
+approver mobile /inventory/parts/categories | Part categories | denied
+approver mobile /inventory/parts/:id | SKU | denied
+approver mobile /inventory/counts | Stock Counts & Adjustments | 
+approver mobile /inventory/counts/approvals | Counts awaiting approval | 
+approver mobile /inventory/counts/:id | SC-000004 | 
+approver mobile /inventory/vehicles | Vehicle Units | 
+approver mobile /inventory/movements | Stock Movements | 
+approver mobile /sales/customers | Customers | 
+approver mobile /sales/quotations | Quotations | 
+approver mobile /sales/reservations | Reservations | 
+approver mobile /sales/orders | Sales Orders & Delivery | 
+approver mobile /reports | Reports | 
+approver mobile /admin/settings | Store Settings | 
+approver mobile /admin/audit | Audit Log | 
+approver mobile /no-such-page | Page not found | 
+nogrants desktop / | Dashboard | 
+nogrants desktop /documents | Documents | denied
+nogrants desktop /admin/users | Users & Roles | denied
+nogrants desktop /admin/catalogue | Catalogue & Brands | denied
+nogrants desktop /admin/catalogue/models | Catalogue & Brands | denied
+nogrants desktop /admin/catalogue/variants | Catalogue & Brands | denied
+nogrants desktop /admin/catalogue/brands/:id | Catalogue & Brands | denied
+nogrants desktop /procurement/suppliers | Suppliers | denied
+nogrants desktop /procurement/suppliers/:id | Supplier | denied
+nogrants desktop /procurement/purchase-orders | Purchase Orders | denied
+nogrants desktop /procurement/purchase-orders/:id | Purchase order | denied
+nogrants desktop /procurement/goods-receipts | Goods Receipts | denied
+nogrants desktop /procurement/goods-receipts/:id | Goods receipt | denied
+nogrants desktop /procurement/pdi | Vehicle Inspections (PDI) | denied
+nogrants desktop /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+nogrants desktop /procurement/pdi/checklist | PDI checklist | denied
+nogrants desktop /procurement/pdi/:id |  | denied
+nogrants desktop /inventory/parts | Spare Parts & Accessories | denied
+nogrants desktop /inventory/parts/categories | Part categories | denied
+nogrants desktop /inventory/parts/:id | SKU | denied
+nogrants desktop /inventory/counts | Stock Counts & Adjustments | denied
+nogrants desktop /inventory/counts/approvals | Counts awaiting approval | denied
+nogrants desktop /inventory/counts/:id | Stock count | denied
+nogrants desktop /inventory/vehicles | Vehicle Units | 
+nogrants desktop /inventory/movements | Stock Movements | 
+nogrants desktop /sales/customers | Customers | 
+nogrants desktop /sales/quotations | Quotations | 
+nogrants desktop /sales/reservations | Reservations | 
+nogrants desktop /sales/orders | Sales Orders & Delivery | 
+nogrants desktop /reports | Reports | 
+nogrants desktop /admin/settings | Store Settings | 
+nogrants desktop /admin/audit | Audit Log | 
+nogrants desktop /no-such-page | Page not found | 
+nogrants tablet / | Dashboard | 
+nogrants tablet /documents | Documents | denied
+nogrants tablet /admin/users | Users & Roles | denied
+nogrants tablet /admin/catalogue | Catalogue & Brands | denied
+nogrants tablet /admin/catalogue/models | Catalogue & Brands | denied
+nogrants tablet /admin/catalogue/variants | Catalogue & Brands | denied
+nogrants tablet /admin/catalogue/brands/:id | Catalogue & Brands | denied
+nogrants tablet /procurement/suppliers | Suppliers | denied
+nogrants tablet /procurement/suppliers/:id | Supplier | denied
+nogrants tablet /procurement/purchase-orders | Purchase Orders | denied
+nogrants tablet /procurement/purchase-orders/:id | Purchase order | denied
+nogrants tablet /procurement/goods-receipts | Goods Receipts | denied
+nogrants tablet /procurement/goods-receipts/:id | Goods receipt | denied
+nogrants tablet /procurement/pdi | Vehicle Inspections (PDI) | denied
+nogrants tablet /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+nogrants tablet /procurement/pdi/checklist | PDI checklist | denied
+nogrants tablet /procurement/pdi/:id |  | denied
+nogrants tablet /inventory/parts | Spare Parts & Accessories | denied
+nogrants tablet /inventory/parts/categories | Part categories | denied
+nogrants tablet /inventory/parts/:id | SKU | denied
+nogrants tablet /inventory/counts | Stock Counts & Adjustments | denied
+nogrants tablet /inventory/counts/approvals | Counts awaiting approval | denied
+nogrants tablet /inventory/counts/:id | Stock count | denied
+nogrants tablet /inventory/vehicles | Vehicle Units | 
+nogrants tablet /inventory/movements | Stock Movements | 
+nogrants tablet /sales/customers | Customers | 
+nogrants tablet /sales/quotations | Quotations | 
+nogrants tablet /sales/reservations | Reservations | 
+nogrants tablet /sales/orders | Sales Orders & Delivery | 
+nogrants tablet /reports | Reports | 
+nogrants tablet /admin/settings | Store Settings | 
+nogrants tablet /admin/audit | Audit Log | 
+nogrants tablet /no-such-page | Page not found | 
+nogrants mobile / | Dashboard | 
+nogrants mobile /documents | Documents | denied
+nogrants mobile /admin/users | Users & Roles | denied
+nogrants mobile /admin/catalogue | Catalogue & Brands | denied
+nogrants mobile /admin/catalogue/models | Catalogue & Brands | denied
+nogrants mobile /admin/catalogue/variants | Catalogue & Brands | denied
+nogrants mobile /admin/catalogue/brands/:id | Catalogue & Brands | denied
+nogrants mobile /procurement/suppliers | Suppliers | denied
+nogrants mobile /procurement/suppliers/:id | Supplier | denied
+nogrants mobile /procurement/purchase-orders | Purchase Orders | denied
+nogrants mobile /procurement/purchase-orders/:id | Purchase order | denied
+nogrants mobile /procurement/goods-receipts | Goods Receipts | denied
+nogrants mobile /procurement/goods-receipts/:id | Goods receipt | denied
+nogrants mobile /procurement/pdi | Vehicle Inspections (PDI) | denied
+nogrants mobile /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+nogrants mobile /procurement/pdi/checklist | PDI checklist | denied
+nogrants mobile /procurement/pdi/:id |  | denied
+nogrants mobile /inventory/parts | Spare Parts & Accessories | denied
+nogrants mobile /inventory/parts/categories | Part categories | denied
+nogrants mobile /inventory/parts/:id | SKU | denied
+nogrants mobile /inventory/counts | Stock Counts & Adjustments | denied
+nogrants mobile /inventory/counts/approvals | Counts awaiting approval | denied
+nogrants mobile /inventory/counts/:id | Stock count | denied
+nogrants mobile /inventory/vehicles | Vehicle Units | 
+nogrants mobile /inventory/movements | Stock Movements | 
+nogrants mobile /sales/customers | Customers | 
+nogrants mobile /sales/quotations | Quotations | 
+nogrants mobile /sales/reservations | Reservations | 
+nogrants mobile /sales/orders | Sales Orders & Delivery | 
+nogrants mobile /reports | Reports | 
+nogrants mobile /admin/settings | Store Settings | 
+nogrants mobile /admin/audit | Audit Log | 
+nogrants mobile /no-such-page | Page not found | 
+roles desktop / | Dashboard | 
+roles desktop /documents | Documents | denied
+roles desktop /admin/users | Users & Roles | 
+roles desktop /admin/catalogue | Catalogue & Brands | denied
+roles desktop /admin/catalogue/models | Catalogue & Brands | denied
+roles desktop /admin/catalogue/variants | Catalogue & Brands | denied
+roles desktop /admin/catalogue/brands/:id | Catalogue & Brands | denied
+roles desktop /procurement/suppliers | Suppliers | denied
+roles desktop /procurement/suppliers/:id | Supplier | denied
+roles desktop /procurement/purchase-orders | Purchase Orders | denied
+roles desktop /procurement/purchase-orders/:id | Purchase order | denied
+roles desktop /procurement/goods-receipts | Goods Receipts | denied
+roles desktop /procurement/goods-receipts/:id | Goods receipt | denied
+roles desktop /procurement/pdi | Vehicle Inspections (PDI) | denied
+roles desktop /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+roles desktop /procurement/pdi/checklist | PDI checklist | denied
+roles desktop /procurement/pdi/:id |  | denied
+roles desktop /inventory/parts | Spare Parts & Accessories | denied
+roles desktop /inventory/parts/categories | Part categories | denied
+roles desktop /inventory/parts/:id | SKU | denied
+roles desktop /inventory/counts | Stock Counts & Adjustments | denied
+roles desktop /inventory/counts/approvals | Counts awaiting approval | denied
+roles desktop /inventory/counts/:id | Stock count | denied
+roles desktop /inventory/vehicles | Vehicle Units | 
+roles desktop /inventory/movements | Stock Movements | 
+roles desktop /sales/customers | Customers | 
+roles desktop /sales/quotations | Quotations | 
+roles desktop /sales/reservations | Reservations | 
+roles desktop /sales/orders | Sales Orders & Delivery | 
+roles desktop /reports | Reports | 
+roles desktop /admin/settings | Store Settings | 
+roles desktop /admin/audit | Audit Log | 
+roles desktop /no-such-page | Page not found | 
+roles tablet / | Dashboard | 
+roles tablet /documents | Documents | denied
+roles tablet /admin/users | Users & Roles | 
+roles tablet /admin/catalogue | Catalogue & Brands | denied
+roles tablet /admin/catalogue/models | Catalogue & Brands | denied
+roles tablet /admin/catalogue/variants | Catalogue & Brands | denied
+roles tablet /admin/catalogue/brands/:id | Catalogue & Brands | denied
+roles tablet /procurement/suppliers | Suppliers | denied
+roles tablet /procurement/suppliers/:id | Supplier | denied
+roles tablet /procurement/purchase-orders | Purchase Orders | denied
+roles tablet /procurement/purchase-orders/:id | Purchase order | denied
+roles tablet /procurement/goods-receipts | Goods Receipts | denied
+roles tablet /procurement/goods-receipts/:id | Goods receipt | denied
+roles tablet /procurement/pdi | Vehicle Inspections (PDI) | denied
+roles tablet /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+roles tablet /procurement/pdi/checklist | PDI checklist | denied
+roles tablet /procurement/pdi/:id |  | denied
+roles tablet /inventory/parts | Spare Parts & Accessories | denied
+roles tablet /inventory/parts/categories | Part categories | denied
+roles tablet /inventory/parts/:id | SKU | denied
+roles tablet /inventory/counts | Stock Counts & Adjustments | denied
+roles tablet /inventory/counts/approvals | Counts awaiting approval | denied
+roles tablet /inventory/counts/:id | Stock count | denied
+roles tablet /inventory/vehicles | Vehicle Units | 
+roles tablet /inventory/movements | Stock Movements | 
+roles tablet /sales/customers | Customers | 
+roles tablet /sales/quotations | Quotations | 
+roles tablet /sales/reservations | Reservations | 
+roles tablet /sales/orders | Sales Orders & Delivery | 
+roles tablet /reports | Reports | 
+roles tablet /admin/settings | Store Settings | 
+roles tablet /admin/audit | Audit Log | 
+roles tablet /no-such-page | Page not found | 
+roles mobile / | Dashboard | 
+roles mobile /documents | Documents | denied
+roles mobile /admin/users | Users & Roles | 
+roles mobile /admin/catalogue | Catalogue & Brands | denied
+roles mobile /admin/catalogue/models | Catalogue & Brands | denied
+roles mobile /admin/catalogue/variants | Catalogue & Brands | denied
+roles mobile /admin/catalogue/brands/:id | Catalogue & Brands | denied
+roles mobile /procurement/suppliers | Suppliers | denied
+roles mobile /procurement/suppliers/:id | Supplier | denied
+roles mobile /procurement/purchase-orders | Purchase Orders | denied
+roles mobile /procurement/purchase-orders/:id | Purchase order | denied
+roles mobile /procurement/goods-receipts | Goods Receipts | denied
+roles mobile /procurement/goods-receipts/:id | Goods receipt | denied
+roles mobile /procurement/pdi | Vehicle Inspections (PDI) | denied
+roles mobile /procurement/pdi/holds | Vehicle Inspections (PDI) | denied
+roles mobile /procurement/pdi/checklist | PDI checklist | denied
+roles mobile /procurement/pdi/:id |  | denied
+roles mobile /inventory/parts | Spare Parts & Accessories | denied
+roles mobile /inventory/parts/categories | Part categories | denied
+roles mobile /inventory/parts/:id | SKU | denied
+roles mobile /inventory/counts | Stock Counts & Adjustments | denied
+roles mobile /inventory/counts/approvals | Counts awaiting approval | denied
+roles mobile /inventory/counts/:id | Stock count | denied
+roles mobile /inventory/vehicles | Vehicle Units | 
+roles mobile /inventory/movements | Stock Movements | 
+roles mobile /sales/customers | Customers | 
+roles mobile /sales/quotations | Quotations | 
+roles mobile /sales/reservations | Reservations | 
+roles mobile /sales/orders | Sales Orders & Delivery | 
+roles mobile /reports | Reports | 
+roles mobile /admin/settings | Store Settings | 
+roles mobile /admin/audit | Audit Log | 
+roles mobile /no-such-page | Page not found | 

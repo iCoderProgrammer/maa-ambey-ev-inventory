@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/purchase-orders.e2e.ts:79:3 › purchase orders (D-02) › without purchase_orders.view there is no link and the page is denied (2.2s)
+  ✓  2 [desktop] › e2e/purchase-orders.e2e.ts:99:3 › purchase orders (D-02) › draft with lines and server totals; submission refused for an unverified supplier and inactive brand (8.0s)
+  ✓  3 [desktop] › e2e/purchase-orders.e2e.ts:210:3 › purchase orders (D-02) › submit, no self-approval, approval by another user, cost snapshot and read-only viewer (9.4s)
+  ✓  4 [mobile] › e2e/purchase-orders.e2e.ts:79:3 › purchase orders (D-02) › without purchase_orders.view there is no link and the page is denied (2.1s)
+  ✓  5 [mobile] › e2e/purchase-orders.e2e.ts:99:3 › purchase orders (D-02) › draft with lines and server totals; submission refused for an unverified supplier and inactive brand (7.8s)
+  ✓  6 [mobile] › e2e/purchase-orders.e2e.ts:210:3 › purchase orders (D-02) › submit, no self-approval, approval by another user, cost snapshot and read-only viewer (9.9s)
+
+  6 passed (41.2s)

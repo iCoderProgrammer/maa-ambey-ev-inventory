@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied (2.0s)
+  ✓  2 [desktop] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions (1.9s)
+  ✓  3 [desktop] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API (13.0s)
+  ✓  4 [mobile] › e2e/catalogue-ui.e2e.ts:34:3 › catalogue screens (C-03) › without catalogue.view there is no link and the page is denied (2.0s)
+  ✓  5 [mobile] › e2e/catalogue-ui.e2e.ts:53:3 › catalogue screens (C-03) › a viewer sees the real brand roster, statuses and no edit actions (2.4s)
+  ✓  6 [mobile] › e2e/catalogue-ui.e2e.ts:87:3 › catalogue screens (C-03) › an administrator manages brand, model and variant through the real API (12.2s)
+
+  6 passed (35.1s)

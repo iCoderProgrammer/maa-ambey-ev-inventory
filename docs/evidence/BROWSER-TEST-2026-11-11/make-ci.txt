@@ -1,0 +1,68 @@
+go vet ./...
+ℹ golangci-lint not installed; skipped (go vet ran)
+cd ui && npm run lint && npm run format:check
+
+> maa-ambey-inventory-ui@0.1.0 lint
+> eslint . --max-warnings=0
+
+
+> maa-ambey-inventory-ui@0.1.0 format:check
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+cd ui && npm run typecheck
+
+> maa-ambey-inventory-ui@0.1.0 typecheck
+> tsc -b --noEmit
+
+TEST_DATABASE_URL="postgres://bt:bt@localhost:5494/bt?sslmode=disable" REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./...
+cd ui && npm test
+
+> maa-ambey-inventory-ui@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /home/hp/Desktop/jarvis-all-repo/maa-ambey-enterprises/ui
+
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+
+ Test Files  31 passed (31)
+      Tests  317 passed (317)
+   Start at  17:19:02
+   Duration  24.35s (tests 52%, environment 26%, import 11%, transform 6%, setup 4%)
+
+Environment  jsdom was created 31 times · 60.73s total, 26% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+go build -ldflags "-X main.version=e82572d" -o bin/api ./cmd/api
+go build -o bin/migrate ./cmd/migrate
+go build -o bin/seed ./cmd/seed
+go build -o bin/user ./cmd/user
+go build -o bin/access ./cmd/access
+cd ui && npm run build
+
+> maa-ambey-inventory-ui@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 2360 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     0.92 kB │ gzip:   0.53 kB
+dist/assets/index-Em7FVszi.css     53.11 kB │ gzip:   9.55 kB
+dist/assets/index-fvPyrbwq.js   1,042.04 kB │ gzip: 302.14 kB │ map: 4,736.89 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 884ms

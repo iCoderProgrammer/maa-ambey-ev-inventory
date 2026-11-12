@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied (2.8s)
+  ✓  2 [desktop] › e2e/suppliers.e2e.ts:64:3 › supplier master (D-01) › dialogs return focus to their opener; an offline save explains itself and sends nothing later (3.8s)
+  ✓  3 [desktop] › e2e/suppliers.e2e.ts:96:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive (12.6s)
+  ✓  4 [mobile] › e2e/suppliers.e2e.ts:43:3 › supplier master (D-01) › without suppliers.view there is no link and the page is denied (3.1s)
+  ✓  5 [mobile] › e2e/suppliers.e2e.ts:64:3 › supplier master (D-01) › dialogs return focus to their opener; an offline save explains itself and sends nothing later (4.0s)
+  ✓  6 [mobile] › e2e/suppliers.e2e.ts:96:3 › supplier master (D-01) › create, document, verify, relate to brands, contacts and archive (11.7s)
+
+  6 passed (39.8s)

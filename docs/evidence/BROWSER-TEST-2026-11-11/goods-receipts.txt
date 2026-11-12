@@ -1,0 +1,9 @@
+
+Running 4 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/goods-receipts.e2e.ts:132:3 › goods receipts (D-03) › without goods_receipts.view there is no link and the page and API are denied (2.6s)
+  ✓  2 [desktop] › e2e/goods-receipts.e2e.ts:157:3 › goods receipts (D-03) › partial draft with units and documents; over-receipt needs an authorised override; duplicates and stale saves are refused; drafts change no stock (18.4s)
+  ✓  3 [mobile] › e2e/goods-receipts.e2e.ts:132:3 › goods receipts (D-03) › without goods_receipts.view there is no link and the page and API are denied (2.3s)
+  ✓  4 [mobile] › e2e/goods-receipts.e2e.ts:157:3 › goods receipts (D-03) › partial draft with units and documents; over-receipt needs an authorised override; duplicates and stale saves are refused; drafts change no stock (22.5s)
+
+  4 passed (47.4s)

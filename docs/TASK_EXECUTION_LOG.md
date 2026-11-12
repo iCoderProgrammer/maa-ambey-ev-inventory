@@ -50,7 +50,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-03 | Goods receipt draft workflow | P0 | D-02, B-09, C-01 | COMPLETE |
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
-| D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
+| D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
@@ -2866,8 +2866,8 @@ time of writing. Pending client decisions: OQ-39, OQ-40, RB-5. D-06 not started.
 
 ### D-06 — PDI checklist and disposition
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-11); frontend phase not started.
-  Pending client decisions: OQ-31 (direct reject / release from hold), OQ-41 (checklist content and policy), RB-5.
+- **Status:** COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) — backend
+  (`e82572d`) and frontend phases, browser-tested 2026-11-11 on a throwaway stack with fixture units (posting is D-07).
 - **Started:** 2026-11-11
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_06_pdi-checklist-and-disposition.md
 - Git at start: `dev` at `2c6fd81` (E-05 remediation committed first at the user's choice), clean tree; local ahead of
@@ -2940,8 +2940,63 @@ Result: NOT APPLICABLE in this phase (no UI yet).
   route reaches it.
 - Shared dev DB still at migration 12 (needs 13–19); not migrated (by instruction).
 
+#### Final status (backend phase)
+Backend phase complete; committed as `e82572d` at the user's request.
+
+#### Frontend phase (2026-11-11; base `e82572d`)
+- **Stage 1 — UI:** `ui/src/features/pdi/` — queues `/procurement/pdi` (awaiting PDI) and `/procurement/pdi/holds`,
+  inspection page `/procurement/pdi/:unitId` (vehicle panel, saleability notice, checklist form with Pass/Fail per item
+  and failed-item notes, inspection notes, private evidence uploader for the unit's location, disposition cards limited
+  to the server's `allowedDispositions`, confirmation dialog stating the effect, history timeline with details and
+  signed-link evidence download), checklist page `/procurement/pdi/checklist` (add, retire). Loading, empty, error,
+  not-found, access-denied, read-only, not-configured, OQ-31 and network/unknown-outcome states. Nav "Vehicle
+  Inspections (PDI)" under Procurement (`vehicle_units.view`). Built directly on the real API (no mock adapter).
+- **Stage 3 — Integration:** typed client `api/pdi.ts` + TanStack Query `hooks/usePdi.ts`; one frozen action and
+  `Idempotency-Key` per confirmation (same key on "Send again unchanged"); success shown only after the server's
+  answer validates (unit, disposition, edge); recorded inspection refreshes the overview and every vehicle-unit query;
+  422 fields mapped to the form. Additive client changes: upload `locationId`, vehicle list `saleable`, movement
+  `sourceType` `PDI_INSPECTION`.
+- **Checks:** ESLint 0, Prettier clean, tsc pass, Vitest 31 files / 317 tests (pdi 15), build ok; `make ci` exit 0 on a
+  throwaway DB. golangci-lint not installed.
+- **Stage 4 — Browser:** throwaway stack (DB :5495 migration 19, API :8097, Vite :5187; test-only grants; 8 placeholder
+  units from `docs/evidence/D-06/browser-fixture.sql`). Playwright `e2e/pdi.e2e.ts`: first run 2 failed — a real UI bug
+  (the "recorded" banner was lost because the form unmounted before the per-call `mutate` callback; fixed with
+  `mutateAsync`) and a duplicate checklist label left by that failed run (labels now unique per run); after the fixes
+  2 passed (desktop + Pixel 7). DB: 8 inspections, one PDI_INSPECTION movement each, unit status = latest movement,
+  evidence linked, audited. Chrome (user's browser): queue → inspect → pass → confirmed banner, saleable, no console
+  errors. Evidence: `docs/evidence/D-06/frontend-verification.txt`.
+- **Files:** `ui/src/features/pdi/*` (new), `ui/e2e/pdi.e2e.ts` (new), `ui/src/app/{routes,navigation}.ts(x)`,
+  `ui/src/features/access/api/access.ts`, `ui/src/features/attachments/{api/attachments.ts,hooks/useAttachments.ts,
+  components/AttachmentUploader.tsx}`, `ui/src/features/vehicles/api/vehicleUnits.ts`,
+  `ui/src/features/stock/api/stockMovements.ts`, `docs/{DEVELOPMENT_SETUP,API_CONVENTIONS}.md`, this log,
+  `docs/evidence/D-06/{frontend-verification.txt,browser-fixture.sql}`.
+- **Pending:** OQ-31, OQ-41, RB-5; no reservation/sale actions exist yet (F-04/F-07), so "cannot be reserved or sold"
+  is stated, not a hidden button; real units appear only after D-07 posting. Shared dev DB still at 12, untouched.
+
 #### Final status
-IN PROGRESS — D-06 backend phase complete, not committed (by instruction). Frontend phase not started.
+COMPLETE (mechanism) — D-06 backend (`e82572d`) and frontend (uncommitted, by instruction) verified 2026-11-11.
+Pending client decisions: OQ-31, OQ-41, RB-5. D-07 not started.
+
+### BROWSER-TEST-2026-11-11 — Browser testing of all completed features (user-requested; not a registry task)
+
+- **Status:** COMPLETE · **Date:** 2026-11-11 · Base `e82572d` + uncommitted D-06 frontend (preserved). No product task
+  started; D-07 not started. Report: `docs/BROWSER_TESTING_REPORT.md`; evidence: `docs/evidence/BROWSER-TEST-2026-11-11/`.
+- Isolated stack only (throwaway DB :5494 migration 19, API :8096, Vite :5188; test-only PROPOSED grants; PO and PDI
+  placeholder fixtures). Shared dev DB still at 12, untouched.
+- Inventory: 16 completed feature groups (B-01…B-09, C-01…C-04, C-06, D-01…D-04, D-06, E-01, E-03…E-05); D-05 IN
+  PROGRESS and C-05 blocked reported separately; NOT STARTED tasks only checked as placeholders.
+- Playwright, one spec per feature (desktop + Pixel 7): 45 scenarios, 85 passed, 5 skipped by design, 0 failed.
+  Crawl 33 routes × 5 accounts × 3 viewports = 495 loads: first run 9 flagged (one defect), after the fix 0.
+  Visible pass in the user's Chrome: 10 screens, no console errors.
+- BUG-1 (Low, frontend, D-06 uncommitted): PDI inspection page had no `<h1>` while the permission gate held it
+  (denied/loading/error). Fixed in `ui/src/features/pdi/PdiPages.tsx` (`gatedHeader`); regression assertion in
+  `pdi.test.tsx` (fails without the fix). Re-tested: crawl 0 flagged, `pdi.e2e.ts` 2 passed.
+- `make ci` exit 0 (Go with PostgreSQL 495 passing, Vitest 317, ESLint, Prettier, tsc, swagger-check, builds).
+  golangci-lint not installed. Nothing committed or pushed.
+- Follow-up (user could not see the first Chrome pass): stack rebuilt, interactive step-by-step walkthrough of every
+  screen in the user's Chrome (sign-in, catalogue, suppliers, PO create/submit/approve, GRN draft with duplicate
+  checks, parts receive/issue, stock count submit/approve, documents, PDI hold/pass, permissions, users & roles):
+  13 steps, all PASS, no console errors, no defect. Report section "Interactive walkthrough". Stack stopped afterwards.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 
