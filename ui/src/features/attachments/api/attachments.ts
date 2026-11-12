@@ -52,14 +52,26 @@ export function listMyAttachments(signal?: AbortSignal): Promise<Attachment[]> {
   return apiRequest('/attachments', z.array(attachmentSchema), { signal })
 }
 
-/** POST /attachments (multipart). Needs attachments.upload. */
+/**
+ * POST /attachments (multipart). Needs attachments.upload. locationId (optional,
+ * in the caller's scope) ties the file to a location — PDI evidence must carry
+ * the vehicle unit's location.
+ */
 export function uploadAttachment(
   file: File,
-  options: { signal?: AbortSignal; onProgress?: (fraction: number) => void } = {},
+  options: {
+    signal?: AbortSignal
+    onProgress?: (fraction: number) => void
+    locationId?: string | null
+  } = {},
 ): Promise<Attachment> {
   const form = new FormData()
   form.append('file', file, file.name)
-  return apiUpload('/attachments', attachmentSchema, form, options)
+  const query = options.locationId ? `?locationId=${encodeURIComponent(options.locationId)}` : ''
+  return apiUpload(`/attachments${query}`, attachmentSchema, form, {
+    signal: options.signal,
+    onProgress: options.onProgress,
+  })
 }
 
 /** GET /attachments/{id}/link — a short-lived download link. */

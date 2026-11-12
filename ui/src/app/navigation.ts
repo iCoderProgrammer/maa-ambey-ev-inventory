@@ -6,6 +6,7 @@ import {
   FileText,
   History,
   LayoutDashboard,
+  ListChecks,
   type LucideIcon,
   PackageCheck,
   Paperclip,
@@ -124,6 +125,15 @@ export const navigation: NavSection[] = [
         summary:
           'Draft receipts against approved purchase orders: quantities, unit identifiers and documents.',
         permission: 'goods_receipts.view',
+      },
+      {
+        label: 'Vehicle Inspections (PDI)',
+        path: '/procurement/pdi',
+        icon: ListChecks,
+        backlog: [],
+        summary:
+          'Pre-delivery inspection: checklist outcomes, defect notes, private evidence and pass / hold / reject.',
+        permission: 'vehicle_units.view',
       },
     ],
   },

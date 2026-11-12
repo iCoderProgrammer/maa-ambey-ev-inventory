@@ -128,6 +128,8 @@ export interface VehicleUnitListParams {
   goodsReceiptId?: string
   /** Must be in the caller's location scope, or the server answers 422 on locationId. */
   locationId?: string
+  /** true: AVAILABLE units only (saleable, INV-006); false: every other status (D-06). */
+  saleable?: boolean
   page?: number
   limit?: number
 }

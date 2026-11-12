@@ -89,6 +89,9 @@ export const Permission = {
   AdjustmentView: 'stock.adjustment.view',
   AdjustmentCreate: 'stock.adjustment.create',
   AdjustmentApprove: 'stock.adjustment.approve',
+  /** PDI checklist and disposition (D-06). Reading uses VehicleUnitView. No role holds these yet. */
+  PDIRecord: 'vehicle_units.pdi.record',
+  PDIChecklistManage: 'vehicle_units.pdi.checklist.manage',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

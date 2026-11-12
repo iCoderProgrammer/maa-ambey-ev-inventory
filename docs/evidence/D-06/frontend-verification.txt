@@ -1,0 +1,105 @@
+D-06 PDI checklist and disposition — FRONTEND verification (2026-11-11)
+======================================================================
+
+Scope: React UI over the D-06 backend (e82572d). No Go, SQL, migration or OpenAPI change in this phase.
+
+Files
+-----
+New (ui/src/features/pdi)
+- api/pdi.ts                     Zod schemas for every D-06 response; getPdiOverview, getInspection, listChecklist,
+                                 createChecklistItem, retireChecklistItem; frozen InspectionAction + Idempotency-Key;
+                                 sendInspection refuses an answer for another unit/disposition/edge
+- hooks/usePdi.ts                query keys/hooks; record refreshes the unit's PDI overview and all vehicle-unit
+                                 queries (on success and on error); no optimistic cache change; permissions from /me
+- lib/labels.ts                  disposition/result/outcome/status labels and tones (PASS success, HOLD warning,
+                                 REJECT danger; always with text)
+- lib/pdiErrors.ts               401/403/404/409 (VERSION_CONFLICT, INVALID_STATE, PDI_CHECKLIST_NOT_CONFIGURED,
+                                 IDEMPOTENCY_KEY_REUSED, DUPLICATE)/422/network/5xx/invalid answer -> safe messages
+- components/InspectionForm.tsx  RHF + Zod: checklist outcome per item (Pass/Fail radio groups), failed-item notes,
+                                 inspection notes, private evidence uploader (unit's location), disposition cards
+                                 limited to the server's allowedDispositions, confirmation dialog with effect and
+                                 summary; 422 fields mapped back to the form; unknown outcome -> "Send again unchanged"
+- components/InspectionHistory.tsx  timeline newest first; details on demand (GET /pdi-inspections/{id}); evidence
+                                 download through a fresh signed link only; hidden evidence stays hidden
+- components/ChecklistDialogs.tsx add item (code, label, description, brand scope, order) and retire (reason)
+- PdiPages.tsx                   /procurement/pdi (awaiting PDI), /procurement/pdi/holds, /procurement/pdi/checklist,
+                                 /procurement/pdi/:unitId (vehicle panel, saleability notice, form, history)
+- pdi.test.tsx                   15 Vitest tests
+New (ui/e2e)
+- pdi.e2e.ts                     Playwright flow (desktop + Pixel 7)
+Changed
+- ui/src/app/routes.tsx, ui/src/app/navigation.ts   routes; "Vehicle Inspections (PDI)" under Procurement
+                                                    (vehicle_units.view)
+- ui/src/features/access/api/access.ts              PDIRecord, PDIChecklistManage codes
+- ui/src/features/attachments/{api/attachments.ts,hooks/useAttachments.ts,components/AttachmentUploader.tsx}
+                                                    optional locationId on upload (additive; other callers unchanged)
+- ui/src/features/vehicles/api/vehicleUnits.ts      `saleable` list parameter (D-06 backend filter)
+- ui/src/features/stock/api/stockMovements.ts       sourceType enum + PDI_INSPECTION (D-06 backend contract)
+- docs/{DEVELOPMENT_SETUP,API_CONVENTIONS}.md, docs/TASK_EXECUTION_LOG.md, docs/evidence/D-06/{this file,browser-fixture.sql}
+
+Endpoints used (D-06 backend, unchanged)
+----------------------------------------
+GET  /api/v1/vehicle-units?status=RECEIVED_PENDING_PDI|QUALITY_HOLD&q&page&limit   (queues)
+GET  /api/v1/vehicle-units/{id}                    (vehicle panel)
+GET  /api/v1/vehicle-units/{id}/pdi                (overview: unit, allowedDispositions, canRecord, checklist, history)
+POST /api/v1/vehicle-units/{id}/pdi                (Idempotency-Key; X-CSRF-Token)
+GET  /api/v1/pdi-inspections/{id}                  (history details)
+GET/POST /api/v1/pdi-checklist-items, POST /api/v1/pdi-checklist-items/{id}/retire
+GET  /api/v1/attachments/limits, POST /api/v1/attachments?locationId=, GET /api/v1/attachments/{id}/link
+
+Behaviour
+---------
+- No success before the server confirms; the vehicle is never shown AVAILABLE optimistically (tested with a held
+  response). Double click on the confirm button sends one request (button disabled while pending; DB shows one
+  inspection per unit).
+- Dispositions offered = server's allowedDispositions; PASS disabled with an explanation when no checklist applies;
+  a held vehicle offers only Reject, with the OQ-31 note; AVAILABLE/REJECTED vehicles: no form.
+- Client validation mirrors the contract (outcome per item, FAIL note, PASS without failures, HOLD/REJECT notes and
+  >= 1 evidence file); the server re-checks and its 422 fields are shown on the form and in the dialog.
+- Evidence uploads carry the unit's location; only files the server confirmed are listed; upload errors stay visible
+  and do not count as evidence.
+- Read-only users see history and status; recording needs vehicle_units.pdi.record; without vehicle_units.view the
+  pages show access denied and call no PDI endpoint.
+
+Bug found and fixed during the browser test
+-------------------------------------------
+After a successful record, the hook-level onSuccess awaited the overview refetch; the new status re-keyed (unmounted)
+the form, and TanStack Query skipped the per-call mutate() onSuccess, so the "recorded" banner never appeared (Vitest
+passed by timing). Fixed by using mutateAsync().then(...) in the confirmation dialog.
+
+Checks
+------
+- ESLint (--max-warnings=0): 0 problems. Prettier --check: clean. tsc -b: pass.
+- Vitest: 31 files / 317 tests pass (pdi.test.tsx 15: contract vs docs/openapi, invalid-answer refusal, queue,
+  access denied, checklist rendering + client validation, PASS confirmation and late server answer, HOLD with
+  failed-item note and evidence (upload URL has ?locationId=l1), REJECT-only for held unit + upload error,
+  422 field mapping, 409 VERSION_CONFLICT with reload, 409 PDI_CHECKLIST_NOT_CONFIGURED, unknown outcome retried with
+  the same key and body, read-only, unconfigured checklist, 404, history with hidden evidence, checklist add/retire).
+- npm run build: ok. make ci (TEST_DATABASE_URL = throwaway, load average ~1.7): exit 0 (Go with DB, Vitest 317, build).
+  golangci-lint not installed.
+
+Browser
+-------
+Isolated stack: PostgreSQL 18 container (:5495, migration 19), API from this tree (:8097), Vite (:5187); test-only
+PROPOSED grants (RBAC_ALLOW_PROPOSED_GRANTS=true); 8 placeholder units inserted with browser-fixture.sql (stands in
+for D-07 posting). Shared dev DB/API not used.
+- Playwright e2e/pdi.e2e.ts: first run 2 failed (banner bug above on desktop; duplicate checklist label left by the
+  failed desktop run on mobile -> labels now unique per run). After the fixes: 2 passed (desktop + Pixel 7).
+  Covered: add checklist item (UI), PASS with confirmation (dblclick) -> server AVAILABLE + saleable, HOLD with failed
+  item note, notes and uploaded photo -> QUALITY_HOLD, saleable=true list includes the passed unit and excludes the
+  held one, stale version POST -> 409 VERSION_CONFLICT, history details + evidence download through signed link,
+  REJECT only option -> REJECTED, no horizontal overflow, viewer read-only, no-grant user denied, item retired, no
+  console errors.
+- Database after the runs: 8 inspections, each with one PDI_INSPECTION movement whose reference is its number;
+  every unit's status = its latest movement; holds/rejects have evidence (attachments owner pdi_inspection);
+  pdi_inspection.recorded and vehicle_unit.moved audited 8 times each.
+- Chrome (user's browser, Claude in Chrome, new tab): queue -> MAE-VEH-000002 -> both items Pass -> Pass ->
+  confirmation -> "PDI-000009 recorded. The vehicle is now Available and saleable."; Saleable notice; form replaced
+  by "No inspection can be recorded"; no console errors.
+
+Pending
+-------
+OQ-31 (direct reject, release from hold), OQ-41 (checklist content, NOT_APPLICABLE, evidence policy, who records),
+RB-5 grants. No reservation/sale actions exist yet (F-04/F-07): the UI states that held/rejected units cannot be
+reserved or sold; the server's saleable rule is AVAILABLE only. Tablet width not separately automated (desktop 1366
+and Pixel 7 run; layout uses the same responsive grid). Shared dev DB still at migration 12.

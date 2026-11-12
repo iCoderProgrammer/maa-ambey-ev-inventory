@@ -37,7 +37,8 @@ export const stockMovementSchema = z.object({
   toStatus: unitStatusSchema,
   fromLocationId: z.string().nullable(),
   toLocationId: z.string().nullable(),
-  sourceType: z.enum(['GOODS_RECEIPT', 'STAFF_ACTION']),
+  /** PDI_INSPECTION: a PDI movement recorded by an inspection (D-06); sourceReference = its number. */
+  sourceType: z.enum(['GOODS_RECEIPT', 'STAFF_ACTION', 'PDI_INSPECTION']),
   sourceId: z.string().nullable(),
   sourceReference: z.string().nullable(),
   actorId: z.string(),

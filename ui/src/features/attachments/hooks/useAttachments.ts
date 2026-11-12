@@ -36,7 +36,13 @@ export function useUploadAttachment() {
       file: File
       signal?: AbortSignal
       onProgress?: (fraction: number) => void
-    }) => uploadAttachment(vars.file, { signal: vars.signal, onProgress: vars.onProgress }),
+      locationId?: string | null
+    }) =>
+      uploadAttachment(vars.file, {
+        signal: vars.signal,
+        onProgress: vars.onProgress,
+        locationId: vars.locationId,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: mineQueryKey }),
   })
 }

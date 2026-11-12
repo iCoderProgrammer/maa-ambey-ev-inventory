@@ -262,6 +262,12 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   `e2e/stock-counts.e2e.ts` (E-05) uses `E2E_CATALOGUE_*` (the E-04 grants plus `stock.adjustment.view/create`),
   `E2E_PRICE_APPROVER_*` (`stock.adjustment.view/approve`), `E2E_CATALOGUE_VIEWER_*` (`stock.adjustment.view`) and
   `E2E_*` (no grants, denied); all three granted users need the same location in scope. Throwaway database only.
+  `e2e/pdi.e2e.ts` (D-06) uses `E2E_CATALOGUE_*` with `vehicle_units.view`, `vehicle_units.pdi.record`,
+  `vehicle_units.pdi.checklist.manage`, `attachments.upload`, `attachments.view`, `E2E_CATALOGUE_VIEWER_*` with
+  `vehicle_units.view` (both scoped to the units' location) and `E2E_*` (denied). It needs at least two vehicle units
+  awaiting PDI with chassis numbers; until receipt posting exists (D-07) insert them into the throwaway database with
+  `docs/evidence/D-06/browser-fixture.sql` (placeholder data; location `E06`, users `e2e.catalogue`/`e2e.catviewer`).
+  Each run passes one unit and holds then rejects another, creates a checklist item and retires it at the end.
 - The expired-link test waits for the link to expire: start the API with `ATTACHMENT_LINK_TTL=30s`.
   Only do the attachment grants on a throwaway database: they are PROPOSED and count only with
   `RBAC_ALLOW_PROPOSED_GRANTS=true` in development.

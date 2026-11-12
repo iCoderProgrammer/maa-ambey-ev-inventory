@@ -538,7 +538,10 @@ different person approves it.
 ## PDI checklist and disposition (D-06)
 
 Rules: ADR-024. Schema: migration 000019 (`pdi_checklist_items`, `pdi_inspections`, `pdi_inspection_items`,
-`pdi_inspection_attachments`; `stock_movements` source `PDI_INSPECTION`). Package `internal/modules/pdi`.
+`pdi_inspection_attachments`; `stock_movements` source `PDI_INSPECTION`). Package `internal/modules/pdi`. Client:
+`ui/src/features/pdi/api/pdi.ts` (Zod schemas, frozen `InspectionAction` with its `Idempotency-Key`), hooks
+`hooks/usePdi.ts`, error mapping `lib/pdiErrors.ts`; screens `/procurement/pdi` (awaiting PDI), `/procurement/pdi/holds`,
+`/procurement/pdi/checklist`, `/procurement/pdi/{unitId}`. Evidence uploads send `?locationId=` = the unit's location.
 
 | Route | Permission | Notes |
 | --- | --- | --- |

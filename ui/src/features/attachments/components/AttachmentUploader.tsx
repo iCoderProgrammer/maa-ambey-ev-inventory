@@ -28,6 +28,8 @@ interface Item {
 export interface AttachmentUploaderProps {
   limits: AttachmentLimits
   onUploaded?: (attachment: Attachment) => void
+  /** Location the uploaded files belong to (in the caller's scope); none by default. */
+  locationId?: string | null
 }
 
 /** Errors where sending the same file again would fail the same way. */
@@ -45,7 +47,7 @@ let nextKey = 0
  * with progress and shows the server's verdict. Success is shown only after the
  * server has stored the file; failures can be retried when retrying can help.
  */
-export function AttachmentUploader({ limits, onUploaded }: AttachmentUploaderProps) {
+export function AttachmentUploader({ limits, onUploaded, locationId }: AttachmentUploaderProps) {
   const inputId = useId()
   const hintId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -65,6 +67,7 @@ export function AttachmentUploader({ limits, onUploaded }: AttachmentUploaderPro
     upload
       .mutateAsync({
         file,
+        locationId,
         signal: controller.signal,
         onProgress: (p) => {
           patch(key, { progress: p })
