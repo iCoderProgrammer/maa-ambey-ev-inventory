@@ -52,7 +52,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | COMPLETE — backend (`2a70a65`) + frontend (uncommitted); OQ-24/25/27, RB-5 pending |
-| D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
+| D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | IN PROGRESS — backend phase COMPLETE; frontend in progress (OQ-8 resolved, ADR-026) |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
@@ -3071,6 +3071,58 @@ COMPLETE — backend `2a70a65`; frontend complete and verified, not committed (b
   screen in the user's Chrome (sign-in, catalogue, suppliers, PO create/submit/approve, GRN draft with duplicate
   checks, parts receive/issue, stock count submit/approve, documents, PDI hold/pass, permissions, users & roles):
   13 steps, all PASS, no console errors, no defect. Report section "Interactive walkthrough". Stack stopped afterwards.
+
+### D-08 — Vehicle list and detail UI
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase in progress.
+  Pending: per-user brand scope and grants (RB-5); colour capture on receipt (no rule).
+- **Started:** 2026-11-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_08_vehicle-list-and-detail-ui.md
+- Git at start: `dev` at `fbb09a4` (D-07 frontend committed first at the user's request), clean tree.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `GET /vehicle-units`, `/{id}` (scope, cost shaping); vehicles tests pass on PostgreSQL |
+| D-05 | IN PROGRESS (live browser check of `DUPLICATE_IDENTIFIER` via posting not re-run) — not blocking: uniqueness is enforced | `vehicle_units_chassis_key`, `DuplicateIdentifierError`; posting returns 409 (`receiving/post_integration_test.go`). D-05 status left unchanged; its re-verification is a separate step |
+| D-06 | COMPLETE | `GET /vehicle-units/{id}/pdi`, PDI movements with source `PDI_INSPECTION`; pdi tests pass |
+| E-02 | NOT STARTED — registry cycle (OQ-8) | Resolved by sequence, ADR-026: D-08 adds a read-only per-unit movement route (E-04 precedent); E-02 later owns the cross-unit timeline. Registry unchanged |
+| E-01 (used) | COMPLETE | `stock_movements` ledger, `stock_movements_unit_idx` |
+
+#### Acceptance criteria
+- [x] AC1 Search works across approved identifiers (unit number, chassis/frame, motor, battery, charger — every stored identifier)
+- [x] AC2 Filters combine correctly (AND; brand/model/variant/status/saleable/location/supplier/PO/GRN/received dates/age; colour not stored → not offered)
+- [x] AC3 Cost and attachments are protected server-side (cost permission; documents filtered by the attachment rule; no storage keys)
+- [x] AC4 Detail history is navigable (registration events + paginated per-unit ledger with source references) — backend
+- [ ] AC5 Screens: list/detail with filters, states, links — frontend phase
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in the backend phase (backend first by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- `GET /vehicle-units`: new `modelId`, `receivedFrom`/`receivedTo`, `minAgeDays`/`maxAgeDays`, `sort` (6 stable
+  orders), `ageDays` on each unit. `GET /vehicle-units/{id}`: new `documents` (receipt documents + PDI evidence filtered
+  by `attachments.CanSee`, exported) and `documentsHidden`. New `GET /vehicle-units/{id}/stock-movements` (read-only
+  ledger, asc/desc, paginated, scope 404, out-of-scope locations by id only, no cost). No migration (EXPLAIN on 2,000
+  units: page + count 15–20 ms; see ADR-026).
+- Checks: gofmt + `go vet` + tidy + OpenAPI drift (`make lint-backend`, exit 0; golangci-lint not installed); Go with
+  PostgreSQL (`REQUIRE_INTEGRATION_TESTS=1`, throwaway DB) 22 packages ok; `go build ./cmd/...`. Evidence:
+  `docs/evidence/D-08/backend-verification.txt`.
+
+#### Stage 3 — API integration
+Result: pending (frontend phase).
+
+#### Stage 4 — Browser testing
+Result: pending (frontend phase).
+
+#### Known issues / pending approvals
+- Colour: vehicle units have no colour (not captured on receipt) — no colour filter/column until a receiving rule exists.
+- Per-user brand scope does not exist yet (RB-5); D-08 applies location scope only. No grants added.
+- Substring search scans `vehicle_units` (fine at dealership scale); trigram index is the follow-up if volume grows.
+
+#### Final status
+IN PROGRESS — backend complete; frontend phase next.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

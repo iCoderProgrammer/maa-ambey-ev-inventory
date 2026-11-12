@@ -133,6 +133,12 @@ func NewService(repo Repository, store ObjectStore, signer *Signer, maxBytes int
 // MaxBytes is the per-file size limit.
 func (s *Service) MaxBytes() int64 { return s.maxBytes }
 
+// CanSee reports whether the caller may see att's metadata and content: the
+// object-level rule of every attachment route. Modules that list files of their
+// own records (e.g. vehicle unit documents, D-08) use it so a listed file is
+// always one the download route will serve.
+func CanSee(a access.Access, att Attachment) bool { return canSee(a, att) }
+
 // canSee is the object-level check for metadata and downloads.
 func canSee(a access.Access, att Attachment) bool {
 	if !a.Has(access.PermAttachmentsView) {

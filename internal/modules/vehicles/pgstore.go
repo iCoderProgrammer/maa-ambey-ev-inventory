@@ -26,7 +26,8 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool} }
 const unitColumns = `v.id::text, v.unit_number, v.status, v.brand_id::text, b.name, v.model_id::text, m.name,
 	v.variant_id::text, va.name, v.chassis_number, v.chassis_normalised, v.motor_serial, v.battery_serial, v.charger_serial,
 	v.location_id::text, l.code, l.name, v.source_type, v.supplier_id::text, s.legal_name,
-	to_char(v.received_date, 'YYYY-MM-DD'), v.unit_cost::text, v.cost_currency, v.version, v.created_at, v.updated_at`
+	to_char(v.received_date, 'YYYY-MM-DD'), v.unit_cost::text, v.cost_currency, v.version, v.created_at, v.updated_at,
+	(current_date - v.received_date)`
 
 const unitFrom = ` FROM vehicle_units v
 	JOIN brands b ON b.id = v.brand_id
@@ -44,7 +45,7 @@ func scanUnitWith(row pgx.Row, extra ...any) (Unit, error) {
 	dest := append([]any{&u.ID, &u.UnitNumber, &u.Status, &u.BrandID, &u.BrandName, &u.ModelID, &u.ModelName,
 		&u.VariantID, &u.VariantName, &u.ChassisNumber, &u.ChassisNormalised, &u.MotorSerial, &u.BatterySerial, &u.ChargerSerial,
 		&u.LocationID, &u.LocationCode, &u.LocationName, &u.SourceType, &u.SupplierID, &u.SupplierName,
-		&u.ReceivedDate, &cost, &currency, &u.Version, &u.CreatedAt, &u.UpdatedAt}, extra...)
+		&u.ReceivedDate, &cost, &currency, &u.Version, &u.CreatedAt, &u.UpdatedAt, &u.AgeDays}, extra...)
 	err := row.Scan(dest...)
 	u.UnitCost, u.CostCurrency = &cost, &currency
 	return u, err
@@ -77,8 +78,19 @@ func likePattern(q string) string {
 	return "%" + r.Replace(q) + "%"
 }
 
+// listOrder maps each of SortOrders to its ORDER BY; v.id last keeps pages stable.
+var listOrder = map[string]string{
+	"-createdAt":    "v.created_at DESC, v.id",
+	"createdAt":     "v.created_at, v.id",
+	"-receivedDate": "v.received_date DESC, v.created_at DESC, v.id",
+	"receivedDate":  "v.received_date, v.created_at, v.id",
+	"unitNumber":    "v.unit_number, v.id",
+	"-unitNumber":   "v.unit_number DESC, v.id",
+}
+
 // List implements Repository. The search matches the unit number and the
-// normalised chassis/frame, motor, battery and charger identifiers.
+// normalised chassis/frame, motor, battery and charger identifiers. Every join
+// is to one row (brand, model, variant, location, supplier), so no unit repeats.
 func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 	var conds []string
 	var args []any
@@ -90,11 +102,25 @@ func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 		add(`(upper(v.unit_number) LIKE ? ESCAPE '\' OR v.chassis_normalised LIKE ? ESCAPE '\' OR v.motor_normalised LIKE ? ESCAPE '\'
 			OR v.battery_normalised LIKE ? ESCAPE '\' OR v.charger_normalised LIKE ? ESCAPE '\')`, likePattern(f.Query))
 	}
-	for _, c := range []struct{ col, v string }{{"v.status", f.Status}, {"v.brand_id", f.BrandID}, {"v.variant_id", f.VariantID},
+	for _, c := range []struct{ col, v string }{{"v.status", f.Status}, {"v.brand_id", f.BrandID}, {"v.model_id", f.ModelID},
+		{"v.variant_id", f.VariantID},
 		{"v.supplier_id", f.SupplierID}, {"v.purchase_order_id", f.PurchaseOrderID}, {"v.goods_receipt_id", f.GoodsReceiptID}} {
 		if c.v != "" {
 			add(c.col+" = ?", c.v)
 		}
+	}
+	if f.ReceivedFrom != "" {
+		add("v.received_date >= ?::date", f.ReceivedFrom)
+	}
+	if f.ReceivedTo != "" {
+		add("v.received_date <= ?::date", f.ReceivedTo)
+	}
+	// Age in whole days since the received date: written on received_date so its index applies.
+	if f.MinAgeDays != nil {
+		add("v.received_date <= current_date - ?::int", *f.MinAgeDays)
+	}
+	if f.MaxAgeDays != nil {
+		add("v.received_date >= current_date - ?::int", *f.MaxAgeDays)
 	}
 	switch f.Saleable {
 	case "true":
@@ -117,7 +143,11 @@ func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 		return Page[Unit]{}, fmt.Errorf("count vehicle units: %w", err)
 	}
 	n := len(args)
-	items, err := queryAll(ctx, s.pool, scanUnit, `SELECT `+unitColumns+unitFrom+where+` ORDER BY v.created_at DESC, v.id LIMIT $`+
+	order, ok := listOrder[f.Sort]
+	if !ok {
+		order = listOrder["-createdAt"]
+	}
+	items, err := queryAll(ctx, s.pool, scanUnit, `SELECT `+unitColumns+unitFrom+where+` ORDER BY `+order+` LIMIT $`+
 		strconv.Itoa(n+1)+` OFFSET $`+strconv.Itoa(n+2), append(args, f.Limit, (f.Page-1)*f.Limit)...)
 	if err != nil {
 		return Page[Unit]{}, fmt.Errorf("list vehicle units: %w", err)
@@ -156,7 +186,79 @@ func (s *PGStore) GetDetail(ctx context.Context, id string) (Detail, error) {
 		WHERE e.vehicle_unit_id = $1 ORDER BY e.seq`, id); err != nil {
 		return d, fmt.Errorf("vehicle unit events: %w", err)
 	}
+	// Every file about the unit: its receipt's documents and its PDI evidence.
+	// The service keeps only those the caller may open.
+	if d.Documents, err = queryAll(ctx, s.pool, func(r pgx.Row) (Document, error) {
+		var doc Document
+		err := r.Scan(&doc.AttachmentID, &doc.SourceType, &doc.SourceID, &doc.SourceReference, &doc.DocumentType, &doc.FileName,
+			&doc.ContentType, &doc.SizeBytes, &doc.CreatedAt, &doc.ownerType, &doc.uploadedBy, &doc.locationID)
+		return doc, err
+	}, `SELECT * FROM (
+			SELECT a.id::text AS attachment_id, 'GOODS_RECEIPT', g.id::text, g.grn_number, gd.document_type, a.original_name,
+				a.content_type, a.size_bytes, a.created_at, COALESCE(a.owner_type, ''), a.uploaded_by::text,
+				COALESCE(a.location_id::text, '')
+			FROM vehicle_units v
+			JOIN goods_receipts g ON g.id = v.goods_receipt_id
+			JOIN goods_receipt_documents gd ON gd.goods_receipt_id = g.id
+			JOIN attachments a ON a.id = gd.attachment_id
+			WHERE v.id = $1
+			UNION ALL
+			SELECT a.id::text, 'PDI_INSPECTION', i.id::text, i.inspection_number, 'PDI_EVIDENCE', a.original_name,
+				a.content_type, a.size_bytes, a.created_at, COALESCE(a.owner_type, ''), a.uploaded_by::text,
+				COALESCE(a.location_id::text, '')
+			FROM pdi_inspections i
+			JOIN pdi_inspection_attachments pa ON pa.inspection_id = i.id
+			JOIN attachments a ON a.id = pa.attachment_id
+			WHERE i.vehicle_unit_id = $1
+		) docs ORDER BY created_at, attachment_id`, id); err != nil {
+		return d, fmt.Errorf("vehicle unit documents: %w", err)
+	}
 	return d, nil
+}
+
+// UnitLocation implements Repository: the unit's location (nil = none), or ErrNotFound.
+func (s *PGStore) UnitLocation(ctx context.Context, id string) (*string, error) {
+	var loc *string
+	err := s.pool.QueryRow(ctx, `SELECT location_id::text FROM vehicle_units WHERE id = $1`, id).Scan(&loc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get vehicle unit location: %w", err)
+	}
+	return loc, nil
+}
+
+// Movements implements Repository: one page of the unit's ledger entries in sequence order.
+func (s *PGStore) Movements(ctx context.Context, f MovementFilter) (Page[Movement], error) {
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM stock_movements m WHERE m.item_type = 'VEHICLE_UNIT' AND m.vehicle_unit_id = $1`,
+		f.UnitID).Scan(&total); err != nil {
+		return Page[Movement]{}, fmt.Errorf("count vehicle unit movements: %w", err)
+	}
+	order := "m.seq"
+	if f.Newest {
+		order = "m.seq DESC"
+	}
+	items, err := queryAll(ctx, s.pool, func(r pgx.Row) (Movement, error) {
+		var m Movement
+		err := r.Scan(&m.ID, &m.MovementType, &m.FromStatus, &m.ToStatus, &m.FromLocationID, &m.FromLocationCode, &m.FromLocationName,
+			&m.ToLocationID, &m.ToLocationCode, &m.ToLocationName, &m.SourceType, &m.SourceID, &m.SourceReference, &m.ActorID,
+			&m.ActorName, &m.Note, &m.CreatedAt)
+		return m, err
+	}, `SELECT m.id::text, m.movement_type, m.from_status, m.to_status, m.from_location_id::text, fl.code, fl.name,
+			m.to_location_id::text, tl.code, tl.name, m.source_type, m.source_id::text, m.source_reference, m.actor_id::text,
+			u.display_name, m.note, m.created_at
+		FROM stock_movements m
+		LEFT JOIN locations fl ON fl.id = m.from_location_id
+		LEFT JOIN locations tl ON tl.id = m.to_location_id
+		LEFT JOIN users u ON u.id = m.actor_id
+		WHERE m.item_type = 'VEHICLE_UNIT' AND m.vehicle_unit_id = $1
+		ORDER BY `+order+` LIMIT $2 OFFSET $3`, f.UnitID, f.Limit, (f.Page-1)*f.Limit)
+	if err != nil {
+		return Page[Movement]{}, fmt.Errorf("list vehicle unit movements: %w", err)
+	}
+	return Page[Movement]{Items: items, Page: f.Page, Limit: f.Limit, Total: total}, nil
 }
 
 // ── Registration ────────────────────────────────────────────────────────────

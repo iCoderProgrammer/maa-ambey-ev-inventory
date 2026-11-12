@@ -8777,7 +8777,7 @@ const docTemplate = `{
         },
         "/vehicle-units": {
             "get": {
-                "description": "Newest first. q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "description": "Newest registration first by default (sort). q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine (AND). receivedFrom/receivedTo are inclusive dates; minAgeDays/maxAgeDays are inclusive whole days since the received date (ageDays, database date). Colour is not filterable: units carry no colour (not captured on receipt). Every sort ends with the unit ID, so pages are stable. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
                 "produces": [
                     "application/json"
                 ],
@@ -8821,6 +8821,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Model ID",
+                        "name": "modelId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Variant ID",
                         "name": "variantId",
                         "in": "query"
@@ -8853,6 +8859,44 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "true: AVAILABLE units only (saleable, INV-006); false: every other status (pending PDI, held, rejected, display, ...)",
                         "name": "saleable",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Received on or after (YYYY-MM-DD)",
+                        "name": "receivedFrom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Received on or before (YYYY-MM-DD)",
+                        "name": "receivedTo",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "At least this many days since received (0-36500)",
+                        "name": "minAgeDays",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "At most this many days since received (0-36500)",
+                        "name": "maxAgeDays",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "-createdAt",
+                            "createdAt",
+                            "-receivedDate",
+                            "receivedDate",
+                            "unitNumber",
+                            "-unitNumber"
+                        ],
+                        "type": "string",
+                        "description": "Order (default -createdAt)",
+                        "name": "sort",
                         "in": "query"
                     },
                     {
@@ -8900,7 +8944,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "VALIDATION_FAILED (q, status, saleable, brandId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, page, limit)",
+                        "description": "VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, sort, page, limit)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -8910,7 +8954,7 @@ const docTemplate = `{
         },
         "/vehicle-units/{id}": {
             "get": {
-                "description": "The unit with its source (supplier, purchase order and line, goods receipt, line and captured unit, supplier reference, received date) and its append-only history; each history entry names its source document. The referenced records open through their own APIs and permissions. A unit at a location outside the caller's scope is 404. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "description": "The unit with its source (supplier, purchase order and line, goods receipt, line and captured unit, supplier reference, received date) its registration history (each entry names its source document), and the metadata of the files about it that the caller may open: its goods receipt's documents (attachments.view + goods_receipts.view) and its PDI evidence (attachments.view), each at a location in the caller's scope. Files open through GET /attachments/{id}/link or /content; no storage key or URL is returned. Without attachments.view documents is empty and documentsHidden true. Later status changes are its stock movements (GET /vehicle-units/{id}/stock-movements). The referenced records open through their own APIs and permissions. A unit at a location outside the caller's scope is 404. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
                 "produces": [
                     "application/json"
                 ],
@@ -9239,6 +9283,93 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "VALIDATION_FAILED (version, note, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-units/{id}/stock-movements": {
+            "get": {
+                "description": "The unit's append-only stock movement ledger entries (E-01), read-only: receipt, PDI disposition (PDI_PASS, QUALITY_HOLD, REJECT) and display moves, with status and location before and after, the source (goods receipt with its number, PDI inspection with its number, or a staff action), the actor and the server time. Oldest first (order=asc, default) or newest first (order=desc), in ledger sequence. A unit at a location outside the caller's scope is 404; a location outside the scope is named by ID only (code and name null). The cross-unit movement timeline is E-02. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-units"
+                ],
+                "summary": "List a vehicle unit's stock movements",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vehicle unit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "asc (default) or desc",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/VehicleUnitMovementPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (order, page, limit)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -14522,6 +14653,11 @@ const docTemplate = `{
         "VehicleUnit": {
             "type": "object",
             "properties": {
+                "ageDays": {
+                    "description": "AgeDays is the number of days since the received date (database date). It\nis the plain days-in-stock figure the list filters on; ageing buckets and\npolicy are E-07.",
+                    "type": "integer",
+                    "example": 12
+                },
                 "batterySerial": {
                     "type": "string",
                     "x-nullable": true
@@ -14653,6 +14789,11 @@ const docTemplate = `{
         "VehicleUnitDetail": {
             "type": "object",
             "properties": {
+                "ageDays": {
+                    "description": "AgeDays is the number of days since the received date (database date). It\nis the plain days-in-stock figure the list filters on; ageing buckets and\npolicy are E-07.",
+                    "type": "integer",
+                    "example": 12
+                },
                 "batterySerial": {
                     "type": "string",
                     "x-nullable": true
@@ -14688,6 +14829,16 @@ const docTemplate = `{
                 },
                 "createdAt": {
                     "type": "string"
+                },
+                "documents": {
+                    "description": "Documents the caller may open; empty without attachments.view, and then documentsHidden is true.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/VehicleUnitDocument"
+                    }
+                },
+                "documentsHidden": {
+                    "type": "boolean"
                 },
                 "events": {
                     "type": "array",
@@ -14790,6 +14941,55 @@ const docTemplate = `{
                 }
             }
         },
+        "VehicleUnitDocument": {
+            "type": "object",
+            "properties": {
+                "attachmentId": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "documentType": {
+                    "type": "string",
+                    "enum": [
+                        "DELIVERY_CHALLAN",
+                        "SUPPLIER_INVOICE",
+                        "PHOTO",
+                        "OTHER",
+                        "PDI_EVIDENCE"
+                    ],
+                    "example": "DELIVERY_CHALLAN"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "challan.pdf"
+                },
+                "sizeBytes": {
+                    "type": "integer",
+                    "example": 48211
+                },
+                "sourceId": {
+                    "type": "string"
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "example": "GRN-000001"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT",
+                        "PDI_INSPECTION"
+                    ],
+                    "example": "GOODS_RECEIPT"
+                }
+            }
+        },
         "VehicleUnitEvent": {
             "type": "object",
             "properties": {
@@ -14834,6 +15034,114 @@ const docTemplate = `{
                 "toStatus": {
                     "type": "string",
                     "example": "RECEIVED_PENDING_PDI"
+                }
+            }
+        },
+        "VehicleUnitMovement": {
+            "type": "object",
+            "properties": {
+                "actorId": {
+                    "type": "string"
+                },
+                "actorName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "fromLocationCode": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "fromLocationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "fromLocationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "fromStatus": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "movementType": {
+                    "type": "string",
+                    "enum": [
+                        "RECEIPT",
+                        "PDI_PASS",
+                        "QUALITY_HOLD",
+                        "REJECT",
+                        "DISPLAY_ON",
+                        "DISPLAY_OFF"
+                    ],
+                    "example": "RECEIPT"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "sourceReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "GRN-000001"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "GOODS_RECEIPT",
+                        "PDI_INSPECTION",
+                        "STAFF_ACTION"
+                    ],
+                    "example": "GOODS_RECEIPT"
+                },
+                "toLocationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "toLocationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "toLocationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "toStatus": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                }
+            }
+        },
+        "VehicleUnitMovementPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/VehicleUnitMovement"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },

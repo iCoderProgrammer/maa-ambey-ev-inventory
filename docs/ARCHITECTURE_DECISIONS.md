@@ -778,6 +778,36 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 - **Rollback:** the down migration refuses while any receipt was posted through D-07 or any `GOODS_RECEIVED` PO
   event exists.
 
+## ADR-026 — Vehicle list and detail; D-08 ↔ E-02 order (D-08, OQ-8)
+
+- **Status:** Accepted (technical sequencing; per-user brand scope and grants pending — RB-5).
+- **OQ-8 resolution (registry unchanged).** The registry lists D-08 → E-02 and E-02 → D-08. Neither needs the
+  other's code: D-08 needs per-unit history, E-02 needs vehicle identifiers. Same split as E-04 (`GET
+  /stock-items/{id}/stock-movements` while the timeline stays E-02): **D-08 first** adds a read-only per-unit ledger
+  read, `GET /vehicle-units/{id}/stock-movements`, and a history section on the vehicle detail screen; **E-02 later**
+  owns the cross-unit movement list/detail endpoint, its filters, actor/reference permission shaping, and the shared
+  timeline component, which may replace D-08's section and reuse its route and `VehicleUnitMovement` contract. No
+  ledger write, no new movement type, no E-02 filter scope in D-08.
+- **List (D-08 additions):** `modelId`, `receivedFrom`/`receivedTo`, `minAgeDays`/`maxAgeDays`, `sort` (6 values, each
+  ending with the unit id so pages are stable), `ageDays` on every unit (`current_date − received_date`, database date;
+  E-07 owns ageing policy and buckets). Filters are parameterised and combine with AND; joins are one-to-one, so no
+  row repeats; count and page use the same WHERE. Age filters are written on `received_date` so its index applies.
+  **Colour is not filterable**: vehicle units carry no colour (not captured on receipt, migration 000013 comment);
+  adding one needs a receiving rule first. **No per-user brand scope** exists (RB-5); location scope applies as in
+  D-04.
+- **Detail:** adds `documents` — the unit's goods receipt documents and PDI evidence — filtered by
+  `attachments.CanSee` (exported in this task: the same object-level rule as every attachment route), so a listed file
+  is always downloadable by that caller and others are not revealed; `documentsHidden` is `true` exactly when the
+  caller lacks `attachments.view` (permission-derived, says nothing about the data). No storage key or URL. The cost
+  stays shaped by `vehicle_units.cost.view` (D-04); movements carry no cost.
+- **Movements:** `stock_movements` for the unit (`item_type = 'VEHICLE_UNIT'`), ledger order (`seq`) asc/desc,
+  paginated, with from/to status and location, source (GRN / PDI inspection / staff action) and actor. A unit outside
+  the caller's scope is 404; a location outside the scope is named by id only.
+- **Performance (2,000 units, throwaway DB):** a list page with count 15–20 ms; brand+status+age 1.3 ms execution;
+  substring identifier search is a sequential scan (1.3 ms at 2,000 rows) — a trigram index is the follow-up if the
+  fleet grows by orders of magnitude; per-unit movements use `stock_movements_unit_idx`. No migration in D-08.
+- **Not here:** QR/barcode (D-09), reservations/sales/transfers/status changes, colour capture, E-02's timeline.
+
 ---
 
 ## Open questions (need client / accountant sign-off)
@@ -790,7 +820,7 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-4 | Are motor / battery / charger serials mandatory, and is battery-swap history needed (Architecture §12.3, INV-003/004)? Are motor/battery/charger serials unique — globally, per brand or per variant — and who may approve a documented exception (INV-003)? D-05 enforces chassis only. | D-04, D-05 |
 | OQ-5 | Deployment provider, API host, DB region, backup RPO/RTO (Architecture §12). | H-06, H-10 |
 | ~~OQ-6~~ | Session strategy — **resolved 2026-10-12**: local accounts + server-side sessions in an HttpOnly cookie (ADR-008). Session lifetimes (2h idle / 12h absolute) and the password policy are proposals the owner may change via config. | — |
-| OQ-8 | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI): which goes first, or should D-08 only link to the timeline once E-02 exists? | D-08, E-02 |
+| ~~OQ-8~~ | Registry cycle D-08 (vehicle list/detail UI) ↔ E-02 (stock movement timeline UI) — **resolved 2026-11-12 (ADR-026)**: D-08 first with a read-only per-unit movement route and detail history; E-02 afterwards owns the cross-unit timeline and shared component. Registry dependencies unchanged. | — |
 | OQ-9 | Attachment limits: accepted types (proposal JPEG, PNG, WebP, PDF) and per-file size (proposal 10 MB). Configurable size; type list in code + DB CHECK. | B-09 (defaults only) |
 | OQ-10 | Production attachment storage: S3-compatible provider/bucket, region, encryption, retention. Until then only the local private-directory driver exists. | H-06, deploy |
 | OQ-11 | Value set for `models.vehicle_type` (e.g. scooter / motorcycle classes) — free upper-case identifier until confirmed. | C-02, C-05 |

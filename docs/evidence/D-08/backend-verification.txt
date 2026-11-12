@@ -1,0 +1,78 @@
+D-08 Vehicle list and detail UI — BACKEND verification (2026-11-12)
+==================================================================
+
+Base: dev at fbb09a4 (D-07 frontend), clean tree. Rules: ADR-026 (OQ-8 resolution), ADR-018 (D-04).
+Throwaway PostgreSQL 18 (docker maa-bt-pg, :5494, migrated to 20). Shared dev DB not touched.
+
+Dependency check (code + tests, not only the log)
+-------------------------------------------------
+- D-04 COMPLETE: vehicles list/detail routes, scope, cost shaping — vehicles tests pass (baseline before changes).
+- D-05 IN PROGRESS only for its live browser DUPLICATE_IDENTIFIER re-check; uniqueness itself is enforced
+  (vehicle_units_chassis_key, DuplicateIdentifierError, posting 409 in receiving/post_integration_test.go).
+  Not blocking D-08 (read-only). Status not changed.
+- D-06 COMPLETE: GET /vehicle-units/{id}/pdi; PDI movements source PDI_INSPECTION — pdi tests pass.
+- E-02 NOT STARTED: registry cycle D-08 <-> E-02 (OQ-8). Resolution (ADR-026): D-08 first with a read-only per-unit
+  movement route (precedent: E-04 GET /stock-items/{id}/stock-movements); E-02 owns the cross-unit timeline later.
+  TASK_REGISTRY.csv not edited.
+
+API contract (exact: docs/API_CONVENTIONS.md "Vehicle units (D-04)", docs/openapi/*)
+------------------------------------------------------------------------------------
+GET /vehicle-units                        vehicle_units.view
+  q (unit number, chassis/frame, motor, battery, charger; normalised substring; % and _ literal)
+  status, saleable, brandId, modelId*, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId,
+  receivedFrom*, receivedTo* (YYYY-MM-DD inclusive), minAgeDays*, maxAgeDays* (0-36500 inclusive),
+  sort* (-createdAt default | createdAt | -receivedDate | receivedDate | unitNumber | -unitNumber; id tie-break),
+  page >= 1, limit 1-100 (25). Items gain ageDays*.      (* = new in D-08)
+GET /vehicle-units/{id}                   vehicle_units.view
+  + documents* [{attachmentId, sourceType GOODS_RECEIPT|PDI_INSPECTION, sourceId, sourceReference, documentType
+    DELIVERY_CHALLAN|SUPPLIER_INVOICE|PHOTO|OTHER|PDI_EVIDENCE, fileName, contentType, sizeBytes, createdAt}],
+  + documentsHidden* (true exactly when the caller lacks attachments.view)
+GET /vehicle-units/{id}/stock-movements*  vehicle_units.view
+  order asc (default) | desc, page, limit 1-100 (50) -> {items: VehicleUnitMovement[], page, limit, total}
+  VehicleUnitMovement: id, movementType, fromStatus, toStatus, from/to LocationId/Code/Name, sourceType
+  GOODS_RECEIPT|PDI_INSPECTION|STAFF_ACTION, sourceId, sourceReference, actorId, actorName, note, createdAt
+Errors: 401; 403 FORBIDDEN (no vehicle_units.view; neighbouring permissions grant nothing); 404 NOT_FOUND (unknown,
+invalid or out-of-scope unit); 422 VALIDATION_FAILED with field details. No write routes (405).
+
+Security
+--------
+- Cost: unchanged D-04 shaping (null + costHidden without vehicle_units.cost.view); movements and documents carry no cost.
+- Documents: filtered with attachments.CanSee (the attachment routes' own rule: attachments.view, file location in
+  scope, goods_receipts.view for receipt documents, vehicle_units.view for PDI evidence). No object key or URL.
+- Scope: list limited to scope (+ units without location); detail and movements 404 out of scope; movement locations
+  outside scope named by id only. No per-user brand scope exists (RB-5). No grants added.
+
+Database
+--------
+No migration. Existing indexes used (received_date, brand, status, location, stock_movements_unit_idx).
+Performance probe (temporary test, not committed; 2,000 registered units, ANALYZE):
+  default page (count + page)            19.6 ms   total=2000
+  search chassis "PERF-1999"              8.1 ms   total=1   (seq scan, 1.3 ms execution)
+  brand + status + maxAge, -receivedDate 16.6 ms   (top-N heapsort, 1.3 ms execution)
+  scope + model, unitNumber, page 80     15.3 ms
+  per-unit movements                      0.06 ms  (Index Scan stock_movements_unit_idx)
+Follow-up only if volume grows by orders of magnitude: pg_trgm index for substring search.
+
+Tests added
+-----------
+internal/modules/vehicles/http_test.go       deny-by-default incl. movements route; read-only (405) incl. movements;
+                                             new filter/sort/order validation (dates, age, sort injection, ranges)
+internal/modules/vehicles/rules_test.go      movement types/sources match the ledger migrations
+internal/modules/vehicles/list_detail_integration_test.go (PostgreSQL):
+  TestSearchCoversEveryStoredIdentifier            unit number, chassis, motor, battery, charger; wildcards literal; empty
+  TestFiltersCombineAcrossModelDatesAgeAndStatus   17 combinations incl. model, dates, age, status, q, saleable; ageDays
+  TestOrderingIsStableAcrossPages                  every sort, limit=1 paging == full list; past-the-end empty
+  TestDetailListsOnlyDocumentsTheCallerMayOpen     GRN docs + PDI evidence; location scope; goods_receipts.view;
+                                                   attachments.view; documentsHidden; no storage key
+  TestMovementsShowTheLedgerInOrderWithSources     RECEIPT then QUALITY_HOLD (PDI source + number), asc/desc, paging,
+                                                   status never saleable, no cost
+  TestMovementsFollowViewPermissionAndLocationScope out-of-scope 404, unknown 404, 403 with neighbouring permissions
+Existing vehicle, PDI, stock, receiving tests unchanged and passing.
+
+Checks (actual results)
+-----------------------
+make lint-backend (gofmt check, go vet, go.mod tidy, OpenAPI drift) ... exit 0  (golangci-lint not installed: skipped)
+go test ./... with PostgreSQL, REQUIRE_INTEGRATION_TESTS=1 ............. exit 0, 22 packages ok
+go test ./migrations ................................................... ok (no migration added)
+go build ./cmd/... ..................................................... ok
+make swagger ........................................................... regenerated docs/openapi (drift check passes)

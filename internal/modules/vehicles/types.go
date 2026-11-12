@@ -95,6 +95,10 @@ type Unit struct {
 	SupplierID        *string `json:"supplierId" extensions:"x-nullable"`
 	SupplierName      *string `json:"supplierName" extensions:"x-nullable"`
 	ReceivedDate      string  `json:"receivedDate" example:"2026-10-23"`
+	// AgeDays is the number of days since the received date (database date). It
+	// is the plain days-in-stock figure the list filters on; ageing buckets and
+	// policy are E-07.
+	AgeDays int `json:"ageDays" example:"12"`
 	// UnitCost is the acquisition cost (excluding tax); null without vehicle_units.cost.view.
 	UnitCost     *string   `json:"unitCost" extensions:"x-nullable" example:"95000.00"`
 	CostCurrency *string   `json:"costCurrency" extensions:"x-nullable" example:"INR"`
@@ -136,12 +140,74 @@ type Event struct {
 	CreatedAt       time.Time `json:"createdAt"`
 } //@name VehicleUnitEvent
 
-// Detail is a unit with its source and history.
+// Document sources and the document type of PDI evidence.
+const (
+	DocumentSourceGoodsReceipt  = "GOODS_RECEIPT"
+	DocumentSourcePDIInspection = "PDI_INSPECTION"
+	DocumentTypePDIEvidence     = "PDI_EVIDENCE"
+)
+
+// Document is the metadata of a private file about the unit: a document of its
+// goods receipt or evidence of one of its PDI inspections. Only files the caller
+// may open are listed (the attachment rules: attachments.view, the file's
+// location in scope, and goods_receipts.view for receipt documents); the file
+// itself is fetched through GET /attachments/{id}/link or /content, which check
+// again. No storage key or URL is returned.
+type Document struct {
+	AttachmentID    string    `json:"attachmentId"`
+	SourceType      string    `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION" example:"GOODS_RECEIPT"`
+	SourceID        string    `json:"sourceId"`
+	SourceReference string    `json:"sourceReference" example:"GRN-000001"`
+	DocumentType    string    `json:"documentType" enums:"DELIVERY_CHALLAN,SUPPLIER_INVOICE,PHOTO,OTHER,PDI_EVIDENCE" example:"DELIVERY_CHALLAN"`
+	FileName        string    `json:"fileName" example:"challan.pdf"`
+	ContentType     string    `json:"contentType" example:"application/pdf"`
+	SizeBytes       int64     `json:"sizeBytes" example:"48211"`
+	CreatedAt       time.Time `json:"createdAt"`
+	// Owner checks (not serialised): the attachment rules decide visibility.
+	ownerType, uploadedBy, locationID string
+} //@name VehicleUnitDocument
+
+// Detail is a unit with its source, registration history and permitted documents.
+// Status changes after registration are its stock movements
+// (GET /vehicle-units/{id}/stock-movements).
 type Detail struct {
 	Unit
 	Source Source  `json:"source"`
 	Events []Event `json:"events"`
+	// Documents the caller may open; empty without attachments.view, and then documentsHidden is true.
+	Documents       []Document `json:"documents"`
+	DocumentsHidden bool       `json:"documentsHidden"`
 } //@name VehicleUnitDetail
+
+// Movement types and sources of a vehicle unit's stock movements (E-01, D-06).
+var (
+	MovementTypes       = []string{"RECEIPT", "PDI_PASS", "QUALITY_HOLD", "REJECT", "DISPLAY_ON", "DISPLAY_OFF"}
+	MovementSourceTypes = []string{"GOODS_RECEIPT", "PDI_INSPECTION", "STAFF_ACTION"}
+)
+
+// Movement is one entry of a unit's append-only stock movement ledger (E-01),
+// read-only. The source names what caused it: its goods receipt, its PDI
+// inspection, or a staff action through the API. Location code and name are
+// null for a location outside the caller's scope.
+type Movement struct {
+	ID               string    `json:"id"`
+	MovementType     string    `json:"movementType" enums:"RECEIPT,PDI_PASS,QUALITY_HOLD,REJECT,DISPLAY_ON,DISPLAY_OFF" example:"RECEIPT"`
+	FromStatus       *string   `json:"fromStatus" extensions:"x-nullable"`
+	ToStatus         string    `json:"toStatus" example:"RECEIVED_PENDING_PDI"`
+	FromLocationID   *string   `json:"fromLocationId" extensions:"x-nullable"`
+	FromLocationCode *string   `json:"fromLocationCode" extensions:"x-nullable"`
+	FromLocationName *string   `json:"fromLocationName" extensions:"x-nullable"`
+	ToLocationID     *string   `json:"toLocationId" extensions:"x-nullable"`
+	ToLocationCode   *string   `json:"toLocationCode" extensions:"x-nullable" example:"SR1"`
+	ToLocationName   *string   `json:"toLocationName" extensions:"x-nullable"`
+	SourceType       string    `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION" example:"GOODS_RECEIPT"`
+	SourceID         *string   `json:"sourceId" extensions:"x-nullable"`
+	SourceReference  *string   `json:"sourceReference" extensions:"x-nullable" example:"GRN-000001"`
+	ActorID          string    `json:"actorId"`
+	ActorName        *string   `json:"actorName" extensions:"x-nullable"`
+	Note             *string   `json:"note" extensions:"x-nullable"`
+	CreatedAt        time.Time `json:"createdAt"`
+} //@name VehicleUnitMovement
 
 // Page is one page of a list.
 type Page[T any] struct {

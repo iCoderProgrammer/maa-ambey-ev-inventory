@@ -30,7 +30,7 @@ func unitHarness(t *testing.T) (*harness, session) {
 
 func TestVehicleUnitRoutesDenyByDefault(t *testing.T) {
 	h, s := unitHarness(t)
-	for _, path := range []string{"/vehicle-units", "/vehicle-units/" + someID} {
+	for _, path := range []string{"/vehicle-units", "/vehicle-units/" + someID, "/vehicle-units/" + someID + "/stock-movements"} {
 		if w := h.raw(http.MethodGet, "/api/v1"+path, "", "", nil); w.Code != http.StatusUnauthorized {
 			t.Errorf("%s without session: %d", path, w.Code)
 		}
@@ -51,6 +51,8 @@ func TestVehicleUnitsAreReadOnly(t *testing.T) {
 		{http.MethodPut, "/vehicle-units/" + someID},
 		{http.MethodPatch, "/vehicle-units/" + someID},
 		{http.MethodDelete, "/vehicle-units/" + someID},
+		{http.MethodPost, "/vehicle-units/" + someID + "/stock-movements"},
+		{http.MethodDelete, "/vehicle-units/" + someID + "/stock-movements"},
 	} {
 		w := h.raw(r.method, "/api/v1"+r.path, "{}", "application/json", &s)
 		if w.Code != http.StatusMethodNotAllowed {
@@ -98,4 +100,36 @@ func TestDuplicateIdentifierResponse(t *testing.T) {
 	if strings.Contains(w.Body.String(), someID) {
 		t.Fatalf("body reveals ids: %s", w.Body)
 	}
+}
+
+// D-08 filters, sort and the movement route reject bad input before the database.
+func TestVehicleUnitListAndMovementInputIsValidated(t *testing.T) {
+	h, s := unitHarness(t)
+	h.grant(s, access.PermVehicleUnitView)
+	for query, fields := range map[string][]string{
+		"?modelId=x&receivedFrom=2026-13-01&receivedTo=yesterday": {"modelId", "receivedFrom", "receivedTo"},
+		"?minAgeDays=-1&maxAgeDays=abc&sort=price":                {"minAgeDays", "maxAgeDays", "sort"},
+		"?minAgeDays=36501&sort=createdAt%3BDROP%20TABLE":         {"minAgeDays", "sort"},
+		"?receivedFrom=2026-02-01&receivedTo=2026-01-31":          {"receivedTo"},
+		"?minAgeDays=10&maxAgeDays=9":                             {"maxAgeDays"},
+		"?colour=Red&sort=-receivedDate&page=0":                   {"page"}, // unknown params are ignored, as before
+	} {
+		e := expectError(t, h.get(s, "/vehicle-units"+query), http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+		for _, f := range fields {
+			if !hasField(e.Details, f) {
+				t.Errorf("%s: missing field %s: %+v", query, f, e.Details)
+			}
+		}
+		if len(e.Details) != len(fields) {
+			t.Errorf("%s: details %+v, want only %v", query, e.Details, fields)
+		}
+	}
+	e := expectError(t, h.get(s, "/vehicle-units/"+someID+"/stock-movements?order=up&limit=500&page=x"),
+		http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+	for _, f := range []string{"order", "limit", "page"} {
+		if !hasField(e.Details, f) {
+			t.Errorf("movements: missing field %s: %+v", f, e.Details)
+		}
+	}
+	expectError(t, h.get(s, "/vehicle-units/not-a-uuid/stock-movements"), http.StatusNotFound, "NOT_FOUND")
 }

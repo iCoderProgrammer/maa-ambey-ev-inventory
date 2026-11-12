@@ -373,18 +373,34 @@ movement ledger (E-01, below).
 
 | Route | Permission | Notes |
 | --- | --- | --- |
-| `GET /vehicle-units` | `vehicle_units.view` | `VehicleUnitPage`; newest first; `q` matches `unitNumber` and the normalised chassis/frame, motor, battery and charger identifiers (trimmed, upper-cased, substring); filters `status` (13 INV-005 values), `brandId`, `variantId`, `supplierId`, `purchaseOrderId`, `goodsReceiptId`, `locationId`; `page` ≥ 1, `limit` 1–100 (default 25) |
-| `GET /vehicle-units/{id}` | `vehicle_units.view` | `VehicleUnitDetail` = `VehicleUnit` + `source` (supplier, PO + line, GRN + line + captured unit, `supplierReference`, `receivedDate`) + `events` (append-only; each with `sourceType`, `sourceId`, `sourceReference` e.g. the GRN number) |
+| `GET /vehicle-units` | `vehicle_units.view` | `VehicleUnitPage`; `q` matches `unitNumber` and the normalised chassis/frame, motor, battery and charger identifiers (trimmed, upper-cased, substring; `%`/`_` literal); filters `status` (13 INV-005 values), `saleable`, `brandId`, `modelId` (D-08), `variantId`, `supplierId`, `purchaseOrderId`, `goodsReceiptId`, `locationId`, `receivedFrom`/`receivedTo` (inclusive `YYYY-MM-DD`, D-08), `minAgeDays`/`maxAgeDays` (inclusive whole days since `receivedDate`, 0–36500, D-08) — all combine with AND; `sort` (D-08) `-createdAt` (default) · `createdAt` · `-receivedDate` · `receivedDate` · `unitNumber` · `-unitNumber`, each ending with the unit id (stable pages); `page` ≥ 1, `limit` 1–100 (default 25) |
+| `GET /vehicle-units/{id}` | `vehicle_units.view` | `VehicleUnitDetail` = `VehicleUnit` + `source` (supplier, PO + line, GRN + line + captured unit, `supplierReference`, `receivedDate`) + `events` (registration history; each with `sourceType`, `sourceId`, `sourceReference` e.g. the GRN number) + `documents` + `documentsHidden` (D-08, below) |
+| `GET /vehicle-units/{id}/stock-movements` | `vehicle_units.view` | D-08. `VehicleUnitMovementPage` of `VehicleUnitMovement`: the unit's ledger entries (read-only), `order=asc` (default, ledger sequence) or `desc`; `page` ≥ 1, `limit` 1–100 (default 50). Out-of-scope or unknown unit 404; 422 on `order`, `page`, `limit` |
 
 - `VehicleUnit`: `id`, `unitNumber` (`MAE-VEH-000001`, format pending OQ-28), `status`, brand/model/variant ids and
   names, `chassisNumber`/`chassisNormalised`, `motorSerial`, `batterySerial`, `chargerSerial` (all nullable: nothing is
   mandatory while `RECEIVED_PENDING_PDI`), `locationId`/`locationCode`/`locationName` (nullable, OQ-24), `sourceType`
   (`GOODS_RECEIPT`), `supplierId`/`supplierName`, `receivedDate`, `unitCost` (decimal string) + `costCurrency`
-  (`INR`) — both **null with `costHidden: true`** without `vehicle_units.cost.view` — `version`, timestamps.
+  (`INR`) — both **null with `costHidden: true`** without `vehicle_units.cost.view` — `version`, timestamps, and
+  `ageDays` (D-08: whole days since `receivedDate`, database date; ageing policy/buckets are E-07). No colour: units
+  carry none (not captured on receipt), so there is no colour filter.
+- `documents` (D-08): metadata of the files about the unit that the caller may open, oldest first —
+  `attachmentId`, `sourceType` (`GOODS_RECEIPT` | `PDI_INSPECTION`), `sourceId`, `sourceReference` (GRN / PDI number),
+  `documentType` (`DELIVERY_CHALLAN`, `SUPPLIER_INVOICE`, `PHOTO`, `OTHER`, or `PDI_EVIDENCE`), `fileName`,
+  `contentType`, `sizeBytes`, `createdAt`. Filtered by the attachment rule itself (`attachments.CanSee`: `attachments.view`,
+  the file's location in scope, `goods_receipts.view` for receipt documents), so every listed file is one
+  `GET /attachments/{id}/link` / `/content` will serve. No storage key or URL. Without `attachments.view` the list is
+  empty and `documentsHidden: true`.
+- `VehicleUnitMovement` (D-08): `id`, `movementType` (`RECEIPT`, `PDI_PASS`, `QUALITY_HOLD`, `REJECT`, `DISPLAY_ON`,
+  `DISPLAY_OFF`), `fromStatus` (null for the receipt), `toStatus`, `from…`/`toLocationId`/`Code`/`Name` (code and name
+  null for a location outside the caller's scope), `sourceType` (`GOODS_RECEIPT` | `PDI_INSPECTION` | `STAFF_ACTION`),
+  `sourceId`/`sourceReference` (GRN or PDI inspection; null for a staff action), `actorId`, `actorName`, `note`,
+  `createdAt` (server time). No cost. The cross-unit movement timeline and its filters are E-02 (ADR-026).
 - Location scope: units without a location are visible to every viewer; a unit at a location needs it in the caller's
   scope (list filtered; detail 404; a `locationId` filter outside the scope is 422 `VALIDATION_FAILED` on `locationId`).
 - Errors: 401, 403 `FORBIDDEN`, 404 `NOT_FOUND` (unknown/invalid id, or out of scope), 422 `VALIDATION_FAILED`
-  (`q`, `status`, `saleable`, the id filters, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
+  (`q`, `status`, `saleable`, the id filters, `receivedFrom`, `receivedTo` (also before `receivedFrom`), `minAgeDays`,
+  `maxAgeDays` (also below `minAgeDays`), `sort`, `page`, `limit`). No POST/PUT/PATCH/DELETE (405).
 - `saleable=true` (D-06) lists only `AVAILABLE` units (INV-006); `saleable=false` every other status (pending PDI,
   `QUALITY_HOLD`, `REJECTED`, `DISPLAY`, …). `VehicleUnit` itself is unchanged.
 - The referenced PO, receipt and receipt documents open through their own routes and permissions.

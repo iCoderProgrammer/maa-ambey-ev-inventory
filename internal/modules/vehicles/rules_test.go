@@ -99,3 +99,21 @@ func TestCostIsRemovedWithoutCostPermission(t *testing.T) {
 		t.Fatalf("catalogue cost permission: %+v", u)
 	}
 }
+
+// The movement types and sources a unit's history can show are the vehicle
+// ledger values of the database (E-01, E-05, D-06).
+func TestMovementValuesMatchTheLedger(t *testing.T) {
+	var sql strings.Builder
+	for _, f := range []string{"000018_stock_counts.up.sql", "000019_pdi_inspections.up.sql"} {
+		b, err := fs.ReadFile(migrations.FS, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sql.Write(b)
+	}
+	for _, v := range append(slices.Clone(MovementTypes), MovementSourceTypes...) {
+		if !strings.Contains(sql.String(), "'"+v+"'") {
+			t.Errorf("%s is not a ledger value", v)
+		}
+	}
+}
