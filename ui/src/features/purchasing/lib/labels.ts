@@ -21,6 +21,7 @@ export const eventLabels: Record<POEvent['action'], string> = {
   APPROVAL_NOT_REQUIRED: 'Approved without approver (within threshold)',
   RETURNED: 'Returned to draft',
   CANCELLED: 'Cancelled',
+  GOODS_RECEIVED: 'Goods received',
 }
 
 export const warningLabels: Record<LineWarning, string> = {

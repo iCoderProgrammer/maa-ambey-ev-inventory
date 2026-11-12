@@ -1,0 +1,88 @@
+D-07 Atomic receipt posting transaction — FRONTEND verification (2026-11-12)
+============================================================================
+
+Scope: React posting workflow against the real route POST /api/v1/goods-receipts/{id}/post
+(body {version, locationId}, Idempotency-Key + X-CSRF-Token). Backend: commit 2a70a65 (unchanged in this phase).
+Stack: throwaway PostgreSQL (docker maa-bt-pg, :5494, migrated to 20, RBAC_ALLOW_PROPOSED_GRANTS=true), Go API :8096,
+Vite :5188. Shared dev DB (:5436) not touched — still at migration 12. No mock adapter; no fake success.
+
+Files
+-----
+New:      ui/src/features/receiving/components/PostReceiptDialog.tsx (summary, location, impact, confirm, errors, retry)
+          ui/src/features/receiving/lib/postErrors.ts (error → message/blockers/uncertain)
+          ui/src/features/receiving/post.test.tsx (10 Vitest tests)
+          ui/e2e/goods-receipt-posting.e2e.ts (real-API Playwright flow)
+Changed:  ui/src/features/receiving/api/goodsReceipts.ts (location fields; post schemas; PostAction with frozen
+          Idempotency-Key; postGoodsReceipt refines id/status POSTED/location)
+          ui/src/features/receiving/hooks/useGoodsReceipts.ts (usePostGoodsReceipt: set detail, invalidate GRN list,
+          receivable, PO, vehicle units, PDI; refetch detail on error)
+          ui/src/features/receiving/GoodsReceiptPages.tsx (Post action, success banner, Received at/Posted rows,
+          PostedUnitsCard)
+          ui/src/features/receiving/components/ReceiptEditor.tsx (onDirtyChange; placeholder "Post receipt" card
+          replaced by a note)
+          ui/src/features/purchasing/api/purchaseOrders.ts + lib/labels.ts (PO event GOODS_RECEIVED)
+          ui/src/features/access/api/access.ts (goods_receipts.post)
+          ui/src/features/receiving/{receiving,duplicateIdentifier}.test.tsx, ui/e2e/goods-receipts.e2e.ts (fixtures
+          and the replaced placeholder)
+
+Behaviour
+---------
+- Post receipt shown only when the server returns actions.post; disabled while the editor has unsaved changes.
+- Dialog: PO line / ordered / posted earlier / this receipt / left after posting, accepted chassis; "Received at"
+  from /me locationScope (required; preselected only when exactly one location — no invented default, OQ-24);
+  impact: accepted units → awaiting PDI, not saleable; rejected units → no vehicle; missing chassis warning.
+- One action + Idempotency-Key per confirmation; button disabled while pending ("Posting…").
+- Errors: POSTING_BLOCKED (per-line blockers), DUPLICATE_IDENTIFIER, VERSION_CONFLICT / INVALID_STATE (re-read +
+  "changed since you opened this dialog"), IDEMPOTENCY_KEY_REUSED, 401/403/404/422, 5xx/network/invalid response
+  = outcome unknown → re-read; still DRAFT → "Send the same request again" (same key); now POSTED →
+  "Show the posting result" (same key, server replays; no second posting).
+- Success shown only from the server answer; units listed from the result / GET /vehicle-units?goodsReceiptId.
+
+Scenarios
+---------
+1 Successful posting ............................ PASS (Playwright desktop + Pixel 7; Chrome walkthrough)
+2 Repeated click prevention ..................... PASS (dblclick → exactly 1 POST, Playwright + Chrome network log)
+3 Validation (incomplete capture) ............... PASS (POSTING_BLOCKED "Line 1: units", 0 vehicles registered)
+4 Quantity conflict ............................. BLOCKED via UI/API — D-03 already refuses drafts that together
+                                                   exceed the PO, so no UI path produces it; covered by Go test
+                                                   TestPostIsRefusedUntilTheReceiptIsComplete / concurrency tests
+                                                   (backend evidence) and Vitest blocker rendering.
+5 Permission denied ............................. PASS (approver without goods_receipts.post: no button; API 403;
+                                                   0 vehicles); Vitest 403 message
+6 Stale version ................................. PASS (receipt saved elsewhere → "changed by someone else" +
+                                                   changed notice; re-post with new version succeeds)
+7 PO history .................................... PASS (PO page "Goods received" + GRN number; PO RECEIVED 3/3)
+8 Responsive .................................... PASS (Pixel 7 project; no horizontal overflow ≤1px)
+9 Regression .................................... PASS (full Playwright suite 87 passed, 5 skipped; Vitest 327)
+Uncertain outcome / same-key retry .............. PASS (Vitest; not reproducible live without fault injection)
+
+Visible Chrome walkthrough (Claude in Chrome, new tab group, 2026-11-12 11:51)
+-------------------------------------------------------------------------------
+GRN-000028 (PO-000036, 3 received: 2 accepted, 1 rejected) signed in as e2e.catalogue:
+Post receipt → summary (3 / 0 / 3 (2 acc., 1 rej.) / 0), Received at BT1, impact text → double-click Post receipt →
+1 POST (200) → "GRN-000028 posted. 2 vehicle units registered at BT1, awaiting PDI (not saleable). Purchase order
+PO-000036 is now received." → MAE-VEH-000025/26 Awaiting PDI → reload: same → PO-000036 Received, 3/3, history
+"Goods received · GRN-000028". Console: no errors.
+
+Checks
+------
+- ESLint (--max-warnings=0) ...... PASS     - Prettier --check ..... PASS     - tsc -b --noEmit ...... PASS
+- go vet ......................... PASS     - golangci-lint ........ not installed (skipped by Makefile)
+- go test ./... with PostgreSQL (REQUIRE_INTEGRATION_TESTS=1, throwaway DB) ... PASS (inside make ci)
+- Vitest: make ci run → 2 failed / 325 passed (pdi.test.tsx findByRole, duplicateIdentifier.test.tsx 5s timeout,
+  machine load; both pass in isolation 21/21); re-run --maxWorkers=2 → 32 files / 327 tests PASS
+- Vite production build .......... PASS     - go build ./... ...... PASS
+- Playwright posting spec ........ 2 passed (chromium desktop + Pixel 7)
+- Playwright full suite .......... 87 passed, 5 skipped (8.5m), 0 failed
+
+Bugs found and fixed during this phase
+--------------------------------------
+- "Changed since you opened" notice compared against the page query that had already refreshed → keep the version
+  seen at open (openedVersion).
+- The editor's old disabled "Post receipt" placeholder duplicated the new action (strict-mode locator failure in
+  goods-receipts.e2e.ts) → placeholder replaced by a note; tests updated.
+
+Not done (by instruction / pending approval)
+--------------------------------------------
+No D-08, no receipt reversal, no supplier returns, no grants added, no commit, no push. Pending: OQ-24, OQ-25,
+OQ-27, RB-5 (backend evidence).

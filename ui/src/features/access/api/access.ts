@@ -89,6 +89,8 @@ export const Permission = {
   AdjustmentView: 'stock.adjustment.view',
   AdjustmentCreate: 'stock.adjustment.create',
   AdjustmentApprove: 'stock.adjustment.approve',
+  /** Goods receipt posting (D-07): registers vehicle units. No role holds it yet. */
+  GoodsReceiptPost: 'goods_receipts.post',
   /** PDI checklist and disposition (D-06). Reading uses VehicleUnitView. No role holds these yet. */
   PDIRecord: 'vehicle_units.pdi.record',
   PDIChecklistManage: 'vehicle_units.pdi.checklist.manage',

@@ -1,7 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { pdiKeys } from '@/features/pdi/hooks/usePdi'
 import { poKeys } from '@/features/purchasing/hooks/usePurchaseOrders'
+import { vehicleUnitKeys } from '@/features/vehicles/hooks/useVehicleUnits'
 import {
   getGoodsReceipt,
+  postGoodsReceipt,
+  type PostAction,
   listGoodsReceipts,
   listReceivablePurchaseOrders,
   type GRNDetail,
@@ -65,4 +69,29 @@ export function useGRNMutation<V>(fn: (v: V) => Promise<GRNDetail>) {
 export function useRefreshGoodsReceipts() {
   const queryClient = useQueryClient()
   return () => queryClient.invalidateQueries({ queryKey: grnKeys.all })
+}
+
+/**
+ * Posting (D-07). Nothing in the cache changes before the server confirms: on
+ * success the posted receipt replaces the cached detail and every query the
+ * posting affects refreshes (receipts, purchase orders, vehicle units, PDI
+ * queues). On any failure the receipt refreshes too, because it may have moved
+ * on (posted by someone else, changed, cancelled). Not retried automatically.
+ */
+export function usePostGoodsReceipt() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (a: PostAction) => postGoodsReceipt(a),
+    onSuccess: async (r) => {
+      queryClient.setQueryData(grnKeys.detail(r.receipt.id), r.receipt)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [...grnKeys.all, 'list'] }),
+        queryClient.invalidateQueries({ queryKey: [...grnKeys.all, 'receivable'] }),
+        queryClient.invalidateQueries({ queryKey: poKeys.all }),
+        queryClient.invalidateQueries({ queryKey: vehicleUnitKeys.all }),
+        queryClient.invalidateQueries({ queryKey: pdiKeys.all }),
+      ])
+    },
+    onError: (_e, a) => queryClient.invalidateQueries({ queryKey: grnKeys.detail(a.grnId) }),
+  })
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { unitStatusSchema } from '@/features/vehicles/api/vehicleUnits'
 import { apiRequest } from '@/lib/api/client'
 import { pageSchema, type Page } from '@/features/catalogue/api/contracts'
 import { queryString } from '@/features/catalogue/api/catalogue'
@@ -59,6 +60,10 @@ export const receiptSchema = z.object({
   cancelReason: z.string().nullable(),
   postedBy: z.string().nullable(),
   postedAt: stamp.nullable(),
+  /** Where the goods were received; chosen when posting (D-07), null for drafts. */
+  locationId: z.string().nullable(),
+  locationCode: z.string().nullable(),
+  locationName: z.string().nullable(),
   lineCount: z.number().int().nonnegative(),
   receivedQuantity: z.number().int().nonnegative(),
   acceptedQuantity: z.number().int().nonnegative(),
@@ -147,7 +152,7 @@ export const actionsSchema = z.object({
   cancel: z.boolean(),
   addDocument: z.boolean(),
   authoriseOverReceipt: z.boolean(),
-  /** Posting changes stock and is a separate step; always false until it exists. */
+  /** The caller may post the draft (goods_receipts.post + view); the server re-checks everything. */
   post: z.boolean(),
 })
 
@@ -266,4 +271,69 @@ export function addGoodsReceiptDocument(
   input: { attachmentId: string; documentType: GRNDocumentType; note?: string | null },
 ): Promise<GRNDetail> {
   return apiRequest(`${base}/${id(grnId)}/documents`, detailSchema, { method: 'POST', body: input })
+}
+
+// ── Posting (D-07) ──────────────────────────────────────────────────────────
+
+/** A vehicle unit registered by the posting, as it is now (RECEIVED_PENDING_PDI at posting). */
+export const postedUnitSchema = z.object({
+  vehicleUnitId: z.string(),
+  unitNumber: z.string(),
+  goodsReceiptUnitId: z.string(),
+  chassisNumber: z.string().nullable(),
+  status: unitStatusSchema,
+})
+export type PostedUnit = z.infer<typeof postedUnitSchema>
+
+export const postResultSchema = z.object({
+  receipt: detailSchema,
+  vehicleUnits: z.array(postedUnitSchema),
+})
+export type PostResult = z.infer<typeof postResultSchema>
+
+/**
+ * One posting with its Idempotency-Key, made once per confirmation and frozen:
+ * an unknown outcome is resolved by sending the same action again (the server
+ * posts once or replays the first posting), never by a new key.
+ */
+export interface PostAction {
+  readonly grnId: string
+  readonly body: Readonly<{ version: number; locationId: string }>
+  readonly idempotencyKey: string
+}
+
+export function newPostAction(
+  grnId: string,
+  body: { version: number; locationId: string },
+): PostAction {
+  return Object.freeze({
+    grnId,
+    body: Object.freeze({ ...body }),
+    idempotencyKey: crypto.randomUUID(),
+  })
+}
+
+export function samePost(
+  a: PostAction,
+  grnId: string,
+  body: { version: number; locationId: string },
+): boolean {
+  return (
+    a.grnId === grnId && a.body.version === body.version && a.body.locationId === body.locationId
+  )
+}
+
+/** POST /goods-receipts/{id}/post; the answer must be this receipt, POSTED at the requested location. */
+export function postGoodsReceipt(action: PostAction): Promise<PostResult> {
+  return apiRequest(
+    `${base}/${id(action.grnId)}/post`,
+    postResultSchema.refine(
+      (r) =>
+        r.receipt.id === action.grnId &&
+        r.receipt.status === 'POSTED' &&
+        r.receipt.locationId === action.body.locationId,
+      { message: 'expected the posted receipt' },
+    ),
+    { method: 'POST', body: action.body, headers: { 'Idempotency-Key': action.idempotencyKey } },
+  )
 }

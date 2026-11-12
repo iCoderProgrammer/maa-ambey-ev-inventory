@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Check, Lock, Plus, Save, Trash2 } from 'lucide-react'
+import { AlertTriangle, Lock, Plus, Save, Trash2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   useFieldArray,
   useForm,
@@ -40,8 +40,8 @@ import {
 /**
  * The draft receipt stepper (Design Specification §4.5): delivered lines →
  * unit identifiers → supplier documents → review. "Save draft" sends the whole
- * draft and changes no stock; "Post receipt" is a separate step that does not
- * exist yet. Entries stay in the form when the server refuses a save.
+ * draft and changes no stock; posting is a separate action on the page (D-07)
+ * that posts the saved draft only. Entries stay in the form when the server refuses a save.
  */
 
 // Printable ASCII only, as the server requires (normalised form is the same everywhere).
@@ -228,7 +228,16 @@ function overrideCovers(line: GRNLine, received: number) {
   return line.overReceipt !== null && line.overReceipt.quantity >= received
 }
 
-export function ReceiptEditor({ grn, documents }: { grn: GRNDetail; documents: ReactNode }) {
+export function ReceiptEditor({
+  grn,
+  documents,
+  onDirtyChange,
+}: {
+  grn: GRNDetail
+  documents: ReactNode
+  /** Tells the page whether there are unsaved changes (posting uses the saved draft only). */
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const [step, setStep] = useState<StepKey>('lines')
   const [failure, setFailure] = useState<ActionError | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
@@ -241,6 +250,9 @@ export function ReceiptEditor({ grn, documents }: { grn: GRNDetail; documents: R
   })
   const save = useGRNMutation((v: FormValues) => saveGoodsReceipt(grn.id, toSave(base, v)))
   const dirty = form.formState.isDirty
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
   // Someone else saved meanwhile: saving would be refused (stale version); offer a reload.
   const ownSave = save.data?.version === grn.version
   const changedElsewhere = grn.version !== base && !ownSave
@@ -865,20 +877,13 @@ function ReviewStep({ grn, control }: { grn: GRNDetail; control: StepProps['cont
           </p>
         )}
       </Card>
-      <Card title="Post receipt" description="Posting is a separate step from saving a draft.">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-start gap-2 text-sm text-ink">
-            <Lock className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
-            Posting creates the vehicle units and stock movements and updates the purchase order in
-            one step. It is not available yet; this draft does not change stock.
-          </p>
-          <Button type="button" variant="secondary" disabled aria-describedby="post-unavailable">
-            <Check className="size-4" aria-hidden="true" />
-            Post receipt
-          </Button>
-        </div>
-        <p id="post-unavailable" className="sr-only">
-          Posting receipts is not available yet.
+      <Card title="Posting" description="Posting is a separate step from saving a draft.">
+        <p className="flex items-start gap-2 text-sm text-ink">
+          <Lock className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
+          Save the draft first. Posting — the Post receipt action at the top of the page, for people
+          allowed to post — registers the accepted units as vehicles (awaiting PDI) and updates the
+          purchase order in one step; the receipt then becomes final. Saving a draft does not change
+          stock.
         </p>
       </Card>
     </div>

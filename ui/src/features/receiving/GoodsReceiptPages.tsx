@@ -23,8 +23,19 @@ import {
 } from '@/features/catalogue/lib/presentation'
 import { poStatusLabels } from '@/features/purchasing/lib/labels'
 import { ApiError } from '@/lib/api/client'
-import type { GoodsReceipt, GRNDetail, GRNDocument, GRNLine, GRNStatus } from './api/goodsReceipts'
+import type {
+  GoodsReceipt,
+  GRNDetail,
+  GRNDocument,
+  GRNLine,
+  GRNStatus,
+  PostResult,
+} from './api/goodsReceipts'
 import { CancelReceiptDialog, DocumentDialog, NewReceiptDialog } from './components/ReceiptDialogs'
+import { PostReceiptDialog } from './components/PostReceiptDialog'
+import { UnitStatusBadge } from '@/features/pdi/PdiPages'
+import { useVehicleUnitList } from '@/features/vehicles/hooks/useVehicleUnits'
+import type { VehicleUnitStatus } from '@/features/vehicles/api/vehicleUnits'
 import { ReceiptEditor } from './components/ReceiptEditor'
 import { useGoodsReceipt, useGoodsReceiptList } from './hooks/useGoodsReceipts'
 import {
@@ -106,8 +117,9 @@ function NoStockNote() {
       className="mb-4 rounded-card border border-info/30 bg-info-subtle px-4 py-3 text-sm text-ink"
     >
       A draft receipt <strong>does not change stock</strong>. It records what arrived, the unit
-      identifiers and the supplier’s documents. Posting the receipt — which creates the vehicle
-      units and stock movements — is a separate step that is not available yet.
+      identifiers and the supplier’s documents. <strong>Posting</strong> the saved receipt registers
+      the accepted units as vehicles (awaiting PDI, not saleable) and updates the purchase order;
+      after that the receipt is final.
     </p>
   )
 }
@@ -307,7 +319,9 @@ export function GoodsReceiptDetailPage() {
 function ReceiptDetailBody({ id }: { id: string }) {
   const q = useGoodsReceipt(id)
   const perms = usePerms()
-  const [open, setOpen] = useState<'cancel' | 'document' | null>(null)
+  const [open, setOpen] = useState<'cancel' | 'document' | 'post' | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [posted, setPosted] = useState<PostResult | null>(null)
   const close = () => {
     setOpen(null)
   }
@@ -355,18 +369,54 @@ function ReceiptDetailBody({ id }: { id: string }) {
         status={<GRNStatusBadge status={grn.status} />}
         description={`${grn.purchaseOrderNumber} · ${grn.supplierName} · received ${formatDate(grn.receivedDate)} · started by ${grn.createdByName}`}
         actions={
-          a.cancel ? (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setOpen('cancel')
-              }}
-            >
-              Cancel draft
-            </Button>
+          a.cancel || a.post ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {a.cancel && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen('cancel')
+                  }}
+                >
+                  Cancel draft
+                </Button>
+              )}
+              {a.post && (
+                <Button
+                  disabled={dirty}
+                  title={dirty ? 'Save the draft first: only saved data is posted' : undefined}
+                  onClick={() => {
+                    setOpen('post')
+                  }}
+                >
+                  <PackageCheck className="size-4" aria-hidden="true" />
+                  Post receipt
+                </Button>
+              )}
+            </div>
           ) : undefined
         }
       />
+      {a.post && dirty && (
+        <p
+          role="note"
+          className="mb-4 rounded-card border border-warning/30 bg-warning-subtle px-4 py-3 text-sm text-ink"
+        >
+          You have unsaved changes. Save the draft before posting: only the saved receipt is posted.
+        </p>
+      )}
+      {posted && posted.receipt.id === grn.id && (
+        <p
+          role="status"
+          className="mb-4 rounded-card border border-success/30 bg-success-subtle px-4 py-3 text-sm text-ink"
+        >
+          <strong>{posted.receipt.number} posted.</strong> {posted.vehicleUnits.length} vehicle unit
+          {posted.vehicleUnits.length === 1 ? '' : 's'} registered at{' '}
+          {posted.receipt.locationCode ?? 'the chosen location'}, awaiting PDI (not saleable).
+          Purchase order {posted.receipt.purchaseOrderNumber} is now{' '}
+          {poStatusLabels[posted.receipt.purchaseOrderStatus].toLowerCase()}.
+        </p>
+      )}
       {grn.status === 'DRAFT' && <NoStockNote />}
       {grn.status === 'DRAFT' && !grn.purchaseOrderReceivable && (
         <p
@@ -406,12 +456,25 @@ function ReceiptDetailBody({ id }: { id: string }) {
             ['Totals (server)', quantities(grn)],
             ['Units captured', `${String(grn.unitCount)} of ${String(grn.receivedQuantity)}`],
             ['Stock', grn.stockPosted ? 'Posted' : 'Not changed (draft)'],
+            ...(grn.status === 'POSTED'
+              ? ([
+                  [
+                    'Received at',
+                    grn.locationCode ? `${grn.locationCode} — ${grn.locationName ?? ''}` : '—',
+                  ],
+                  [
+                    'Posted',
+                    `${formatDateTime(grn.postedAt)}${grn.postedBy === perms.meId ? ' by you' : ''}`,
+                  ],
+                ] as [string, ReactNode][])
+              : []),
           ]}
         />
       </Card>
 
+      {grn.status === 'POSTED' && <PostedUnitsCard grn={grn} result={posted} />}
       {a.edit ? (
-        <ReceiptEditor key={grn.id} grn={grn} documents={documents} />
+        <ReceiptEditor key={grn.id} grn={grn} documents={documents} onDirtyChange={setDirty} />
       ) : (
         <div className="flex flex-col gap-6">
           <ReadOnlyLines grn={grn} />
@@ -423,8 +486,95 @@ function ReceiptDetailBody({ id }: { id: string }) {
       </div>
 
       {open === 'cancel' && <CancelReceiptDialog grn={grn} onClose={close} />}
+      {open === 'post' && (
+        <PostReceiptDialog
+          grn={grn}
+          onClose={close}
+          onPosted={(r) => {
+            setPosted(r)
+            close()
+          }}
+        />
+      )}
       <DocumentDialog open={open === 'document'} grn={grn} onClose={close} />
     </>
+  )
+}
+
+/**
+ * The vehicle units a posted receipt registered: from the posting answer right
+ * after posting, otherwise read from the vehicle unit API (vehicle_units.view).
+ * Their status comes from the server; new units await PDI.
+ */
+function PostedUnitsCard({ grn, result }: { grn: GRNDetail; result: PostResult | null }) {
+  const me = useMe()
+  const canView = (me.data?.permissions ?? []).includes(Permission.VehicleUnitView)
+  const list = useVehicleUnitList(
+    { goodsReceiptId: grn.id, limit: 100 },
+    { enabled: canView && !result },
+  )
+  let rows:
+    { id: string; unitNumber: string; chassis: string | null; status: VehicleUnitStatus }[] | null =
+    null
+  if (result && result.receipt.id === grn.id)
+    rows = result.vehicleUnits.map((u) => ({
+      id: u.vehicleUnitId,
+      unitNumber: u.unitNumber,
+      chassis: u.chassisNumber,
+      status: u.status,
+    }))
+  else if (list.data)
+    rows = list.data.items.map((u) => ({
+      id: u.id,
+      unitNumber: u.unitNumber,
+      chassis: u.chassisNumber,
+      status: u.status,
+    }))
+  let body: ReactNode
+  if (!rows && !canView)
+    body = <p className="text-sm text-muted">Viewing vehicle units needs vehicle permission.</p>
+  else if (!rows && list.isError)
+    body = (
+      <ErrorState
+        error={list.error}
+        title="Could not load the vehicle units"
+        onRetry={() => void list.refetch()}
+      />
+    )
+  else if (!rows) body = <LoadingState label="Loading vehicle units…" />
+  else if (rows.length === 0)
+    body = <p className="text-sm text-muted">No accepted unit: no vehicle was registered.</p>
+  else
+    body = (
+      <ul
+        className="flex flex-col gap-2 text-sm"
+        aria-label="Vehicle units registered by this receipt"
+      >
+        {rows.map((u) => (
+          <li key={u.id} className="flex flex-wrap items-center gap-2">
+            {canView ? (
+              <Link to={`/procurement/pdi/${u.id}`} className={`${linkClass} font-mono`}>
+                {u.unitNumber}
+              </Link>
+            ) : (
+              <span className="font-mono">{u.unitNumber}</span>
+            )}
+            <span className="font-mono text-xs text-muted">
+              {u.chassis ?? 'no chassis/frame number'}
+            </span>
+            <UnitStatusBadge status={u.status} />
+          </li>
+        ))}
+      </ul>
+    )
+  return (
+    <Card
+      title="Vehicle units"
+      description="Registered by this receipt. New units await PDI and are not saleable until they pass."
+      className="mb-6"
+    >
+      {body}
+    </Card>
   )
 }
 

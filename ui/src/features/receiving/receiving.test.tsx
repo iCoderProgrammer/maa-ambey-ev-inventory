@@ -27,6 +27,9 @@ const receipt: GoodsReceipt = {
   cancelReason: null,
   postedBy: null,
   postedAt: null,
+  locationId: null,
+  locationCode: null,
+  locationName: null,
   lineCount: 0,
   receivedQuantity: 0,
   acceptedQuantity: 0,
@@ -236,7 +239,7 @@ describe('goods receipt list', () => {
 })
 
 describe('goods receipt draft editor', () => {
-  it('saves a partial receipt with units, sends every PO line and keeps Post receipt separate and unavailable', async () => {
+  it('saves a partial receipt with units, sends every PO line and keeps posting a separate step', async () => {
     const user = userEvent.setup()
     let sent: Record<string, unknown> = {}
     api((u, init) => {
@@ -262,10 +265,9 @@ describe('goods receipt draft editor', () => {
     })
     await user.keyboard(' ch-0001 ')
     await user.click(screen.getByRole('button', { name: /Review and save/ }))
-    expect(screen.getByRole('button', { name: 'Post receipt' })).toBeDisabled()
-    expect(
-      screen.getByText(/It is not available yet; this draft does not change stock/),
-    ).toBeInTheDocument()
+    // Without goods_receipts.post there is no Post action; the review step only explains posting.
+    expect(screen.queryByRole('button', { name: 'Post receipt' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Save the draft first\. Posting/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save draft' }))
     await waitFor(() => {
       expect(sent.version).toBe(2)

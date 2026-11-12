@@ -212,9 +212,11 @@ test.describe('goods receipts (D-03)', () => {
     await expect(page.getByText('Same chassis/frame number as line 1, unit 1')).toBeVisible()
     await chassisField(page, 2).fill(`CH-${run}-2`)
     await page.getByLabel('Condition (line 1, unit 2)').selectOption('REJECTED')
-    // Review: Post receipt is separate and not available.
+    // Review: posting is a separate action (D-07); the review step explains it and saves only.
     await page.getByRole('button', { name: /Review and save/ }).click()
-    await expect(page.getByRole('button', { name: 'Post receipt' })).toBeDisabled()
+    await expect(
+      page.getByText(/Save the draft first\. Posting/).filter({ visible: true }),
+    ).toBeVisible()
     await page.getByRole('button', { name: 'Save draft' }).click()
     await expect(page.getByText(/Draft saved .* Stock is unchanged/)).toBeVisible()
 

@@ -51,7 +51,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) |
-| D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
+| D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | COMPLETE — backend (`2a70a65`) + frontend (uncommitted); OQ-24/25/27, RB-5 pending |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
@@ -2979,8 +2979,8 @@ Pending client decisions: OQ-31, OQ-41, RB-5. D-07 not started.
 
 ### D-07 — Atomic receipt posting transaction
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase not started.
-  Pending client decisions: OQ-24, OQ-25, OQ-27, RB-5.
+- **Status:** COMPLETE (2026-11-12) — backend committed `2a70a65`; frontend phase complete, not committed (by
+  instruction). Pending client decisions: OQ-24, OQ-25, OQ-27, RB-5 (mechanism built; decisions recorded in ADR-025).
 - **Started:** 2026-11-12
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_07_atomic-receipt-posting-transaction.md
 - Git at start: `dev` at `df9a633`, clean tree (D-06 frontend and the testing report committed first at the user's
@@ -2999,10 +2999,16 @@ Pending client decisions: OQ-31, OQ-41, RB-5. D-07 not started.
 - [x] AC1 Repeated post cannot duplicate stock (idempotency key + receipt lock + per-unit movement key; tested concurrently)
 - [x] AC2 Any validation/DB failure rolls back every affected entity (blockers, duplicates, simulated failure after all writes)
 - [x] AC3 PO remaining quantities re-validated under lock; concurrent postings cannot exceed the PO
-- [ ] AC4 Frontend reflects committed state only — frontend phase
+- [x] AC4 Frontend reflects committed state only (success only from the server answer; uncertain outcome re-reads and
+  retries with the same key; units shown from the result / vehicle unit API)
 
 #### Stage 1 — UI
-Result: NOT APPLICABLE in this phase (backend-only by instruction).
+Backend phase: NOT APPLICABLE (backend-only by instruction).
+Frontend phase: COMPLETE — `PostReceiptDialog` (pre-posting summary, "Received at" from the caller's location scope,
+required, preselected only for a single location — OQ-24; impact list; confirm/cancel; loading + double-submit guard),
+Post action on the receipt page (only with `actions.post`; disabled with unsaved edits), success banner, "Received at"/
+"Posted" rows, `PostedUnitsCard` (units awaiting PDI, links to PDI). Editor placeholder "Post receipt" card replaced by
+a note. No mock adapter — built directly on the real route.
 
 #### Stage 2 — Backend
 Result: COMPLETE
@@ -3017,18 +3023,33 @@ Result: COMPLETE
   exit 0 (Vitest 317). golangci-lint not installed. Evidence: `docs/evidence/D-07/backend-verification.txt`.
 
 #### Stage 3 — API integration
-Result: NOT APPLICABLE in this phase. Contract: API_CONVENTIONS "Posting a goods receipt (D-07)".
+Result: COMPLETE (frontend phase). `postGoodsReceipt` → `POST /goods-receipts/{id}/post` with frozen `PostAction`
+(Idempotency-Key per confirmation, reused only for the unchanged request after an unknown outcome), Zod-refined result
+(id, POSTED, location). `usePostGoodsReceipt` sets the detail and invalidates GRN list/receivable, PO, vehicle units,
+PDI. Errors via `lib/postErrors.ts`: POSTING_BLOCKED, DUPLICATE_IDENTIFIER, VERSION_CONFLICT, INVALID_STATE,
+IDEMPOTENCY_KEY_REUSED, 401/403/404/422, 5xx/network/invalid = uncertain (re-read; same-key retry or "Show the posting
+result"). PO history enum + label `GOODS_RECEIVED`; permission constant `goods_receipts.post`.
+Checks: ESLint, Prettier, tsc, Vitest 32 files / 327 tests (`--maxWorkers=2`; the plain `make ci` Vitest run had 2
+load timeouts in pdi/duplicateIdentifier tests that pass in isolation), Vite build, go vet + Go integration tests
+(`make ci`, throwaway DB), go build.
 
 #### Stage 4 — Browser testing
-Result: NOT APPLICABLE in this phase (no UI yet).
+Result: COMPLETE (throwaway stack only). Playwright `e2e/goods-receipt-posting.e2e.ts` desktop + Pixel 7: blocked
+until complete, stale version, double click → 1 POST, 2 units RECEIVED_PENDING_PDI at the chosen location, rejected
+unit not registered, reload persistence, no overflow, PO history "Goods received" + RECEIVED, user without
+`goods_receipts.post` sees no action and gets 403. Full suite 87 passed / 5 skipped. Visible Chrome walkthrough
+(GRN-000028 → posted, 1 POST, PO-000036 history) with no console errors. Scenario 4 (quantity conflict) not
+reachable via UI (D-03 refuses over-PO drafts); covered by Go tests. Evidence:
+`docs/evidence/D-07/frontend-verification.txt`.
 
 #### Known issues / pending approvals
-- Frontend phase must add `GOODS_RECEIVED` to the PO history enum (the PO screen would otherwise refuse a posted PO's
-  history) and the posting UI; until then no UI can post.
+- `GOODS_RECEIVED` added to the PO history enum (frontend phase). D-05's live DUPLICATE_IDENTIFIER path now exists via
+  this route (posting dialog renders it; D-05 status left for its own re-verification).
+- `make ci` Vitest under full parallelism can time out on a loaded machine (2 tests); not a D-07 defect.
 - Reversal of posted receipts and return of rejected units: not approved (PO-005, OQ-33). Shared dev DB still at 12.
 
 #### Final status
-IN PROGRESS — D-07 backend phase complete, not committed (by instruction). Frontend phase not started.
+COMPLETE — backend `2a70a65`; frontend complete and verified, not committed (by instruction). Not started: D-08.
 
 ### BROWSER-TEST-2026-11-11 — Browser testing of all completed features (user-requested; not a registry task)
 

@@ -101,6 +101,8 @@ export const eventSchema = z.object({
     'APPROVAL_NOT_REQUIRED',
     'RETURNED',
     'CANCELLED',
+    /** A goods receipt posting changed the status (D-07); note = the GRN number. */
+    'GOODS_RECEIVED',
   ]),
   fromStatus: z.string().nullable(),
   toStatus: z.string(),
