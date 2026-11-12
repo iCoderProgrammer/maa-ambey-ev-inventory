@@ -124,6 +124,7 @@ const vehicle = {
   supplierId: 's1',
   supplierName: 'Supplier One',
   receivedDate: '2026-11-10',
+  ageDays: 1,
   unitCost: null,
   costCurrency: null,
   costHidden: true,
@@ -145,6 +146,8 @@ const vehicle = {
     receivedDate: '2026-11-10',
   },
   events: [],
+  documents: [],
+  documentsHidden: false,
 }
 const attachment = (id: string, locationId: string | null = 'l1') => ({
   id,

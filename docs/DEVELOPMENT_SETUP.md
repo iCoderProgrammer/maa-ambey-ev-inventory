@@ -259,6 +259,11 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   `e2e/goods-receipt-posting.e2e.ts` (D-07) uses the same fixture with `E2E_CATALOGUE_*` (the D-02/D-03 grants plus
   `goods_receipts.post` and `vehicle_units.view`, and one location in scope) and `E2E_PRICE_APPROVER_*` (approves the
   PO; has `goods_receipts.view/manage` but not `goods_receipts.post`). Throwaway database only.
+  `e2e/vehicles.e2e.ts` (D-08) uses the same fixture: `E2E_CATALOGUE_*` (the D-07 grants plus
+  `vehicle_units.cost.view`, `vehicle_units.pdi.record`, `vehicle_units.pdi.checklist.manage`, `attachments.*`, one
+  location) creates 30 units per run through posting and records one PDI pass (it adds a placeholder checklist item
+  for the fixture brand if none applies); `E2E_PRICE_APPROVER_*` approves the PO; `E2E_CATALOGUE_VIEWER_*` needs
+  `vehicle_units.view` in the same location but no cost or attachment permission; `E2E_USERNAME` needs nothing.
   `e2e/parts-stock.e2e.ts` (E-04) uses `E2E_CATALOGUE_*` with `stock.parts.view/receive/issue`,
   `stock_items.view/manage` and `suppliers.view/manage`, and `E2E_CATALOGUE_VIEWER_*` with `stock_items.view` and
   `stock.parts.view`; both need a location in their scope (`cmd/access scope-add`). Throwaway database only.

@@ -67,8 +67,8 @@ describe('sidebar', () => {
       'true',
     )
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    const vehicles = within(nav).getByRole('link', { name: /Vehicle Units/ })
-    expect(vehicles).toHaveAccessibleName('Vehicle Units, planned')
+    const vehicles = within(nav).getByRole('link', { name: /Stock Movements/ })
+    expect(vehicles).toHaveAccessibleName('Stock Movements, planned')
     const dashboard = within(nav).getByRole('link', { name: 'Dashboard' })
     expect(dashboard).toHaveAttribute('aria-current', 'page')
 
@@ -79,13 +79,13 @@ describe('sidebar', () => {
 
     // Keyboard focus shows the visual label as a tooltip (title attributes do not).
     vehicles.focus()
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Vehicle Units · Planned')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Stock Movements · Planned')
   })
 
   it('shows no tooltips while the sidebar is expanded', () => {
     renderApp('/')
     within(screen.getByRole('navigation', { name: 'Main' }))
-      .getByRole('link', { name: /Vehicle Units/ })
+      .getByRole('link', { name: /Stock Movements/ })
       .focus()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })

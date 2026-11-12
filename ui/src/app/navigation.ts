@@ -68,8 +68,10 @@ export const navigation: NavSection[] = [
         label: 'Vehicle Units',
         path: '/inventory/vehicles',
         icon: Zap,
-        backlog: ['D-04', 'D-05', 'D-08', 'D-09'],
-        summary: 'Serialised vehicle registry with chassis, motor and battery identifiers.',
+        backlog: [],
+        summary:
+          'Serialised vehicle registry: search, filters, identifiers, status, documents and movement history.',
+        permission: 'vehicle_units.view',
       },
       {
         label: 'Spare Parts & Accessories',

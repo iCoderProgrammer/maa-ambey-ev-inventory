@@ -45,6 +45,7 @@ const unit: VehicleUnit = {
   supplierId: 's1',
   supplierName: 'Example Supplier',
   receivedDate: '2026-10-23',
+  ageDays: 3,
   unitCost: '95000.00',
   costCurrency: 'INR',
   costHidden: false,
@@ -83,6 +84,8 @@ const detail: VehicleUnitDetail = {
       createdAt: t,
     },
   ],
+  documents: [],
+  documentsHidden: false,
 }
 
 const page = <T,>(items: T[]) => ({ items, page: 1, limit: 25, total: items.length })
@@ -160,7 +163,11 @@ describe('vehicle unit API client', () => {
 
   it('exposes no create, update or delete call for the read-only API', () => {
     const calls = Object.entries(api).filter(([, v]) => typeof v === 'function')
-    expect(calls.map(([k]) => k).sort()).toEqual(['getVehicleUnit', 'listVehicleUnits'])
+    expect(calls.map(([k]) => k).sort()).toEqual([
+      'getVehicleUnit',
+      'listVehicleUnitMovements',
+      'listVehicleUnits',
+    ])
   })
 
   it('rejects a hidden cost that carries an amount, and unknown statuses', async () => {

@@ -30,6 +30,7 @@ import {
   PdiQueuePage,
 } from '@/features/pdi/PdiPages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
+import { VehicleUnitDetailPage, VehicleUnitsPage } from '@/features/vehicles/VehiclePages'
 import { NotFoundPage } from './NotFoundPage'
 import { PlannedModulePage } from './PlannedModulePage'
 import { RouteErrorPage } from './RouteErrorPage'
@@ -53,6 +54,8 @@ export const routes: RouteObject[] = [
               { index: true, element: <DashboardPage /> },
               { path: 'admin/users', element: <RolesPage /> },
               { path: 'documents', element: <DocumentsPage /> },
+              { path: 'inventory/vehicles', element: <VehicleUnitsPage /> },
+              { path: 'inventory/vehicles/:unitId', element: <VehicleUnitDetailPage /> },
               { path: 'inventory/parts', element: <PartsPage /> },
               { path: 'inventory/parts/categories', element: <PartCategoriesPage /> },
               { path: 'inventory/parts/:itemId', element: <PartDetailPage /> },

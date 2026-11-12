@@ -42,13 +42,7 @@ describe('application shell', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const label of [
-      'Vehicle Units',
-      'Stock Movements',
-      'Customers',
-      'Reports',
-      'Quotations',
-    ]) {
+    for (const label of ['Stock Movements', 'Reservations', 'Customers', 'Reports', 'Quotations']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')
@@ -85,14 +79,14 @@ describe('application shell', () => {
 
   it('marks planned modules honestly instead of faking workflows', () => {
     mockApi()
-    renderApp('/inventory/vehicles')
+    renderApp('/inventory/movements')
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Vehicle Units' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Stock Movements' })).toBeInTheDocument()
     expect(screen.getByText('This module is not implemented yet.')).toBeInTheDocument()
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' })
     expect(within(crumbs).getByText('Inventory')).toBeInTheDocument()
     expect(
-      within(screen.getByRole('list', { name: 'Backlog tasks' })).getByText('D-04'),
+      within(screen.getByRole('list', { name: 'Backlog tasks' })).getByText('E-02'),
     ).toBeInTheDocument()
   })
 

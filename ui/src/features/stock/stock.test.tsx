@@ -186,7 +186,8 @@ describe('stock movement API client', () => {
         expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
       )
     }
-    // The only movement write routes are the two display moves; nothing edits or lists movements.
+    // The only movement write routes are the two display moves; nothing edits movements.
+    // Two read-only histories of one item exist; the cross-item timeline is E-02.
     const movementPaths = Object.keys(spec.paths).filter(
       (p) => p.includes('movement') || p.includes('display') || p.endsWith('/status'),
     )
@@ -194,10 +195,13 @@ describe('stock movement API client', () => {
       // Read-only receipt/issue history of one parts SKU (E-04); not a vehicle movement route.
       '/stock-items/{id}/stock-movements',
       '/vehicle-units/{id}/put-on-display',
+      // Read-only ledger of one vehicle unit (D-08, ADR-026).
+      '/vehicle-units/{id}/stock-movements',
       '/vehicle-units/{id}/take-off-display',
     ])
-    // That route only lists: no write or delete method on it.
+    // Those routes only list: no write or delete method on them.
     expect(Object.keys(spec.paths['/stock-items/{id}/stock-movements'] ?? {})).toEqual(['get'])
+    expect(Object.keys(spec.paths['/vehicle-units/{id}/stock-movements'] ?? {})).toEqual(['get'])
   })
 
   it('exposes only the display action calls: no generic, list or delete call', () => {

@@ -1,6 +1,69 @@
 import { ApiError, ClientErrorCode } from '@/lib/api/client'
 import { formatINR } from '@/features/pricing/lib/format'
-import type { VehicleUnit } from '../api/vehicleUnits'
+import type {
+  VehicleUnit,
+  VehicleUnitDocument,
+  VehicleUnitMovementType,
+  VehicleUnitSort,
+  VehicleUnitStatus,
+} from '../api/vehicleUnits'
+
+/**
+ * Saleable stock is AVAILABLE only (INV-006). Every other status — awaiting PDI,
+ * quality or service hold, rejected, on display, reserved, sold, delivered,
+ * returns — is never presented as saleable (INV-007, PO-006). Presentation only:
+ * the server decides every reservation and sale.
+ */
+export function isSaleable(status: VehicleUnitStatus): boolean {
+  return status === 'AVAILABLE'
+}
+
+/** Why a status is not saleable, in plain words. */
+export const notSaleableReason: Partial<Record<VehicleUnitStatus, string>> = {
+  RECEIVED_PENDING_PDI: 'Awaiting PDI — not saleable until it passes inspection.',
+  QUALITY_HOLD: 'On quality hold — not saleable.',
+  SERVICE_HOLD: 'On service hold — not saleable.',
+  REJECTED: 'Rejected at PDI — not saleable.',
+  DISPLAY: 'On display — not saleable until it is taken off display.',
+  RESERVED: 'Reserved for a customer — not available to sell.',
+  SOLD: 'Sold — not stock for sale.',
+  DELIVERED: 'Delivered — not stock for sale.',
+  ORDERED: 'Ordered — not in stock yet.',
+  IN_TRANSIT: 'In transit — not in stock yet.',
+  RETURN_PENDING_INSPECTION: 'Return awaiting inspection — not saleable.',
+  RETURNED_TO_SUPPLIER: 'Returned to the supplier — not in stock.',
+}
+
+export const movementTypeLabels: Record<VehicleUnitMovementType, string> = {
+  RECEIPT: 'Received into stock',
+  PDI_PASS: 'Passed PDI',
+  QUALITY_HOLD: 'Put on quality hold',
+  REJECT: 'Rejected',
+  DISPLAY_ON: 'Put on display',
+  DISPLAY_OFF: 'Taken off display',
+}
+
+export const documentTypeLabels: Record<VehicleUnitDocument['documentType'], string> = {
+  DELIVERY_CHALLAN: 'Delivery challan',
+  SUPPLIER_INVOICE: 'Supplier invoice',
+  PHOTO: 'Photo',
+  OTHER: 'Other document',
+  PDI_EVIDENCE: 'PDI evidence',
+}
+
+export const sortLabels: Record<VehicleUnitSort, string> = {
+  '-createdAt': 'Newest registered',
+  createdAt: 'Oldest registered',
+  '-receivedDate': 'Received (newest)',
+  receivedDate: 'Received (oldest)',
+  unitNumber: 'Unit number (A–Z)',
+  '-unitNumber': 'Unit number (Z–A)',
+}
+
+/** "0 days", "1 day", "12 days". */
+export function ageText(days: number): string {
+  return `${String(days)} ${days === 1 ? 'day' : 'days'}`
+}
 
 /** Shown instead of an amount when the cost exists but the caller may not see it. */
 export const HIDDEN_COST_TEXT = 'Recorded (not visible to you)'

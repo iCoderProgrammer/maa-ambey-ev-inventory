@@ -52,7 +52,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) |
 | D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | COMPLETE — backend (`2a70a65`) + frontend (uncommitted); OQ-24/25/27, RB-5 pending |
-| D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | IN PROGRESS — backend phase COMPLETE; frontend in progress (OQ-8 resolved, ADR-026) |
+| D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | COMPLETE — backend `1b3b2ad` + frontend (separate commit); OQ-8 resolved (ADR-026); RB-5 pending |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
 | E-02 | Stock movement timeline UI | P0 | E-01, D-08 | NOT STARTED |
@@ -3074,7 +3074,7 @@ COMPLETE — backend `2a70a65`; frontend complete and verified, not committed (b
 
 ### D-08 — Vehicle list and detail UI
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase in progress.
+- **Status:** COMPLETE (2026-11-12) — backend committed `1b3b2ad`; frontend committed separately (`feat(vehicles): ... (D-08 frontend)`).
   Pending: per-user brand scope and grants (RB-5); colour capture on receipt (no rule).
 - **Started:** 2026-11-12
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_08_vehicle-list-and-detail-ui.md
@@ -3094,10 +3094,12 @@ COMPLETE — backend `2a70a65`; frontend complete and verified, not committed (b
 - [x] AC2 Filters combine correctly (AND; brand/model/variant/status/saleable/location/supplier/PO/GRN/received dates/age; colour not stored → not offered)
 - [x] AC3 Cost and attachments are protected server-side (cost permission; documents filtered by the attachment rule; no storage keys)
 - [x] AC4 Detail history is navigable (registration events + paginated per-unit ledger with source references) — backend
-- [ ] AC5 Screens: list/detail with filters, states, links — frontend phase
+- [x] AC5 Screens: list/detail with filters, states, links, permission-aware cost/documents (real API)
 
 #### Stage 1 — UI
-Result: NOT APPLICABLE in the backend phase (backend first by instruction).
+Result: COMPLETE (frontend phase, built directly on the real API — no mock adapter). `VehiclePages.tsx`: list
+(search, 11 filters + sort in the URL, server paging, table/cards, skeleton/empty/no-results/invalid-filter/error/
+403/401 states) and detail (vehicle, identifiers, procurement links, documents, shared PDI history, ledger history).
 
 #### Stage 2 — Backend
 Result: COMPLETE
@@ -3111,10 +3113,14 @@ Result: COMPLETE
   `docs/evidence/D-08/backend-verification.txt`.
 
 #### Stage 3 — API integration
-Result: pending (frontend phase).
+Result: COMPLETE (frontend). List/detail/movements/PDI/attachments on the real API; lint, Prettier,
+tsc, Vitest 349 + regression test, build PASS. Bug fixed: debounced search dropped a filter chosen meanwhile.
 
 #### Stage 4 — Browser testing
-Result: pending (frontend phase).
+Result: PASS (Playwright: vehicles.e2e.ts desktop + Pixel 7, repeat ×2; full suite 89 passed / 5 skipped).
+Visible Chrome walkthrough 9 steps PASS (list, search, filters, paging, detail, history, links, viewer, no permission);
+re-run on request: 10 steps PASS incl. saleable filter and phone width.
+Evidence: `docs/evidence/D-08/frontend-verification.txt`.
 
 #### Known issues / pending approvals
 - Colour: vehicle units have no colour (not captured on receipt) — no colour filter/column until a receiving rule exists.
@@ -3122,7 +3128,7 @@ Result: pending (frontend phase).
 - Substring search scans `vehicle_units` (fine at dealership scale); trigram index is the follow-up if volume grows.
 
 #### Final status
-IN PROGRESS — backend complete; frontend phase next.
+COMPLETE — backend `1b3b2ad`; frontend complete, verified and committed separately. Not started: D-09.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

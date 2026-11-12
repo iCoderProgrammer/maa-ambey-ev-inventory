@@ -1,0 +1,116 @@
+D-08 Vehicle list and detail UI — FRONTEND verification (2026-11-12)
+===================================================================
+
+Base: dev at 1b3b2ad (D-08 backend). Real API only (GET /vehicle-units, /vehicle-units/{id},
+/vehicle-units/{id}/stock-movements, /vehicle-units/{id}/pdi, /attachments/{id}/link|content); no mock adapter.
+Throwaway stack: PostgreSQL 18 (docker maa-bt-pg :5494, migration 20), Go API :8096
+(RBAC_ALLOW_PROPOSED_GRANTS=true), Vite :5188. Shared dev DB (:5436) not touched.
+
+Files
+-----
+New:      ui/src/features/vehicles/VehiclePages.tsx (list + detail)
+          ui/src/features/vehicles/vehiclePages.test.tsx (page + client tests)
+          ui/e2e/vehicles.e2e.ts (real-API Playwright flow)
+Changed:  ui/src/features/vehicles/api/vehicleUnits.ts (ageDays, documents/documentsHidden + refine, D-08 list
+          params and sorts, movement schema + listVehicleUnitMovements)
+          ui/src/features/vehicles/hooks/useVehicleUnits.ts (useVehicleUnitMovements, more permission flags)
+          ui/src/features/vehicles/lib/presentation.ts (isSaleable, notSaleableReason, movement/document/sort labels)
+          ui/src/app/routes.tsx (/inventory/vehicles, /inventory/vehicles/:unitId)
+          ui/src/app/navigation.ts (Vehicle Units implemented; link needs vehicle_units.view)
+          tests whose planned-module example or fixtures changed: app/App.test.tsx,
+          components/layout/AppShell.test.tsx, features/stock/stock.test.tsx (read-only movement routes),
+          features/pdi/pdi.test.tsx and features/vehicles/vehicles.test.tsx (new required fields)
+          docs/DEVELOPMENT_SETUP.md (e2e prerequisites)
+
+Behaviour
+---------
+List: server search (unit number, chassis/frame, motor, battery, charger; 350 ms debounce), filters status,
+saleable, brand -> model -> variant (catalogue API; disabled without catalogue.view), location (the caller's
+assigned locations from /me), supplier (suppliers API; disabled without suppliers.view), received from/to,
+min/max days in stock, sort (server orders). All filters in the URL, page reset on change, "Clear filters".
+Server pagination. Desktop table / phone card list (ResponsiveTable). Cost column only with
+vehicle_units.cost.view, hidden cost shown as "Recorded (not visible to you)". Every non-AVAILABLE status is
+marked "Not saleable"; no reserve/sell/transfer/status action anywhere. Colour: no filter/column (not stored).
+States: skeleton, empty inventory, no results, invalid filter (server field messages), error + retry,
+403 access denied, 401 -> sign-in, no permission (no request sent).
+Detail: header with status and saleable/not-saleable reason; Vehicle (unit number, internal ID, brand, model,
+variant, status, location, days in stock, cost only when the server sends it); Identifiers; Procurement
+(supplier, PO and GRN links only with their view permissions, supplier reference, received, registered by);
+Documents (server-filtered, private download via attachment link; "no permission" when documentsHidden);
+PDI (the shared D-06 InspectionHistory + link to the PDI screen); Movement history (read-only ledger, oldest
+first, paginated, source links: GRN, PDI inspection). Back link keeps the list filters. QR: none (D-09).
+
+Bug found and fixed during this phase
+-------------------------------------
+- Search could drop a filter chosen while the 350 ms search pause was running (the memoised search callback
+  used the first render's URL setter, so React Router rebuilt the URL from stale parameters). Fixed by calling
+  the latest setter through a ref; regression test "keeps a filter chosen while a search is still pending"
+  (verified to fail without the fix). Other list pages share the older pattern (not changed: out of scope).
+- Observed in automation only: two filter changes within one frame (before React re-renders) can overwrite
+  each other, because the shared useListParams helper builds on the last rendered URL. Not reachable by a
+  person; the e2e waits for each change to render. Shared helper left unchanged (cross-feature).
+
+Scenarios (Playwright, desktop + Pixel 7, real API)
+---------------------------------------------------
+A Listing: real list; chassis, motor, battery search; search + status + location + supplier + received date
+  (29 awaiting PDI); brand -> model + AVAILABLE (1, the PDI-passed unit); min days in stock -> no results;
+  clear filters; sort by unit number + server paging (1–25 / 26–30 of 30); no horizontal overflow;
+  table (desktop) / card list (phone) ....................................................... PASS
+B Detail: identifiers, Available status, location, internal ID, cost (₹950.00 with cost permission), PO link,
+  challan download (private attachment API), PDI inspection history (Pass), movement history 2 entries
+  (Received into stock -> Passed PDI with PDI link), back keeps search, GRN link, Open PDI ........ PASS
+C Permissions: accountant (view only): no amount, "Recorded (not visible to you)", documents hidden; API
+  unitCost null / documents [] / documentsHidden true; attachment link 403/404. User without
+  vehicle_units.view: list, direct detail URL denied; API 403 on list, detail, movements .......... PASS
+D Responsive: Pixel 7 project runs the whole flow ........................................... PASS
+E Regression: full Playwright suite (D-06 PDI, D-07 posting and all earlier specs) ........... see Checks
+Repeat: vehicles.e2e.ts --repeat-each=2 -> 4 passed (no flake).
+
+Checks
+------
+ESLint (--max-warnings=0) .......... PASS
+Prettier --check ................... PASS
+tsc -b --noEmit .................... PASS
+Vitest (--maxWorkers=2) ............ 33 files / 349 tests PASS (before the regression test; see final run below)
+Vite production build .............. PASS
+Vitest final (--maxWorkers=2) ....... 33 files / 350 tests PASS (incl. the search regression test)
+Playwright vehicles.e2e.ts ......... 2 passed (desktop + Pixel 7); --repeat-each=2 -> 4 passed
+Playwright full suite .............. 89 passed, 5 skipped, 0 failed (8.8m) — D-06 PDI, D-07 posting included
+
+Visible Chrome walkthrough (Claude in Chrome, new tab groups, 2026-11-12) — COMPLETE
+---------------------------------------------------------------------------------
+1 sign in (e2e.catalogue) -> Vehicle Units list with identifiers, status, Not saleable, cost ...... PASS
+2 chassis search CH-DMWDA52LG-01 -> 1–1 of 1, URL ?q= ............................................. PASS
+3 Status Awaiting PDI + Brand -> combined, Model unlocked, URL carries both ..................... PASS
+4 server paging 1–25 -> 26–50 of 758, page=2 in URL, filters kept .................................. PASS
+5 detail MAE-VEH-000731: Available banner, internal ID, identifiers (charger "Not recorded"), BT1, 0 days,
+  cost ₹950.00, supplier/PO/GRN links, registered by, challan listed ............................. PASS
+6 PDI-000024 Pass in inspection history; movements "Received into stock" (GRN-000030) -> "Passed PDI"
+  (PDI-000024), 1–2 of 2 ............................................................................. PASS
+7 GRN-000030 link from history -> posted receipt; back; PO-000031 link -> PO (Received 30/30) ..... PASS
+8 e2e.catviewer (view only): cost "Recorded (not visible to you)", documents not listed ........... PASS
+9 e2e.active (no permission): direct detail URL -> Access denied, no Vehicle Units link .......... PASS
+Console errors: none. Document download not clicked in Chrome (would save a file in the user's browser
+without asking); verified by Playwright (download event + filename).
+
+Visible Chrome re-run (Claude in Chrome, new tab group, 2026-11-12, user request "test the flow") — COMPLETE
+--------------------------------------------------------------------------------------------------------
+Same throwaway stack (maa-bt-pg :5494 migration 20, API :8096 rebuilt from 1b3b2ad + working tree, Vite :5188).
+1 e2e.catalogue sign in -> Vehicle Units list (identifiers, status, Not saleable, location, supplier, cost) ... PASS
+2 chassis search CH-MMWDAA4S5-01 -> 1–1 of 1 (MAE-VEH-000763), URL ?q= ............................. PASS
+3 Status Awaiting PDI + Brand -> combined, Model unlocked, URL status+brandId ...................... PASS
+4 paging 1–25 -> 26–50 of 758, page=2 in URL, filters kept ......................................... PASS
+5 Saleable "Available only" -> only Available rows; detail MAE-VEH-000763: banner, internal ID,
+  identifiers, cost ₹950.00, supplier, PO-000037, GRN-000035, challan listed ........................ PASS
+6 PDI-000028 Pass; movements Received into stock (GRN-000035) -> Passed PDI (PDI-000028), 1–2 of 2 ... PASS
+7 back link keeps saleable+brand filters; GRN-000035 (Posted 30/30) and PO-000037 (Received 30/30) .. PASS
+8 e2e.catviewer: cost "Recorded (not visible to you)", documents not listed; API unitCost null,
+  documents [], documentsHidden true ................................................................ PASS
+9 e2e.active: direct detail URL -> Access denied, no Vehicle Units link; API list/detail/movements 403 PASS
+10 phone width (412 px same-origin frame; window was maximised): card list, no table, scrollWidth 395
+  < 410 (no horizontal overflow) .................................................................... PASS
+Console errors: none. Download not clicked (would save a file in the user's browser).
+API log: 17 x 500/503 + 1 x /ready 503, every non-ready one logged "context canceled" — requests the
+browser aborted on navigation/filter change (TanStack Query cancellation); no response reached the
+browser. Cross-module logging behaviour (auth, catalogue, PO, GRN, PDI, vehicles), not a D-08 defect;
+not changed (out of scope).
