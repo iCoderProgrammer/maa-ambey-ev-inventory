@@ -218,6 +218,8 @@ func actionsFor(d Detail, a access.Access) Actions {
 	manage := a.Has(access.PermGoodsReceiptManage)
 	draft := d.Status == StatusDraft
 	return Actions{
+		Post: draft && d.PurchaseOrderReceivable && a.Has(access.PermGoodsReceiptPost) &&
+			a.Has(access.PermGoodsReceiptView),
 		Edit:                 draft && manage && d.PurchaseOrderReceivable,
 		Cancel:               draft && manage,
 		AddDocument:          draft && manage && a.Has(access.PermAttachmentsUpload),

@@ -1,0 +1,72 @@
+D-07 Atomic receipt posting transaction — BACKEND verification (2026-11-12)
+===========================================================================
+
+Scope: Go backend only (migration, posting service/repository/route, tests, OpenAPI, docs). No UI change.
+Base: dev at df9a633 (D-06 frontend 3713a7b + testing report), clean tree. Rules: ADR-025;
+contract: docs/API_CONVENTIONS.md "Posting a goods receipt (D-07)".
+
+Dependencies verified in code and tests
+---------------------------------------
+- D-03: drafts, availability, over-receipt authorisation, chassis checks across receipts (receiving tests pass)
+- D-04: vehicles.RegisterFromReceiptUnit (unit + history + RECEIPT movement + audit; receipt POSTED checked at commit)
+- D-05: normalised chassis uniqueness (index + DuplicateIdentifierError + WriteDuplicateIdentifier) — IN PROGRESS only
+        for its live conflict, which this route now provides
+- D-06: units start RECEIVED_PENDING_PDI; PDI decides PASS/HOLD afterwards (pdi tests pass)
+- E-01: append-only ledger, RECEIPT movement per unit, reconciliation trigger (stock tests pass)
+
+Files
+-----
+New:      migrations/000020_goods_receipt_posting.{up,down}.sql, internal/modules/receiving/post.go,
+          internal/modules/receiving/{post_integration_test,post_rules_test}.go
+Changed:  internal/modules/receiving/{service,rules,types,http,pgstore}.go (route, Post, actions.post, location fields),
+          internal/modules/receiving/{harness_test,http_test}.go (location scope in harness; route test now expects the
+          one posting route), internal/modules/access/policy.go (goods_receipts.post), internal/httpx/response.go
+          (POSTING_BLOCKED), docs/openapi/*, docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS}.md, log, this file.
+
+Schema (000020)
+---------------
+- permission goods_receipts.post (no grants)
+- goods_receipts: location_id (FK locations), post_idempotency_key, post_request_hash; CHECK key/hash only with POSTED and
+  a location; unique (posted_by, post_idempotency_key); trigger goods_receipts_status_guard (POSTED/CANCELLED rows never
+  change; posting columns only with POSTED)
+- purchase_order_events action GOODS_RECEIVED
+- down refuses while D-07 postings or GOODS_RECEIVED events exist
+
+Checks (throwaway PostgreSQL 18 container maa-d07-pg :5493; shared dev DB not used)
+-----------------------------------------------------------------------------------
+- gofmt clean; go build ./...; go vet ./...: ok
+- Go with PostgreSQL (REQUIRE_INTEGRATION_TESTS=1): all packages ok, 503 passing tests (495 before)
+  receiving posting tests also with -race -count=3: ok
+- make swagger: route + GoodsReceiptPostInput/PostResult/PostedUnit in docs/openapi
+- make ci (TEST_DATABASE_URL = throwaway): exit 0 (swagger-check, gofmt, vet, tidy, ESLint, Prettier, tsc,
+  Go tests with DB, Vitest 31 files / 317 tests, builds). golangci-lint not installed.
+
+Test scenarios (internal/modules/receiving)
+-------------------------------------------
+- TestPostRegistersAcceptedUnitsAndUpdatesThePO: 2 lines, 4 accepted + 1 rejected → 4 vehicle units at L1
+  RECEIVED_PENDING_PDI, rejected not registered, 4 RECEIPT movements, PO lines 3,2, PO APPROVED→PARTIALLY_RECEIVED with
+  GOODS_RECEIVED history, receipt POSTED + history + audits (posted 1, registered 4); posted receipt immutable via API
+  (INVALID_STATE) and SQL (42501); second receipt → PO RECEIVED; no unit AVAILABLE
+- TestPostIsRefusedUntilTheReceiptIsComplete: empty receipt, units not captured, quantity above what the PO has left
+  now → 409 POSTING_BLOCKED with field paths, audited DENIED, nothing changed; authorised over-receipt posts
+- TestPostValidationStateAndPermissions: missing version/location, bad key, inactive location, server-owned field;
+  out-of-scope location (L2-only poster → L1) 422; no post permission 403; post without view 403; stale version 409;
+  unknown receipt 404; already posted / cancelled / PO closed → 409 INVALID_STATE; scoped poster posts into L2
+- TestPostIdempotencyAndConcurrency: same key ×5 concurrently → 1 posting (1 fresh + 4 replays), 2 units, 2 movements,
+  PO +2 once; same key other location / other receipt → IDEMPOTENCY_KEY_REUSED; 6 different keys on one receipt →
+  exactly 1 posts; two receipts of one PO posted at once together above the PO line → exactly one posts, PO line 4
+- TestFailedPostingLeavesNothingBehind: chassis on another posted receipt → 409 DUPLICATE (lines[1].units[1]) and no
+  change (PO, receipt, units, movements, audits); simulated database failure after every write (trigger on the final
+  audit) → 500 and nothing changed; the same key then posts
+- TestPostingMigrationRollbackKeepsHistory: 20 → 19 → 20 while empty
+- Unit: postBlockers, validatePost + request hash, newPOStatus
+
+Pending / blockers
+------------------
+- OQ-24 PO delivery location (posting asks for the receiving location), OQ-25 required documents (none required),
+  OQ-27 rejected units counted against the PO (same basis as D-03), RB-5 grants, no maker-checker for posting.
+- Not implemented (no approved rule): reversal of a posted receipt (PO-005/OQ-33), return of rejected units.
+- Frontend: the PO screen's event enum and the GRN screen do not know posting yet (D-07 frontend phase); until then no
+  UI can post, so nothing in the UI shows the new GOODS_RECEIVED history.
+- DUPLICATE_IDENTIFIER (registered vehicle) is defensive here: every vehicle comes from a receipt, so the receipt-level
+  DUPLICATE check answers first; the index still decides races.

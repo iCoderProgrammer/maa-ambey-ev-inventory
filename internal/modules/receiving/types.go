@@ -134,6 +134,10 @@ type Receipt struct {
 	CancelReason        *string    `json:"cancelReason" extensions:"x-nullable"`
 	PostedBy            *string    `json:"postedBy" extensions:"x-nullable"`
 	PostedAt            *time.Time `json:"postedAt" extensions:"x-nullable"`
+	// Where the goods were received; chosen when posting (D-07). Null for drafts.
+	LocationID   *string `json:"locationId" extensions:"x-nullable"`
+	LocationCode *string `json:"locationCode" extensions:"x-nullable" example:"SR1"`
+	LocationName *string `json:"locationName" extensions:"x-nullable"`
 	// Computed by the server from the lines and units.
 	LineCount        int       `json:"lineCount" example:"0"`
 	ReceivedQuantity int       `json:"receivedQuantity" example:"0"`
@@ -230,7 +234,8 @@ type Actions struct {
 	AddDocument bool `json:"addDocument"`
 	// The caller may authorise over-receipt (goods_receipts.over_receipt).
 	AuthoriseOverReceipt bool `json:"authoriseOverReceipt"`
-	// Posting changes stock and is a separate step (D-07); always false here.
+	// The caller may post the draft (goods_receipts.post, D-07); the server re-checks
+	// quantities, units, identifiers and the location when posting.
 	Post bool `json:"post"`
 } //@name GoodsReceiptActions
 
@@ -243,7 +248,7 @@ type Detail struct {
 	Lines                   []Line     `json:"lines"`
 	Documents               []Document `json:"documents"`
 	Events                  []Event    `json:"events"`
-	// A draft changes no stock: always false until the receipt is posted.
+	// A draft changes no stock: false until the receipt is posted (D-07).
 	StockPosted bool    `json:"stockPosted"`
 	Actions     Actions `json:"actions"`
 } //@name GoodsReceiptDetail

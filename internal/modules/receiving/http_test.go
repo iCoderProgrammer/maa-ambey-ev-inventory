@@ -130,14 +130,25 @@ func TestGoodsReceiptInputValidation(t *testing.T) {
 	expectError(t, h.call(s, http.MethodGet, "/goods-receipts/nope", nil), http.StatusNotFound, "NOT_FOUND")
 }
 
-func TestNoRouteDeletesOrPostsReceipts(t *testing.T) {
+// No route deletes a receipt; the only posting route is POST /goods-receipts/{id}/post (D-07).
+func TestNoRouteDeletesReceiptsAndOnlyOnePostingRoute(t *testing.T) {
 	h, _ := unitHarness(t)
+	posts := 0
 	for _, r := range h.router.Routes() {
 		if !strings.Contains(r.Path, "goods-receipts") {
 			continue
 		}
-		if r.Method == http.MethodDelete || strings.HasSuffix(r.Path, "/post") {
+		if r.Method == http.MethodDelete {
 			t.Errorf("unexpected route %s %s", r.Method, r.Path)
 		}
+		if strings.HasSuffix(r.Path, "/post") {
+			posts++
+			if r.Method != http.MethodPost || r.Path != "/api/v1/goods-receipts/:id/post" {
+				t.Errorf("unexpected posting route %s %s", r.Method, r.Path)
+			}
+		}
+	}
+	if posts != 1 {
+		t.Errorf("%d posting routes", posts)
 	}
 }

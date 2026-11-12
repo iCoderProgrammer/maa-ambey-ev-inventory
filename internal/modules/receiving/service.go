@@ -24,6 +24,9 @@ type Repository interface {
 	Cancel(ctx context.Context, id string, in CancelInput, actorID string, ev audit.Event) error
 	AddDocument(ctx context.Context, id string, in DocumentInput, actorID string, ev audit.Event) error
 	RecordAudit(ctx context.Context, ev audit.Event) error
+	// Post posts a draft in one transaction (D-07); replayed = the same key and
+	// request by the same poster already posted it.
+	Post(ctx context.Context, actor Actor, scope access.Scope, id string, p postKey) (PostResult, bool, error)
 }
 
 // Service checks permissions (again, after the route guard) and input, and
@@ -195,4 +198,54 @@ func (s *Service) AddDocument(ctx context.Context, actor Actor, a access.Access,
 		return Detail{}, err
 	}
 	return s.after(ctx, a, id, s.repo.AddDocument(ctx, id, in, actor.UserID, event(actor, "goods_receipt.document_added", id)))
+}
+
+// Post posts a draft receipt (goods_receipts.post and goods_receipts.view; the
+// location must be in the caller's scope). A refusal because of the receipt's
+// content or state is audited as DENIED. Idempotency-Key is required: the same
+// key and request by the same poster returns the first posting.
+func (s *Service) Post(ctx context.Context, actor Actor, a access.Access, id string, in PostInput, key string) (PostResult, bool, error) {
+	if err := need(a, access.PermGoodsReceiptPost, access.PermGoodsReceiptView); err != nil {
+		return PostResult{}, false, err
+	}
+	if err := validID(id); err != nil {
+		return PostResult{}, false, err
+	}
+	p, err := validatePost(id, in, key)
+	if err != nil {
+		return PostResult{}, false, err
+	}
+	res, replayed, err := s.repo.Post(ctx, actor, a.Scope, id, p)
+	var blocked *PostBlockedError
+	var state *StateError
+	var conflict *IdentifierConflictError
+	var dup *DuplicateError
+	reason := ""
+	switch {
+	case errors.As(err, &blocked):
+		fields := make([]string, len(blocked.Fields))
+		for i, f := range blocked.Fields {
+			fields[i] = f.Field
+		}
+		reason = "blocked:" + strings.Join(fields, ",")
+	case errors.As(err, &state):
+		reason = "state"
+	case errors.As(err, &conflict):
+		reason = "duplicate_identifier:" + conflict.Field
+	case errors.As(err, &dup):
+		reason = "identifier_on_other_receipt"
+	}
+	if reason != "" {
+		ev := event(actor, "goods_receipt.posted", id)
+		ev.Outcome = audit.OutcomeDenied
+		ev.Summary = audit.Summary{"reason": reason}
+		if aerr := s.repo.RecordAudit(context.WithoutCancel(ctx), ev); aerr != nil {
+			s.log.ErrorContext(ctx, "audit of refused posting failed", slog.Any("error", aerr))
+		}
+	}
+	if err != nil {
+		return PostResult{}, false, err
+	}
+	res.Receipt = shape(res.Receipt, a)
+	return res, replayed, nil
 }

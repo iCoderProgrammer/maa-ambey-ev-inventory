@@ -17,7 +17,7 @@ import (
 )
 
 // Permission keys. Every key must exist in the permissions table (migrations
-// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015, 000016, 000017, 000018, 000019); TestPermissionCatalogueMatchesDatabase keeps them in step.
+// 000004, 000006, 000008, 000009, 000010, 000011, 000012, 000013, 000015, 000016, 000017, 000018, 000019, 000020); TestPermissionCatalogueMatchesDatabase keeps them in step.
 const (
 	PermRolesView         = "access.roles.view"
 	PermRolesManage       = "access.roles.manage"
@@ -64,6 +64,8 @@ const (
 	PermGoodsReceiptView        = "goods_receipts.view"
 	PermGoodsReceiptManage      = "goods_receipts.manage"
 	PermGoodsReceiptOverReceipt = "goods_receipts.over_receipt"
+	// Receipt posting (D-07, migration 000020): registers vehicle units and updates the PO.
+	PermGoodsReceiptPost = "goods_receipts.post"
 	// Vehicle unit registry (D-04, migration 000013).
 	PermVehicleUnitView     = "vehicle_units.view"
 	PermVehicleUnitCostView = "vehicle_units.cost.view"
@@ -96,7 +98,7 @@ var AllPermissions = []string{
 	PermBrandAuthorise, PermBrandActivate, PermPriceView, PermPriceManage, PermPriceApprove,
 	PermSupplierView, PermSupplierManage, PermSupplierVerify, PermSupplierArchive,
 	PermPurchaseOrderView, PermPurchaseOrderManage, PermPurchaseOrderApprove, PermPurchaseOrderCancel, PermPurchaseOrderSettings,
-	PermGoodsReceiptView, PermGoodsReceiptManage, PermGoodsReceiptOverReceipt,
+	PermGoodsReceiptView, PermGoodsReceiptManage, PermGoodsReceiptOverReceipt, PermGoodsReceiptPost,
 	PermVehicleUnitView, PermVehicleUnitCostView, PermVehicleUnitDisplayManage,
 	PermStockItemView, PermStockItemManage, PermStockItemArchive,
 	PermPartsView, PermPartsReceive, PermPartsIssue, PermAdjustmentView,

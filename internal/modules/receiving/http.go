@@ -13,6 +13,7 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/vehicles"
 )
 
 // IdempotencyHeader is the optional create header for double-submit protection.
@@ -34,7 +35,7 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 }
 
 // Register mounts the routes. There is no DELETE: a draft is cancelled and kept.
-// Posting a receipt (stock changes) is a separate task (D-07).
+// Posting (POST /goods-receipts/{id}/post, D-07) is the only route that changes stock.
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	view := h.access.Require(access.PermGoodsReceiptView)
 	manage := h.access.Require(access.PermGoodsReceiptManage)
@@ -45,6 +46,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	rg.PUT("/goods-receipts/:id", manage, h.Save)
 	rg.POST("/goods-receipts/:id/cancel", manage, h.Cancel)
 	rg.POST("/goods-receipts/:id/documents", manage, h.AddDocument)
+	rg.POST("/goods-receipts/:id/post", h.access.Require(access.PermGoodsReceiptPost), h.Post)
 	rg.GET("/receivable-purchase-orders", manage, h.ListReceivable)
 }
 
@@ -113,6 +115,8 @@ func (h *Handler) fail(c *gin.Context, err error) {
 		state     *StateError
 		over      *OverReceiptError
 		forbidden *OverReceiptForbiddenError
+		blocked   *PostBlockedError
+		conflict  *IdentifierConflictError
 	)
 	switch {
 	case errors.Is(err, ErrForbidden):
@@ -134,6 +138,14 @@ func (h *Handler) fail(c *gin.Context, err error) {
 			"You may not authorise over-receipt. Nothing was saved.", fieldErrors(forbidden.Fields)...)
 	case errors.As(err, &state):
 		httpx.Error(c, http.StatusConflict, httpx.CodeInvalidState, state.Message)
+	case errors.As(err, &blocked):
+		httpx.Error(c, http.StatusConflict, httpx.CodePostingBlocked,
+			"This goods receipt cannot be posted yet. Nothing was changed.", fieldErrors(blocked.Fields)...)
+	case errors.As(err, &conflict):
+		vehicles.WriteDuplicateIdentifier(c, &vehicles.DuplicateIdentifierError{Field: vehicles.FieldChassisNumber}, conflict.Field)
+	case errors.Is(err, ErrIdempotencyKeyReused):
+		httpx.Error(c, http.StatusConflict, httpx.CodeIdempotencyKeyReused,
+			"This Idempotency-Key was already used for a different request. Send a new key. Nothing was changed.")
 	default:
 		h.log.ErrorContext(c.Request.Context(), "goods receipt request failed",
 			slog.String("request_id", c.GetString(httpx.RequestIDKey)), slog.Any("error", err))
@@ -331,4 +343,44 @@ func (h *Handler) AddDocument(c *gin.Context) {
 	with(h, c, http.StatusCreated, func(a access.Access, in DocumentInput) (any, error) {
 		return h.svc.AddDocument(c.Request.Context(), h.actor(c), a, c.Param("id"), in)
 	})
+}
+
+// Post godoc
+//
+//	@Summary		Post a goods receipt
+//	@Description	Posts a DRAFT receipt in one database transaction (D-07): the receipt and its purchase order are locked; every line is re-checked against the PO as it is now (received <= ordered - posted unless an authorised over-receipt on the line covers it); every received unit must be captured (as many ACCEPTED and REJECTED units as the line's quantities); chassis/frame numbers must not be on another open or posted receipt or already registered (409 DUPLICATE or DUPLICATE_IDENTIFIER, field lines[i].units[j].chassisNumber in the receipt detail's order). Then each ACCEPTED unit becomes a vehicle unit at RECEIVED_PENDING_PDI at locationId (with its RECEIPT stock movement and audit), the PO lines' received quantities grow by the received quantity, the PO becomes PARTIALLY_RECEIVED or RECEIVED, the receipt becomes POSTED (immutable) and goods_receipt.posted is audited. Rejected units create no vehicle. Nothing becomes saleable: PDI follows. Any failure rolls everything back; nothing is half-posted. version must be the receipt's current version (409 VERSION_CONFLICT). locationId: an active location in the caller's scope (422 otherwise). Idempotency-Key is required: the same key and request by the same user returns the first posting with 200 and Idempotent-Replayed: true (concurrent repeats wait and replay); the same key with another request is 409 IDEMPOTENCY_KEY_REUSED. A posted or cancelled receipt is 409 INVALID_STATE. Refusals for content or state are audited (DENIED). Requires goods_receipts.post and goods_receipts.view, and X-CSRF-Token.
+//	@Tags			goods-receipts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"Goods receipt ID"
+//	@Param			Idempotency-Key	header		string					true	"8-100 letters, digits, - or _"
+//	@Param			body			body		receiving.PostInput		true	"Version and receiving location"
+//	@Success		200				{object}	httpx.DataResponse{data=receiving.PostResult}	"Posted (or replay: Idempotent-Replayed: true)"
+//	@Failure		400				{object}	httpx.ErrorResponse	"BAD_REQUEST"
+//	@Failure		401				{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403				{object}	httpx.ErrorResponse	"FORBIDDEN or CSRF_FAILED"
+//	@Failure		404				{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Failure		409				{object}	httpx.ErrorResponse	"VERSION_CONFLICT, INVALID_STATE, POSTING_BLOCKED (details: lines, lines[i].units, lines[i].receivedQuantity), DUPLICATE, DUPLICATE_IDENTIFIER or IDEMPOTENCY_KEY_REUSED"
+//	@Failure		415				{object}	httpx.ErrorResponse	"UNSUPPORTED_MEDIA_TYPE"
+//	@Failure		422				{object}	httpx.ErrorResponse	"VALIDATION_FAILED (version, locationId, Idempotency-Key)"
+//	@Router			/goods-receipts/{id}/post [post]
+func (h *Handler) Post(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	var in PostInput
+	if !h.decode(c, &in) {
+		return
+	}
+	res, replayed, err := h.svc.Post(c.Request.Context(), h.actor(c), a, c.Param("id"), in, c.GetHeader(IdempotencyHeader))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	if replayed {
+		c.Header("Idempotent-Replayed", "true")
+	}
+	c.JSON(http.StatusOK, httpx.DataResponse{Data: res})
 }

@@ -22,14 +22,15 @@ import (
 const testPassword = "correct horse battery staple"
 
 type grants struct {
-	mu    sync.Mutex
-	perms map[string][]string
+	mu        sync.Mutex
+	perms     map[string][]string
+	locations map[string][]access.Location
 }
 
 func (g *grants) LoadAccess(_ context.Context, userID string, _ bool) (access.Access, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return access.NewAccess(userID, nil, g.perms[userID], nil, false), nil
+	return access.NewAccess(userID, nil, g.perms[userID], g.locations[userID], false), nil
 }
 
 func (g *grants) RoleMatrix(context.Context) (access.Matrix, error) { return access.Matrix{}, nil }
@@ -56,7 +57,7 @@ func newHarness(t *testing.T, authStore auth.Store, repo Repository) *harness {
 		t.Fatal(err)
 	}
 	authH := auth.NewHandler(authSvc, auth.CookieConfig{}, log)
-	h := &harness{t: t, grants: &grants{perms: map[string][]string{}}}
+	h := &harness{t: t, grants: &grants{perms: map[string][]string{}, locations: map[string][]access.Location{}}}
 	r := gin.New()
 	r.HandleMethodNotAllowed = true
 	api := r.Group("/api/v1")

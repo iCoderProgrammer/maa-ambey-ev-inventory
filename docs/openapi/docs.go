@@ -2264,6 +2264,108 @@ const docTemplate = `{
                 }
             }
         },
+        "/goods-receipts/{id}/post": {
+            "post": {
+                "description": "Posts a DRAFT receipt in one database transaction (D-07): the receipt and its purchase order are locked; every line is re-checked against the PO as it is now (received \u003c= ordered - posted unless an authorised over-receipt on the line covers it); every received unit must be captured (as many ACCEPTED and REJECTED units as the line's quantities); chassis/frame numbers must not be on another open or posted receipt or already registered (409 DUPLICATE or DUPLICATE_IDENTIFIER, field lines[i].units[j].chassisNumber in the receipt detail's order). Then each ACCEPTED unit becomes a vehicle unit at RECEIVED_PENDING_PDI at locationId (with its RECEIPT stock movement and audit), the PO lines' received quantities grow by the received quantity, the PO becomes PARTIALLY_RECEIVED or RECEIVED, the receipt becomes POSTED (immutable) and goods_receipt.posted is audited. Rejected units create no vehicle. Nothing becomes saleable: PDI follows. Any failure rolls everything back; nothing is half-posted. version must be the receipt's current version (409 VERSION_CONFLICT). locationId: an active location in the caller's scope (422 otherwise). Idempotency-Key is required: the same key and request by the same user returns the first posting with 200 and Idempotent-Replayed: true (concurrent repeats wait and replay); the same key with another request is 409 IDEMPOTENCY_KEY_REUSED. A posted or cancelled receipt is 409 INVALID_STATE. Refusals for content or state are audited (DENIED). Requires goods_receipts.post and goods_receipts.view, and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "goods-receipts"
+                ],
+                "summary": "Post a goods receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Version and receiving location",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GoodsReceiptPostInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Posted (or replay: Idempotent-Replayed: true)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/GoodsReceiptPostResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT, INVALID_STATE, POSTING_BLOCKED (details: lines, lines[i].units, lines[i].receivedQuantity), DUPLICATE, DUPLICATE_IDENTIFIER or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, locationId, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Confirms the API process is running. Does not check dependencies.",
@@ -10144,6 +10246,20 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 0
                 },
+                "locationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "description": "Where the goods were received; chosen when posting (D-07). Null for drafts.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "notes": {
                     "type": "string",
                     "x-nullable": true
@@ -10242,7 +10358,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "post": {
-                    "description": "Posting changes stock and is a separate step (D-07); always false here.",
+                    "description": "The caller may post the draft (goods_receipts.post, D-07); the server re-checks\nquantities, units, identifiers and the location when posting.",
                     "type": "boolean"
                 }
             }
@@ -10336,6 +10452,20 @@ const docTemplate = `{
                         "$ref": "#/definitions/GoodsReceiptLine"
                     }
                 },
+                "locationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "description": "Where the goods were received; chosen when posting (D-07). Null for drafts.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "notes": {
                     "type": "string",
                     "x-nullable": true
@@ -10397,7 +10527,7 @@ const docTemplate = `{
                     "example": "DRAFT"
                 },
                 "stockPosted": {
-                    "description": "A draft changes no stock: always false until the receipt is posted.",
+                    "description": "A draft changes no stock: false until the receipt is posted (D-07).",
                     "type": "boolean"
                 },
                 "supplierId": {
@@ -10693,6 +10823,56 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 0
+                }
+            }
+        },
+        "GoodsReceiptPostInput": {
+            "type": "object",
+            "properties": {
+                "locationId": {
+                    "type": "string",
+                    "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "GoodsReceiptPostResult": {
+            "type": "object",
+            "properties": {
+                "receipt": {
+                    "$ref": "#/definitions/GoodsReceiptDetail"
+                },
+                "vehicleUnits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/GoodsReceiptPostedUnit"
+                    }
+                }
+            }
+        },
+        "GoodsReceiptPostedUnit": {
+            "type": "object",
+            "properties": {
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "goodsReceiptUnitId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                },
+                "vehicleUnitId": {
+                    "type": "string"
                 }
             }
         },

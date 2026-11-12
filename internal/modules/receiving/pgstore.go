@@ -32,10 +32,11 @@ const receiptColumns = `g.id::text, g.grn_number, g.status, g.purchase_order_id:
 	g.created_by::text, cu.display_name, g.cancelled_by::text, g.cancelled_at, g.cancel_reason, g.posted_by::text, g.posted_at,
 	t.line_count, t.received, t.accepted, t.rejected,
 	(SELECT count(*)::int FROM goods_receipt_units u WHERE u.goods_receipt_id = g.id),
-	g.version, g.created_at, g.updated_at`
+	g.version, g.created_at, g.updated_at, g.location_id::text, loc.code, loc.name`
 
 const receiptFrom = ` FROM goods_receipts g
 	JOIN purchase_orders po ON po.id = g.purchase_order_id
+	LEFT JOIN locations loc ON loc.id = g.location_id
 	JOIN suppliers s ON s.id = po.supplier_id
 	JOIN users cu ON cu.id = g.created_by
 	CROSS JOIN LATERAL (
@@ -51,7 +52,7 @@ func scanReceipt(row pgx.Row) (Receipt, error) {
 		&r.SupplierID, &r.SupplierName, &r.ReceivedDate, &r.SupplierReference, &r.Notes,
 		&r.CreatedBy, &r.CreatedByName, &r.CancelledBy, &r.CancelledAt, &r.CancelReason, &r.PostedBy, &r.PostedAt,
 		&r.LineCount, &r.ReceivedQuantity, &r.AcceptedQuantity, &r.RejectedQuantity, &r.UnitCount,
-		&r.Version, &r.CreatedAt, &r.UpdatedAt)
+		&r.Version, &r.CreatedAt, &r.UpdatedAt, &r.LocationID, &r.LocationCode, &r.LocationName)
 	return r, err
 }
 

@@ -51,7 +51,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-04 | Vehicle unit registry | P0 | C-01, B-05 | COMPLETE (API + typed client/hooks; screen is D-08) |
 | D-05 | Duplicate vehicle identifier controls | P0 | D-04 | IN PROGRESS — backend + frontend phases complete; live posting conflict pending D-07 |
 | D-06 | PDI checklist and disposition | P0 | D-04, B-09, B-07, B-08 | COMPLETE (mechanism; checklist content/policy OQ-41, OQ-31 paths, grants RB-5 pending) |
-| D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | NOT STARTED |
+| D-07 | Atomic receipt posting transaction | P0 | D-03, D-04, D-05, D-06, E-01 | IN PROGRESS — backend phase COMPLETE; frontend phase not started |
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | NOT STARTED |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
@@ -2976,6 +2976,59 @@ Backend phase complete; committed as `e82572d` at the user's request.
 #### Final status
 COMPLETE (mechanism) — D-06 backend (`e82572d`) and frontend (uncommitted, by instruction) verified 2026-11-11.
 Pending client decisions: OQ-31, OQ-41, RB-5. D-07 not started.
+
+### D-07 — Atomic receipt posting transaction
+
+- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase not started.
+  Pending client decisions: OQ-24, OQ-25, OQ-27, RB-5.
+- **Started:** 2026-11-12
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/03_Procurement_PDI/D_07_atomic-receipt-posting-transaction.md
+- Git at start: `dev` at `df9a633`, clean tree (D-06 frontend and the testing report committed first at the user's
+  request).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-03 | COMPLETE | drafts, availability, over-receipt authorisation, chassis checks; receiving tests pass |
+| D-04 | COMPLETE | `vehicles.RegisterFromReceiptUnit` (unit, history, RECEIPT movement, audit; POSTED checked at commit) |
+| D-05 | IN PROGRESS (only the live conflict, which needs this route) | unique normalised chassis index, `DuplicateIdentifierError`, `WriteDuplicateIdentifier` |
+| D-06 | COMPLETE | units start RECEIVED_PENDING_PDI; PDI decides afterwards |
+| E-01 | COMPLETE | append-only ledger, RECEIPT movement, reconciliation trigger; stock tests pass |
+
+#### Acceptance criteria
+- [x] AC1 Repeated post cannot duplicate stock (idempotency key + receipt lock + per-unit movement key; tested concurrently)
+- [x] AC2 Any validation/DB failure rolls back every affected entity (blockers, duplicates, simulated failure after all writes)
+- [x] AC3 PO remaining quantities re-validated under lock; concurrent postings cannot exceed the PO
+- [ ] AC4 Frontend reflects committed state only — frontend phase
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this phase (backend-only by instruction).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000020_goods_receipt_posting` (permission `goods_receipts.post`, receipt location/key/hash, immutability
+  trigger, PO event `GOODS_RECEIVED`; down refuses with history). Route `POST /goods-receipts/{id}/post`
+  (`receiving/post.go`): one transaction — lock receipt → replay → state/version → lock PO → location in scope → re-read
+  lines vs PO now → blockers (`POSTING_BLOCKED`) → chassis checks → register each ACCEPTED unit (E-01 ledger) → PO
+  received quantities + status + history → receipt POSTED → audit. Error code `POSTING_BLOCKED`; refusals audited DENIED.
+- Decisions recorded (ADR-025): receiving location stated at posting (OQ-24); no documents required (OQ-25);
+  received quantity counted against the PO (OQ-27, D-03 basis); creator may post (no maker-checker rule, RB-5).
+- Checks: gofmt, vet, build; Go with PostgreSQL 503 passing tests (posting tests also `-race -count=3`); `make ci`
+  exit 0 (Vitest 317). golangci-lint not installed. Evidence: `docs/evidence/D-07/backend-verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT APPLICABLE in this phase. Contract: API_CONVENTIONS "Posting a goods receipt (D-07)".
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE in this phase (no UI yet).
+
+#### Known issues / pending approvals
+- Frontend phase must add `GOODS_RECEIVED` to the PO history enum (the PO screen would otherwise refuse a posted PO's
+  history) and the posting UI; until then no UI can post.
+- Reversal of posted receipts and return of rejected units: not approved (PO-005, OQ-33). Shared dev DB still at 12.
+
+#### Final status
+IN PROGRESS — D-07 backend phase complete, not committed (by instruction). Frontend phase not started.
 
 ### BROWSER-TEST-2026-11-11 — Browser testing of all completed features (user-requested; not a registry task)
 

@@ -328,8 +328,41 @@ stock (`stockPosted: false`); posting is D-07.
   line), or 403 `OVER_RECEIPT_NOT_AUTHORISED` when the reason comes from a caller without the permission (audited
   `DENIED`). An authorisation stays while it covers the received quantity.
 - Errors also: 409 `DUPLICATE` (details per unit), `VERSION_CONFLICT`, `INVALID_STATE` (not a draft, or the PO is no
-  longer receivable); 404; 422 `VALIDATION_FAILED`. No DELETE and no posting route. Audited:
+  longer receivable); 404; 422 `VALIDATION_FAILED`. No DELETE. Audited:
   `goods_receipt.created|saved|over_receipt_authorised|cancelled|document_added`.
+
+### Posting a goods receipt (D-07)
+
+Rules: ADR-025. Schema: migration 000020.
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `POST /goods-receipts/{id}/post` | `goods_receipts.post` + `goods_receipts.view` | `GoodsReceiptPostInput` → 200 `GoodsReceiptPostResult`; `Idempotency-Key` + `X-CSRF-Token` required |
+
+- `GoodsReceiptPostInput`: `version` (the receipt's current version, required), `locationId` (where the goods were
+  received: an active location in the caller's scope, required). Unknown fields (`status`, `postedBy`, …) are 422.
+- `GoodsReceiptPostResult` = `receipt` (`GoodsReceiptDetail`, now `POSTED`, `stockPosted: true`, `postedBy`, `postedAt`,
+  `locationId|Code|Name`, `version + 1`, `purchaseOrderStatus` after posting, history ending with `POSTED`) +
+  `vehicleUnits` (`[{vehicleUnitId, unitNumber, goodsReceiptUnitId, chassisNumber, status}]`, one per ACCEPTED unit,
+  in PO line / unit order; `status` `RECEIVED_PENDING_PDI` at posting, as it is now on a replay).
+- `GoodsReceipt` gains `locationId`, `locationCode`, `locationName` (null until posted). `actions.post` is true for a
+  draft of a receivable PO when the caller holds both permissions (the server re-checks everything).
+- Effects (one transaction): vehicle units + RECEIPT movements + `vehicle_unit.registered` audits; PO lines
+  `receivedQuantity += receivedQuantity`; PO `PARTIALLY_RECEIVED` / `RECEIVED` with a `GOODS_RECEIVED` PO history entry
+  when the status changes; receipt `POSTED` (immutable) with a `POSTED` history entry; audit `goods_receipt.posted`
+  (summary: number, PO, PO status from/to, location, received/accepted/rejected, vehicleUnitsRegistered). Rejected
+  units create no vehicle. Nothing becomes saleable (PDI follows).
+- Replay: the same user, key and request (receipt, version, location) → the first result, 200,
+  `Idempotent-Replayed: true`, nothing written again (concurrent repeats wait and replay). Same key, other request or
+  other receipt → 409 `IDEMPOTENCY_KEY_REUSED`. A refused or failed attempt does not use up its key.
+- Errors: 401; 403 `FORBIDDEN`/`CSRF_FAILED`; 404 `NOT_FOUND`; 409 `VERSION_CONFLICT`, `INVALID_STATE` (already posted,
+  cancelled, PO no longer receivable), `POSTING_BLOCKED` (details `lines` — nothing received; `lines[i].units` — not
+  every received unit captured; `lines[i].receivedQuantity` — above what the PO line has left without an authorised
+  over-receipt; `i` = position in the receipt detail's `lines`), `DUPLICATE` (`lines[i].units[j].chassisNumber` on
+  another open/posted receipt), `DUPLICATE_IDENTIFIER` (same path; already a registered vehicle),
+  `IDEMPOTENCY_KEY_REUSED`; 415; 422 `VALIDATION_FAILED` (`version`, `locationId`, `Idempotency-Key`). Refusals for
+  content, state or identifiers are audited `goods_receipt.posted` DENIED. A 5xx means nothing was posted.
+- Purchase order history: `action` may now be `GOODS_RECEIVED` (`fromStatus` → `toStatus`, `note` = GRN number).
 
 ## Vehicle units (D-04)
 

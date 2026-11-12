@@ -62,6 +62,8 @@ const (
 	CodeStockChanged = "STOCK_CHANGED_SINCE_COUNT"
 	// PDI (D-06): a PASS needs at least one applicable checklist item; 409.
 	CodePDIChecklistNotConfigured = "PDI_CHECKLIST_NOT_CONFIGURED"
+	// Receipt posting (D-07): the draft is not ready to post; details name what blocks it. 409.
+	CodePostingBlocked = "POSTING_BLOCKED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

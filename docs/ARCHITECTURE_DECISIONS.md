@@ -729,6 +729,57 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-025 — Atomic goods receipt posting (D-07)
+
+- **Status:** Accepted (technical design; receiving location policy, required documents, over-receipt basis, who may
+  post and grants pending — OQ-24, OQ-25, OQ-27, RB-5).
+- **One route, one transaction (System Architecture `POST /api/v1/goods-receipts/:id/post`; PO-003…PO-005,
+  INV-001, INV-009).** Package `internal/modules/receiving` (`post.go`). Order inside the transaction: lock the receipt
+  (`FOR UPDATE`) → replay lookup for the poster's key → status (POSTED/CANCELLED → `INVALID_STATE`) → `version` → lock
+  the PO (`FOR UPDATE`, same order as D-03 saves, so no deadlock) and require APPROVED/PARTIALLY_RECEIVED → the
+  location (active, in the caller's scope) → re-read every receipt line with its PO line **as it is now** → blockers →
+  chassis numbers locked (advisory locks, D-03) and checked against every other open/posted receipt → for each
+  ACCEPTED captured unit `vehicles.RegisterFromReceiptUnit` (unit at RECEIVED_PENDING_PDI, REGISTERED history, RECEIPT
+  movement through the E-01 ledger, `vehicle_unit.registered` audit) → PO lines `received_quantity += received` → PO
+  status → receipt POSTED (`posted_by`, database `posted_at`, location, key, request hash, `version + 1`) → POSTED
+  history → `goods_receipt.posted` audit → commit. Commit-time guards from D-04/E-01 (receipt POSTED for every unit,
+  ledger reconciles) run last. Any error rolls back everything (tested with a simulated failure after all writes).
+- **Blockers (409 `POSTING_BLOCKED`, audited DENIED):** nothing received; a line whose captured ACCEPTED/REJECTED
+  units do not equal its accepted/rejected quantities (PO-004, INV-001: every received unit captured individually);
+  a line above ordered − posted (PO as it is now) without a stored over-receipt authorisation covering the received
+  quantity (PO-003). Other open drafts are **not** subtracted at posting (they have not received anything yet).
+  Deliberately not blockers (no approved rule): a missing chassis/frame number (INV-002 applies when the unit leaves
+  PDI — D-06 refuses PASS/HOLD without one), an unexplained rejection (warning), missing documents (OQ-25), brand or
+  catalogue changes since the PO was approved (no rule; the PO was eligible when approved).
+- **Quantities:** a posting adds the line's **received** quantity (accepted + rejected) to `received_quantity`, the
+  basis D-03 already uses for availability (OQ-27 asks whether rejected units should count). PO status after
+  posting: RECEIVED when every line has `received_quantity ≥ quantity`, otherwise PARTIALLY_RECEIVED; a status change
+  writes a PO history entry `GOODS_RECEIVED` (note = GRN number; new action value, migration 000020).
+- **Location (OQ-24 still open for PO delivery locations):** the poster states where the goods were received
+  (`locationId`, required: an active location in their scope). It is stored on the receipt (`goods_receipts.location_id`)
+  and every registered unit starts there, so PDI, counts and scope work from day one.
+- **Identifiers:** chassis/frame numbers are compared normalised (D-05, OQ-26). A number on another open/posted
+  receipt → 409 `DUPLICATE`; a number already registered (the unique index decides races) → 409
+  `DUPLICATE_IDENTIFIER` with `lines[i].units[j].chassisNumber` (receipt-detail order). Motor/battery/charger numbers
+  have no uniqueness rule (OQ-4, OQ-30).
+- **PDI:** posting never makes stock saleable: units start at RECEIVED_PENDING_PDI; REJECTED captured units create no
+  vehicle (their return flow is not approved yet). D-06 decides PASS/HOLD afterwards.
+- **Idempotency:** `Idempotency-Key` required; stored with a SHA-256 of (receipt, version, location) and the poster,
+  unique `(posted_by, post_idempotency_key)`. The lookup runs after the receipt lock, so concurrent repeats wait and
+  replay (200, `Idempotent-Replayed: true`, nothing written again); the same key with another request or another
+  receipt → `IDEMPOTENCY_KEY_REUSED`. A refused or failed attempt stores nothing, so its key stays usable. Movement keys
+  stay `receipt-unit-<captured unit>` (E-01), so a unit can never be received twice.
+- **Immutability (PO-005):** new trigger `goods_receipts_status_guard`: a POSTED or CANCELLED receipt row never changes;
+  posting columns are set only together with POSTED. Lines, units, documents and history were already guarded (D-03).
+- **Permissions:** `goods_receipts.post` (new, **no grants**) plus `goods_receipts.view`; deny by default. The creator
+  may post their own receipt (no maker-checker rule approved; RB-5). No per-user brand scope exists yet (RB-5).
+- **Not here:** reversal/correction of a posted receipt (PO-005; OQ-33), return of rejected units to the supplier,
+  supplier bill variance (PO-007), the posting screen (D-07 frontend).
+- **Rollback:** the down migration refuses while any receipt was posted through D-07 or any `GOODS_RECEIVED` PO
+  event exists.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -755,10 +806,10 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-21 | Purchase order approvals: who approves (owner only?), may the creator approve their own PO in a small team (D-02 never allows it), what is the approval threshold, and does a supplier's first PO always need approval (D-02 default: yes)? Until signed off, no threshold is set and every PO needs an approver. | D-02, RB-5, PO-001 |
 | OQ-22 | PO number format: D-02 uses `PO-000001` from one sequence (gaps possible). Is a prefix per financial year/location wanted? Not a tax document number. | D-02 |
 | OQ-23 | Price variance tolerance for PO lines and supplier bills (PO-007): D-02 warns on any difference from the catalogue cost snapshot; tolerance and any approval requirement are not configured. | D-02, D-03 |
-| OQ-24 | Do purchase orders need a delivery location (location scope, B-07)? D-02 has none. | D-02, D-03 |
-| OQ-25 | Goods receipt document types: `DELIVERY_CHALLAN`, `SUPPLIER_INVOICE`, `PHOTO`, `OTHER` (D-03 proposal). Which are required before posting? | D-03, D-07 |
+| OQ-24 | Do purchase orders need a delivery location (location scope, B-07)? D-02 has none. D-07: the poster states the receiving location at posting (required, in scope); a PO delivery location is still open. | D-02, D-03, D-07 |
+| OQ-25 | Goods receipt document types: `DELIVERY_CHALLAN`, `SUPPLIER_INVOICE`, `PHOTO`, `OTHER` (D-03 proposal). Which are required before posting? D-07 requires none until this is decided. | D-03, D-07 |
 | OQ-26 | Chassis/frame normalisation: D-03 trims and upper-cases only. Which separators (spaces, `-`, `/`) may be ignored when comparing (INV-002 "permitted separators"), per brand? | D-03, D-04, D-05 |
-| OQ-27 | Over-receipt: D-03 counts the *received* quantity (accepted + rejected) against the PO and lets any holder of `goods_receipts.over_receipt` authorise it, including on their own draft. Should rejected units count, and who may authorise (owner only, maker-checker)? | D-03, D-07, RB-5, PO-003 |
+| OQ-27 | Over-receipt: D-03 counts the *received* quantity (accepted + rejected) against the PO and lets any holder of `goods_receipts.over_receipt` authorise it, including on their own draft. Should rejected units count, and who may authorise (owner only, maker-checker)? D-07 posts on the same basis (received quantity added to the PO line). | D-03, D-07, RB-5, PO-003 |
 | OQ-28 | Internal vehicle unit number: D-04 uses `MAE-VEH-000001…` after the design specification example (`MAE-VEH-00042`). Confirm prefix, digits and whether it restarts per year or location. | D-04, D-09 |
 | OQ-29 | Vehicle unit cost basis (REP-003): D-04 records the PO line's agreed unit cost at registration. Should it be the supplier bill amount, include freight/landed costs, and who may see it (`vehicle_units.cost.view`)? | D-04, D-07, E-07, G-02, RB-5 |
 | OQ-30 | Batteries: one `battery_serial` per unit (as captured on receipts). Do any models carry several packs or swappable packs needing component history (INV-004, architecture "battery_units")? | D-04, D-05, D-06 |
