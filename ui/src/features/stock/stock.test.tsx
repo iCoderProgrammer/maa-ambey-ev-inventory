@@ -187,13 +187,16 @@ describe('stock movement API client', () => {
       )
     }
     // The only movement write routes are the two display moves; nothing edits movements.
-    // Two read-only histories of one item exist; the cross-item timeline is E-02.
+    // The rest are read-only: one item's history (E-04, D-08) and the timeline (E-02).
     const movementPaths = Object.keys(spec.paths).filter(
       (p) => p.includes('movement') || p.includes('display') || p.endsWith('/status'),
     )
     expect(movementPaths.sort()).toEqual([
       // Read-only receipt/issue history of one parts SKU (E-04); not a vehicle movement route.
       '/stock-items/{id}/stock-movements',
+      // Read-only stock movement timeline and one entry of it (E-02, ADR-027).
+      '/stock-movements',
+      '/stock-movements/{id}',
       '/vehicle-units/{id}/put-on-display',
       // Read-only ledger of one vehicle unit (D-08, ADR-026).
       '/vehicle-units/{id}/stock-movements',
@@ -202,6 +205,8 @@ describe('stock movement API client', () => {
     // Those routes only list: no write or delete method on them.
     expect(Object.keys(spec.paths['/stock-items/{id}/stock-movements'] ?? {})).toEqual(['get'])
     expect(Object.keys(spec.paths['/vehicle-units/{id}/stock-movements'] ?? {})).toEqual(['get'])
+    expect(Object.keys(spec.paths['/stock-movements'] ?? {})).toEqual(['get'])
+    expect(Object.keys(spec.paths['/stock-movements/{id}'] ?? {})).toEqual(['get'])
   })
 
   it('exposes only the display action calls: no generic, list or delete call', () => {

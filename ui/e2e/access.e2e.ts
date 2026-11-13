@@ -10,7 +10,9 @@ test.describe('roles and permissions (B-07)', () => {
     await signIn(page)
     if (!isMobile) {
       const nav = page.getByRole('navigation', { name: 'Main' })
-      await expect(nav.getByRole('link', { name: /Stock Movements/ })).toBeVisible()
+      // Planned modules stay listed; the movement timeline (E-02) needs a view permission.
+      await expect(nav.getByRole('link', { name: /Reservations/ })).toBeVisible()
+      await expect(nav.getByRole('link', { name: /Stock Movements/ })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: /Purchase Orders/ })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: /Goods Receipts/ })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: /Suppliers/ })).toHaveCount(0)

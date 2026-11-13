@@ -834,6 +834,16 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
   `stock_movements (seq)` would make the page 0.1–2.4 ms, but the count dominates the request, so it was **not added**
   (no migration). Follow-up when the ledger reaches ~10⁵–10⁶ rows: the `seq` index and/or keyset paging, and a cheaper
   total.
+- **Screens (frontend):** `/inventory/movements` (table on desktop, cards on phones) and
+  `/inventory/movements/:movementId`; nav link shown with either view permission. Filters live in the URL through a
+  timeline-local `useUrlFilters`, which applies each change on top of the latest one — the shared catalogue
+  `useListParams` builds on the last *rendered* URL, so two changes in one frame could overwrite each other (reported
+  in D-08; the shared helper is left unchanged to avoid a cross-feature refactor; a regression test proves the
+  difference). Date filters are the user's calendar days, sent as the instants they start (`to` = start of the next
+  day, exclusive); times are shown in the browser's zone with the UTC offset stated on the page. Links appear only
+  for a reference the server returned and a screen the user may open (vehicle `vehicle_units.view`, SKU
+  `stock_items.view`, GRN `goods_receipts.view`, count `stock.adjustment.view`, PDI with the unit; no PO or sale link —
+  a movement carries neither). D-08's per-vehicle history section is unchanged (it may adopt this component later).
 - **Not here:** brand scope (none exists, RB-5); reversals/corrections (no approved flow, LED-002); sale/reservation
   movements (F-04/F-07); E-06 reconciliation; any write.
 

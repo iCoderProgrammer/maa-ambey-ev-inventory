@@ -67,8 +67,8 @@ describe('sidebar', () => {
       'true',
     )
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    const vehicles = within(nav).getByRole('link', { name: /Stock Movements/ })
-    expect(vehicles).toHaveAccessibleName('Stock Movements, planned')
+    const vehicles = within(nav).getByRole('link', { name: /Reservations/ })
+    expect(vehicles).toHaveAccessibleName('Reservations, planned')
     const dashboard = within(nav).getByRole('link', { name: 'Dashboard' })
     expect(dashboard).toHaveAttribute('aria-current', 'page')
 
@@ -79,13 +79,13 @@ describe('sidebar', () => {
 
     // Keyboard focus shows the visual label as a tooltip (title attributes do not).
     vehicles.focus()
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Stock Movements · Planned')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Reservations · Planned')
   })
 
   it('shows no tooltips while the sidebar is expanded', () => {
     renderApp('/')
     within(screen.getByRole('navigation', { name: 'Main' }))
-      .getByRole('link', { name: /Stock Movements/ })
+      .getByRole('link', { name: /Reservations/ })
       .focus()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
@@ -95,13 +95,13 @@ describe('sidebar', () => {
     renderApp('/')
 
     const link = within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
-      name: /Stock Movements/,
+      name: /Reservations/,
     })
     link.focus()
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('heading', { level: 1, name: 'Stock Movements' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Reservations' })).toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveFocus()
-    expect(document.title).toBe('Stock Movements · Maa Ambey Inventory')
+    expect(document.title).toBe('Reservations · Maa Ambey Inventory')
   })
 })
 

@@ -86,8 +86,9 @@ export const navigation: NavSection[] = [
         label: 'Stock Movements',
         path: '/inventory/movements',
         icon: History,
-        backlog: ['E-01', 'E-02'],
+        backlog: [],
         summary: 'Append-only ledger of every stock and status change.',
+        permission: ['vehicle_units.view', 'stock.parts.view'],
       },
       {
         label: 'Stock Counts & Adjustments',

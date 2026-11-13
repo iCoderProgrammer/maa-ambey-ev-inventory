@@ -264,6 +264,12 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   location) creates 30 units per run through posting and records one PDI pass (it adds a placeholder checklist item
   for the fixture brand if none applies); `E2E_PRICE_APPROVER_*` approves the PO; `E2E_CATALOGUE_VIEWER_*` needs
   `vehicle_units.view` in the same location but no cost or attachment permission; `E2E_USERNAME` needs nothing.
+  `e2e/stock-movements.e2e.ts` (E-02) uses the same fixture: `E2E_CATALOGUE_*` (the D-08 grants plus
+  `goods_receipts.view`) creates 3 units per run through posting and one PDI pass, then checks the timeline against
+  the ledger; `E2E_PRICE_APPROVER_*` (receipt/count view permissions but neither `vehicle_units.view` nor
+  `stock.parts.view`) and `E2E_USERNAME` must be denied; optional `E2E_ROLES_*` with `vehicle_units.view` but **not**
+  `goods_receipts.view`, in the same location (e.g. `make access ARGS="grant --role viewer --permission
+  vehicle_units.view"` and `scope-add`), checks hidden sources. Throwaway database only.
   `e2e/parts-stock.e2e.ts` (E-04) uses `E2E_CATALOGUE_*` with `stock.parts.view/receive/issue`,
   `stock_items.view/manage` and `suppliers.view/manage`, and `E2E_CATALOGUE_VIEWER_*` with `stock_items.view` and
   `stock.parts.view`; both need a location in their scope (`cmd/access scope-add`). Throwaway database only.

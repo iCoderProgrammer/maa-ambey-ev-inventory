@@ -46,8 +46,9 @@ describe('navigation from the permissions contract', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(within(nav).queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: /Catalogue & Brands/ })).not.toBeInTheDocument()
-    // Ungated (planned) modules stay listed.
-    expect(within(nav).getByRole('link', { name: /Stock Movements/ })).toBeInTheDocument()
+    // Ungated (planned) modules stay listed; the movement timeline needs a view permission (E-02).
+    expect(within(nav).getByRole('link', { name: /Reservations/ })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: /Stock Movements/ })).not.toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: /Purchase Orders/ })).not.toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: /Goods Receipts/ })).not.toBeInTheDocument()
   })

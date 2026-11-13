@@ -1,0 +1,81 @@
+E-02 Stock movement timeline — FRONTEND verification (2026-11-12)
+================================================================
+
+Base: dev at 2b06c7e (E-02 backend). Real API only (GET /stock-movements, /stock-movements/{id}); no mock adapter.
+Throwaway stack: PostgreSQL 18 (docker maa-bt-pg :5494, migration 20), Go API :8096 (RBAC_ALLOW_PROPOSED_GRANTS=true),
+Vite :5188. Shared dev DB (:5436, migration 12) not touched. Test-only grant on the throwaway DB: Viewer role +
+vehicle_units.view (PROPOSED) and e2e.roles scoped to BT1, to exercise hidden sources.
+
+Files
+-----
+New:      ui/src/features/stock/TimelinePages.tsx (list + detail)
+          ui/src/features/stock/api/timeline.ts (schemas, listStockMovements, getStockMovement)
+          ui/src/features/stock/hooks/useTimeline.ts (queries, permission flags)
+          ui/src/features/stock/lib/timeline.ts (labels, change/quantity/location text, time, error mapping)
+          ui/src/features/stock/lib/urlFilters.ts (useUrlFilters, dayStart)
+          ui/src/features/stock/timeline.test.tsx
+          ui/e2e/stock-movements.e2e.ts
+Changed:  ui/src/app/routes.tsx (/inventory/movements, /inventory/movements/:movementId)
+          ui/src/app/navigation.ts (Stock Movements implemented; vehicle_units.view or stock.parts.view)
+          tests whose planned-module example was Stock Movements: app/App.test.tsx,
+          components/layout/AppShell.test.tsx, features/access/access.test.tsx, e2e/shell.e2e.ts, e2e/access.e2e.ts
+          (now Reservations; Stock Movements asserted gated); features/stock/stock.test.tsx (read-only routes)
+          docs/DEVELOPMENT_SETUP.md (e2e prerequisites), docs/ARCHITECTURE_DECISIONS.md (ADR-027 screens)
+
+Behaviour
+---------
+Timeline: server search (unit number, chassis/frame, SKU; 350 ms pause), item type (only with both view permissions),
+movement type, source type, source reference (exact, on Enter/blur), recorded by (Me / a person pinned from a
+link), location (the caller's /me locations), from/to date (the user's calendar days -> RFC 3339 instants, to =
+start of next day), order (newest/oldest); vehicle/part pins from detail links. All in the URL, page reset on
+change, Clear filters. Server paging. Desktop table / phone cards. Columns: movement + time (user's zone, seconds,
+UTC offset stated), vehicle/part (linked only with vehicle_units.view / stock_items.view), status change (vehicles) or
+quantity (parts), location, recorded by (You / display name), source (GRN link with goods_receipts.view, count link
+with stock.adjustment.view, PDI link with the unit; "Not visible to you" when sourceHidden), View.
+Detail: every ledger field, supplier (suppliers.view), reason/note, movement ID, related-movement links (this unit/SKU,
+this person, this source). No edit, delete, reverse or correction control anywhere; no request other than GET.
+States: skeleton, empty ledger, no results, invalid filter (server field messages), error + retry, offline, 403,
+401 -> sign-in, no permission (no request), 404 detail.
+Filter race: useUrlFilters applies each change on top of the latest one; regression test proves two changes in one
+frame both survive (fails with the shared useListParams, which was left unchanged).
+
+Checks
+------
+ESLint (--max-warnings=0) ........... PASS
+Prettier --check .................... PASS
+tsc -b --noEmit ..................... PASS
+Vitest (--maxWorkers=2) ............. 34 files / 367 tests PASS (17 new in timeline.test.tsx)
+Vite production build ............... PASS
+Playwright stock-movements.e2e.ts ... 2 passed (desktop + Pixel 7); --repeat-each=2 -> 4 passed
+Playwright full suite (1st run) ..... 88 passed, 5 skipped, 3 failed — shell.e2e (desktop, mobile) and access.e2e
+                                      (desktop) still used Stock Movements as the ungated planned example; updated to
+                                      Reservations + Stock Movements gated; rerun of both files 16 passed / 2 skipped
+Playwright full suite (final) ....... 91 passed, 5 skipped, 0 failed (9.0m) — D-06 PDI, D-07 posting, D-08 vehicles incl.
+
+Scenarios (Playwright, desktop + Pixel 7, real API)
+---------------------------------------------------
+A Listing: 3 units posted + 1 PDI pass; timeline = D-08 per-unit ledger (independent query), newest first; paging
+  26-50; search -> 4; REJECT -> no results ............................................................ PASS
+B Filters: movement + recorded by + location + from + to + source + search together (URL carries all 7); to < from
+  -> "To date must be after from"; empty day; clear; chassis; source reference (lower case) ............ PASS
+C Detail: statuses, location, You, PDI link, vehicle link (D-08 history still 2 entries), back keeps filters, GRN link PASS
+D Permissions: price approver (GRN/count view only) denied on list + direct detail, API 403; e2e.active denied;
+  e2e.roles: GRN sources hidden (API sourceHidden/null), reference probe 0, no parts rows, no leak strings ...... PASS
+E Immutability: no edit/delete controls; no non-GET API request during the whole flow ...................... PASS
+F Responsive: Pixel 7 project runs the whole flow; no horizontal overflow ................................ PASS
+
+Visible Chrome walkthrough (Claude in Chrome, new tab group, 2026-11-12) — 12/12 PASS
+-------------------------------------------------------------------------------------
+1 sidebar link (no Planned badge); newest 4 rows equal the DB ledger (type, unit, GRN/PDI, time to the second)
+2 chassis search CH-MMWDJ6483 -> 1-4 of 4          3 + Passed PDI + Me + BT1 -> 1 of 1, all four kept in the URL
+4 from = to = today -> 1; to < from -> field error  5 clear; source reference grn-000049 -> 3 receipts
+6 paging 26-50 of 896 (live ledger), page=2         7 detail = DB row (PDI_PASS, statuses, PDI-000042); no edit control
+8 PDI, vehicle (D-08 history 2 entries), GRN-000049 links; back keeps filters; "All movements of" = 2
+9 parts receipt detail: 0 -> 10 PCS, supplier, DC-C1
+10 e2e.roles: "Not visible to you"; API sourceHidden true, id/ref null; GRN probe 0; parts 0; parts detail 404; no leak
+11 e2e.priceapprover: Access denied on direct detail URL; API 403/403; no sidebar link
+12 412 px frame: card list, no table, scrollWidth 395 < 410
+Console errors: none.
+API log: /stock-movements 301 x 200, 53 x 403, 15 x 422, 2 x 404, 49 x 500/503 — all 49 logged "context canceled"
+(requests the browser aborted when a filter changed; TanStack Query cancellation; no response reached the browser).
+Same cross-module logging behaviour as noted in D-08; not an E-02 defect; not changed (out of scope).

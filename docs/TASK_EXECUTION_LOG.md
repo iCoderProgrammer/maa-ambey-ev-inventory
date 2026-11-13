@@ -55,7 +55,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | D-08 | Vehicle list and detail UI | P0 | D-04, D-05, D-06, E-02 | COMPLETE — backend `1b3b2ad` + frontend (separate commit); OQ-8 resolved (ADR-026); RB-5 pending |
 | D-09 | QR/barcode lookup and print | P0 | D-04, D-08, B-07 | NOT STARTED |
 | E-01 | Append-only stock movement API | P0 | D-04, B-08 | COMPLETE (backend + typed client/hooks; no screen, timeline is E-02) |
-| E-02 | Stock movement timeline UI | P0 | E-01, D-08 | IN PROGRESS — backend phase COMPLETE (ADR-027); frontend next |
+| E-02 | Stock movement timeline UI | P0 | E-01, D-08 | COMPLETE — backend `2b06c7e` + frontend (uncommitted); ADR-027; RB-5 pending |
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | COMPLETE (mechanism; threshold/approver OQ-40, vehicle discrepancies OQ-39, grants RB-5 pending) |
@@ -3132,7 +3132,7 @@ COMPLETE — backend `1b3b2ad`; frontend complete, verified and committed separa
 
 ### E-02 — Stock movement timeline UI
 
-- **Status:** IN PROGRESS — backend phase COMPLETE (2026-11-12); frontend phase next.
+- **Status:** COMPLETE (2026-11-12) — backend committed `2b06c7e`; frontend complete, not committed (by instruction).
   Pending: per-user brand scope and grants (RB-5).
 - **Started:** 2026-11-12
 - **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_02_stock-movement-timeline-ui.md
@@ -3148,10 +3148,12 @@ COMPLETE — backend `1b3b2ad`; frontend complete, verified and committed separa
 - [x] AC2 Unauthorized linked records are not leaked (row visibility per item permission + scope; hidden GRN/count sources
       not returned or searchable; supplier needs suppliers.view; no cost/document data) — backend
 - [x] AC3 No edit/delete: read-only routes; no write route; ledger triggers unchanged — backend
-- [ ] AC4 Screens: timeline/table with filters, detail, links where authorized, states, timezone — frontend phase
+- [x] AC4 Screens: timeline/table with filters, detail, links where authorized, states, timezone (real API)
 
 #### Stage 1 — UI
-Result: NOT APPLICABLE in the backend phase (backend first by instruction).
+Result: COMPLETE (frontend phase, built directly on the real API — no mock adapter). `TimelinePages.tsx`: timeline
+(search + 9 filters in the URL via `useUrlFilters`, server paging, table/cards, all states) and detail (ledger
+fields, permission-aware links, related movements). No edit/delete control.
 
 #### Stage 2 — Backend
 Result: COMPLETE
@@ -3169,17 +3171,23 @@ Result: COMPLETE
 - Evidence: `docs/evidence/E-02/backend-verification.txt`.
 
 #### Stage 3 — API integration
-Result: pending (frontend phase).
+Result: COMPLETE (frontend, uncommitted). List/detail on the real API with Zod contract checks; ESLint, Prettier,
+tsc, Vitest 34 files / 367 tests, build PASS. Same-frame filter race fixed locally (regression test proves it).
 
 #### Stage 4 — Browser testing
-Result: pending (frontend phase).
+Result: PASS (Playwright `stock-movements.e2e.ts` desktop + Pixel 7, repeat ×2; full suite rerun after updating the
+three planned-module examples: 91 passed, 5 skipped, 0 failed). Visible Chrome walkthrough 12/12 PASS (ledger match, filters, paging,
+detail, links, D-08 regression, parts, hidden sources, denial, phone width). Evidence:
+`docs/evidence/E-02/frontend-verification.txt`.
 
 #### Known issues / pending approvals
 - No per-user brand scope (RB-5); production grants for the two view permissions are pending (RB-5).
+- Client-aborted requests are logged as 500 `context canceled` across modules (observability only; out of scope).
+- The shared `useListParams` same-frame race remains in other list pages (E-02 uses its own `useUrlFilters`).
 - Offset paging with a count; `seq` index / keyset paging is the follow-up at ~10⁵–10⁶ movements (ADR-027).
 
 #### Final status
-IN PROGRESS — backend complete; frontend phase next.
+COMPLETE — backend `2b06c7e`; frontend complete and verified, not committed. Not started: E-03.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

@@ -42,7 +42,7 @@ describe('application shell', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const label of ['Stock Movements', 'Reservations', 'Customers', 'Reports', 'Quotations']) {
+    for (const label of ['Reservations', 'Customers', 'Reports', 'Quotations']) {
       expect(within(nav).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')
@@ -79,14 +79,14 @@ describe('application shell', () => {
 
   it('marks planned modules honestly instead of faking workflows', () => {
     mockApi()
-    renderApp('/inventory/movements')
+    renderApp('/sales/reservations')
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Stock Movements' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Reservations' })).toBeInTheDocument()
     expect(screen.getByText('This module is not implemented yet.')).toBeInTheDocument()
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' })
-    expect(within(crumbs).getByText('Inventory')).toBeInTheDocument()
+    expect(within(crumbs).getByText('Sales')).toBeInTheDocument()
     expect(
-      within(screen.getByRole('list', { name: 'Backlog tasks' })).getByText('E-02'),
+      within(screen.getByRole('list', { name: 'Backlog tasks' })).getByText('F-04'),
     ).toBeInTheDocument()
   })
 
@@ -96,8 +96,8 @@ describe('application shell', () => {
     const { router } = renderApp('/nope')
 
     expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: /Stock Movements/ }))
-    expect(router.state.location.pathname).toBe('/inventory/movements')
+    await user.click(screen.getByRole('link', { name: /Reservations/ }))
+    expect(router.state.location.pathname).toBe('/sales/reservations')
   })
 
   it('switches between light and dark themes', async () => {
