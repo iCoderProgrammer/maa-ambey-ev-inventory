@@ -3577,6 +3577,21 @@ INCOMPLETE — readiness + preflight done; H-08 blocked on client data and owner
   run (prerequisites below). Evidence: `docs/evidence/H-08/verification.txt` (addendum).
 - Status: G-06 unchanged (COMPLETE, technical) with its main E2E now re-verified; H-08 unchanged (INCOMPLETE).
 
+### G-06 E2E prerequisite modes and data lifecycle (2026-11-17; user-requested; not a registry task)
+
+- Fixture repair committed as `12ec125` (on user request). This hardening is uncommitted.
+- CI (`.github/workflows/ci.yml`) has no E2E job; Playwright runs only against a hand-started stack. Convention
+  reused: Go integration tests skip without a DB URL unless `REQUIRE_INTEGRATION_TESTS=1`.
+- Change: `e2e/support.ts` `requirePrerequisites`/`unset` — missing variables skip locally (named in the skip
+  reason) and fail with `REQUIRE_E2E_FIXTURES=1`; G-06's two tests use it; `receivedUnit.ts` fails with an
+  actionable message when the named fixture is absent from the database. Default local behaviour unchanged (skip).
+- Data lifecycle: posted test units are never deleted (append-only); documented disposable database per E2E session.
+- Verified: required mode with `E2E_PO_*` unset → 1 failed with the missing names; local mode → 1 skipped (reported);
+  wrong fixture name → failed with the po-fixture.sql pointer; required mode with fixtures: G-06 4/4 twice,
+  G-06 + H-08 + E-06 14/14 (0 skipped). Vitest openingstock 48/48; Go unit ok; integration openingstock, receiving,
+  vehicles, purchasing, stock ok; vet, swagger-check, OpenAPI drift, typecheck, lint, format, build ok.
+- Not done: no CI E2E job added (needs a full stack + fixture in CI — a separate decision). G-07/E-07 E2E not run.
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--

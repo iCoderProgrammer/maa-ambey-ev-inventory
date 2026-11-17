@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 /**
  * Test accounts come from the environment, never from the repository. Create
@@ -52,6 +52,24 @@ export async function fillLogin(page: Page, username: string, password: string) 
   await page.getByLabel('Password', { exact: false }).first().fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
+
+/**
+ * Missing prerequisites (environment variable names) for a test. Locally the
+ * test is skipped with the list (reported as skipped, never as passed); with
+ * REQUIRE_E2E_FIXTURES=1 — the E2E counterpart of REQUIRE_INTEGRATION_TESTS —
+ * it fails instead, so a mandatory run cannot go green without the fixture.
+ */
+export function requirePrerequisites(missing: string[], setup: string): void {
+  if (missing.length === 0) return
+  const message = `Missing ${missing.join(', ')}. ${setup}`
+  if (process.env.REQUIRE_E2E_FIXTURES === '1') {
+    throw new Error(`REQUIRE_E2E_FIXTURES=1: ${message}`)
+  }
+  test.skip(true, message)
+}
+
+/** Names of the unset variables among `names`. */
+export const unset = (...names: string[]): string[] => names.filter((n) => !process.env[n])
 
 /** Signs in through the real form and waits for the app shell. */
 export async function signIn(page: Page, path = '/', kind: AccountKind = 'active') {

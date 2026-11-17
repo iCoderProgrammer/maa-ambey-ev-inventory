@@ -15,9 +15,6 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test'
  * deleted afterwards; its chassis carries the test's tag.
  */
 
-export const hasReceiptFixture = (): boolean =>
-  Boolean(process.env.E2E_PO_SUPPLIER && process.env.E2E_PO_BRAND)
-
 async function csrf(request: APIRequestContext): Promise<string> {
   const res = await request.get('/api/v1/auth/session')
   return ((await res.json()) as { data: { csrfToken: string } }).data.csrfToken
@@ -78,7 +75,12 @@ export async function registerUnitThroughReceipt(
   const variantId =
     (await call<ListOf<{ id: string }>>(page, 'GET', `/variants?modelId=${modelId}`)).items[0]
       ?.id ?? ''
-  expect(supplier && brandId && modelId && variantId, 'E2E_PO_* fixture not found').toBeTruthy()
+  expect(
+    supplier && brandId && modelId && variantId,
+    `E2E_PO_SUPPLIER/E2E_PO_BRAND fixture not found in this database (supplier ${String(Boolean(supplier))}, ` +
+      `brand/model/variant ${String(Boolean(brandId && modelId && variantId))}): apply ` +
+      'docs/evidence/BROWSER-TEST-2026-11-11/po-fixture.sql to the throwaway database',
+  ).toBeTruthy()
 
   const future = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
   const po = await call<{ id: string; version: number }>(page, 'POST', '/purchase-orders', {

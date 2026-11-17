@@ -292,7 +292,13 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   a goods receipt posting (`e2e/receivedUnit.ts`), so it also needs `E2E_PRICE_APPROVER_*` (approves the PO), the
   `E2E_PO_*` eligible fixture and, on `E2E_CATALOGUE_*`, `catalogue.view`, `purchase_orders.view/manage` and
   `goods_receipts.view/manage/post` (PROPOSED grants); it is skipped without them. This creates one posted receipt
-  and one vehicle unit per run (append-only, never deleted). It uploads a controlled CSV and checks that no stock table changed. The API reads
+  and one vehicle unit per run (append-only, never deleted). Missing prerequisites skip the test locally (reported
+  as skipped, with the missing variable names); set `REQUIRE_E2E_FIXTURES=1` (the E2E counterpart of
+  `REQUIRE_INTEGRATION_TESTS=1`) to fail instead — use it for any mandatory run. A named fixture that is not in the
+  database always fails with a pointer to `docs/evidence/BROWSER-TEST-2026-11-11/po-fixture.sql`. Test data
+  lifecycle: never delete posted receipts, units, movements or audit rows to clean up; use a disposable database per
+  E2E session (create, migrate, seed, apply the fixture, run, then drop the whole database) — runs on one database
+  stay correct because every chassis and reference carries a per-run tag. It uploads a controlled CSV and checks that no stock table changed. The API reads
   `IMPORT_MAX_BYTES`, `IMPORT_MAX_ROWS` and `IMPORT_PREVIEW_TTL`. Throwaway database only.
   `e2e/opening-stock-commit.e2e.ts` (G-07) uses the same variables, with `E2E_CATALOGUE_*` also holding
   `stock.import.approve` and `stock.import.commit` (PROPOSED grants, `RBAC_ALLOW_PROPOSED_GRANTS=true`), and an API

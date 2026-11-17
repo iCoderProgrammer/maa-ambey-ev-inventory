@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
-import { hasReceiptFixture, registerUnitThroughReceipt } from './receivedUnit'
-import { hasAccount, signIn, watchConsole } from './support'
+import { registerUnitThroughReceipt } from './receivedUnit'
+import { requirePrerequisites, signIn, unset, watchConsole } from './support'
 
 /**
  * Opening stock import PREVIEW (G-06) against the real API and PostgreSQL:
@@ -92,15 +92,24 @@ test.describe('opening stock import preview', () => {
     page,
     browser,
   }, info) => {
-    test.skip(
-      !hasAccount('catalogue') || !fixture.brand,
-      'Set E2E_CATALOGUE_* and E2E_OS_* (throwaway fixture)',
+    requirePrerequisites(
+      unset(
+        'E2E_CATALOGUE_USERNAME',
+        'E2E_CATALOGUE_PASSWORD',
+        'E2E_PRICE_APPROVER_USERNAME',
+        'E2E_PRICE_APPROVER_PASSWORD',
+        'E2E_OS_BRAND',
+        'E2E_OS_MODEL',
+        'E2E_OS_VARIANT',
+        'E2E_PO_SUPPLIER',
+        'E2E_PO_BRAND',
+        'E2E_RECON_DB_CONTAINER',
+        'E2E_RECON_DB_USER',
+        'E2E_RECON_DB_NAME',
+      ),
+      'Throwaway database only: see DEVELOPMENT_SETUP "End-to-end browser tests" (G-06) and ' +
+        'docs/evidence/BROWSER-TEST-2026-11-11/po-fixture.sql for the E2E_PO_* fixture.',
     )
-    test.skip(
-      !hasAccount('priceApprover') || !hasReceiptFixture(),
-      'Set E2E_PRICE_APPROVER_* and E2E_PO_* (throwaway fixture for the registered unit)',
-    )
-    test.skip(!db.container || !db.user || !db.name, 'Set E2E_RECON_DB_* (throwaway database only)')
     test.setTimeout(120_000)
     const problems = watchConsole(page)
     const tag = `${info.project.name.slice(0, 1)}${Date.now().toString(36)}`.toUpperCase()
@@ -234,7 +243,10 @@ test.describe('opening stock import preview', () => {
   })
 
   test('a user without the permission is refused', async ({ page }) => {
-    test.skip(!hasAccount('catalogueViewer'), 'Set E2E_CATALOGUE_VIEWER_*')
+    requirePrerequisites(
+      unset('E2E_CATALOGUE_VIEWER_USERNAME', 'E2E_CATALOGUE_VIEWER_PASSWORD'),
+      'A throwaway account without stock.import.preview.',
+    )
     await signIn(page, '/inventory/opening-stock', 'catalogueViewer')
     await expect(page.getByText(/do not have permission/i)).toBeVisible()
     expect((await page.request.get('/api/v1/opening-stock-imports/template')).status()).toBe(403)
