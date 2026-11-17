@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/audit"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/stock"
 )
 
@@ -27,14 +28,29 @@ const unitColumns = `v.id::text, v.unit_number, v.status, v.brand_id::text, b.na
 	v.variant_id::text, va.name, v.chassis_number, v.chassis_normalised, v.motor_serial, v.battery_serial, v.charger_serial,
 	v.location_id::text, l.code, l.name, v.source_type, v.supplier_id::text, s.legal_name,
 	to_char(v.received_date, 'YYYY-MM-DD'), v.unit_cost::text, v.cost_currency, v.version, v.created_at, v.updated_at,
-	(current_date - v.received_date)`
+	og.status, to_char(og.received_date, 'YYYY-MM-DD'), oa.received_dates_approved`
 
 const unitFrom = ` FROM vehicle_units v
 	JOIN brands b ON b.id = v.brand_id
 	JOIN models m ON m.id = v.model_id
 	JOIN variants va ON va.id = v.variant_id
 	LEFT JOIN locations l ON l.id = v.location_id
-	LEFT JOIN suppliers s ON s.id = v.supplier_id`
+	LEFT JOIN suppliers s ON s.id = v.supplier_id
+	LEFT JOIN goods_receipts og ON og.id = v.goods_receipt_id
+	LEFT JOIN opening_stock_import_approvals oa ON oa.batch_id = v.opening_stock_batch_id`
+
+// originFrom is the join the ageing conditions need (og: the unit's goods receipt;
+// oa: an opening-stock unit's batch approval).
+const originFrom = ` FROM vehicle_units v LEFT JOIN goods_receipts og ON og.id = v.goods_receipt_id
+	LEFT JOIN opening_stock_import_approvals oa ON oa.batch_id = v.opening_stock_batch_id`
+
+// originReliable is the SQL form of ageing.OriginReason == "" (E-07): a goods
+// receipt unit with a posted receipt of the unit's received date, or an
+// opening-stock unit whose batch approval approved its received date (G-07);
+// either way not after the business date (the one parameter).
+const originReliable = `(((v.source_type = 'GOODS_RECEIPT' AND og.status = 'POSTED' AND og.received_date = v.received_date)
+	OR (v.source_type = 'OPENING_STOCK' AND oa.received_dates_approved))
+	AND v.received_date <= ?::date)`
 
 func scanUnit(row pgx.Row) (Unit, error) { return scanUnitWith(row) }
 
@@ -45,7 +61,7 @@ func scanUnitWith(row pgx.Row, extra ...any) (Unit, error) {
 	dest := append([]any{&u.ID, &u.UnitNumber, &u.Status, &u.BrandID, &u.BrandName, &u.ModelID, &u.ModelName,
 		&u.VariantID, &u.VariantName, &u.ChassisNumber, &u.ChassisNormalised, &u.MotorSerial, &u.BatterySerial, &u.ChargerSerial,
 		&u.LocationID, &u.LocationCode, &u.LocationName, &u.SourceType, &u.SupplierID, &u.SupplierName,
-		&u.ReceivedDate, &cost, &currency, &u.Version, &u.CreatedAt, &u.UpdatedAt, &u.AgeDays}, extra...)
+		&u.ReceivedDate, &cost, &currency, &u.Version, &u.CreatedAt, &u.UpdatedAt, &u.grnStatus, &u.grnDate, &u.openingDateApproved}, extra...)
 	err := row.Scan(dest...)
 	u.UnitCost, u.CostCurrency = &cost, &currency
 	return u, err
@@ -92,6 +108,46 @@ var listOrder = map[string]string{
 // normalised chassis/frame, motor, battery and charger identifiers. Every join
 // is to one row (brand, model, variant, location, supplier), so no unit repeats.
 func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
+	where, args := listWhere(f)
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*)`+originFrom+where, args...).Scan(&total); err != nil {
+		return Page[Unit]{}, fmt.Errorf("count vehicle units: %w", err)
+	}
+	n := len(args)
+	order, ok := listOrder[f.Sort]
+	if !ok {
+		order = listOrder["-createdAt"]
+	}
+	items, err := queryAll(ctx, s.pool, scanUnit, `SELECT `+unitColumns+unitFrom+where+` ORDER BY `+order+` LIMIT $`+
+		strconv.Itoa(n+1)+` OFFSET $`+strconv.Itoa(n+2), append(args, f.Limit, (f.Page-1)*f.Limit)...)
+	if err != nil {
+		return Page[Unit]{}, fmt.Errorf("list vehicle units: %w", err)
+	}
+	return Page[Unit]{Items: items, Page: f.Page, Limit: f.Limit, Total: total}, nil
+}
+
+// AgeingOrigins implements Repository: the origin of every unit the filter
+// selects (no paging), for the ageing summary.
+func (s *PGStore) AgeingOrigins(ctx context.Context, f ListFilter) ([]ageing.Origin, error) {
+	where, args := listWhere(f)
+	return queryAll(ctx, s.pool, func(r pgx.Row) (ageing.Origin, error) {
+		var o ageing.Origin
+		var st, d *string
+		err := r.Scan(&o.SourceType, &o.Date, &st, &d)
+		if st != nil {
+			o.GRNStatus = *st
+		}
+		if d != nil {
+			o.GRNDate = *d
+		}
+		return o, err
+	}, `SELECT v.source_type, to_char(v.received_date, 'YYYY-MM-DD'), og.status, to_char(og.received_date, 'YYYY-MM-DD')`+
+		originFrom+where, args...)
+}
+
+// listWhere builds the list WHERE (shared by the page, its count and the ageing
+// summary, so they always select the same units).
+func listWhere(f ListFilter) (string, []any) {
 	var conds []string
 	var args []any
 	add := func(cond string, v any) {
@@ -115,12 +171,31 @@ func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 	if f.ReceivedTo != "" {
 		add("v.received_date <= ?::date", f.ReceivedTo)
 	}
-	// Age in whole days since the received date: written on received_date so its index applies.
-	if f.MinAgeDays != nil {
-		add("v.received_date <= current_date - ?::int", *f.MinAgeDays)
+	// Ageing (E-07): ages exist only with a reliable origin, counted to the business
+	// date f.AsOf; written on received_date (dates computed here) so its index applies.
+	asOf, _ := ageing.ParseDate(f.AsOf)
+	day := func(n int) string { return asOf.AddDate(0, 0, -n).Format(time.DateOnly) }
+	minAge, maxAge := f.MinAgeDays, f.MaxAgeDays
+	if f.Band != nil {
+		minAge, maxAge = &f.Band.MinDays, f.Band.MaxDays
 	}
-	if f.MaxAgeDays != nil {
-		add("v.received_date >= current_date - ?::int", *f.MaxAgeDays)
+	if minAge != nil || maxAge != nil || f.OriginStatus == OriginKnown {
+		add(originReliable, f.AsOf)
+	}
+	if f.OriginStatus == OriginMissing {
+		add("NOT coalesce("+originReliable+", false)", f.AsOf)
+	}
+	if minAge != nil {
+		add("v.received_date <= ?::date", day(*minAge))
+	}
+	if maxAge != nil {
+		add("v.received_date >= ?::date", day(*maxAge))
+	}
+	if f.Band != nil && f.MinAgeDays != nil {
+		add("v.received_date <= ?::date", day(*f.MinAgeDays))
+	}
+	if f.Band != nil && f.MaxAgeDays != nil {
+		add("v.received_date >= ?::date", day(*f.MaxAgeDays))
 	}
 	switch f.Saleable {
 	case "true":
@@ -138,21 +213,7 @@ func (s *PGStore) List(ctx context.Context, f ListFilter) (Page[Unit], error) {
 	if len(conds) > 0 {
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
-	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM vehicle_units v`+where, args...).Scan(&total); err != nil {
-		return Page[Unit]{}, fmt.Errorf("count vehicle units: %w", err)
-	}
-	n := len(args)
-	order, ok := listOrder[f.Sort]
-	if !ok {
-		order = listOrder["-createdAt"]
-	}
-	items, err := queryAll(ctx, s.pool, scanUnit, `SELECT `+unitColumns+unitFrom+where+` ORDER BY `+order+` LIMIT $`+
-		strconv.Itoa(n+1)+` OFFSET $`+strconv.Itoa(n+2), append(args, f.Limit, (f.Page-1)*f.Limit)...)
-	if err != nil {
-		return Page[Unit]{}, fmt.Errorf("list vehicle units: %w", err)
-	}
-	return Page[Unit]{Items: items, Page: f.Page, Limit: f.Limit, Total: total}, nil
+	return where, args
 }
 
 // GetDetail implements Repository.
@@ -160,13 +221,16 @@ func (s *PGStore) GetDetail(ctx context.Context, id string) (Detail, error) {
 	var d Detail
 	var src Source
 	row := s.pool.QueryRow(ctx, `SELECT `+unitColumns+`, v.purchase_order_id::text, po.po_number, v.purchase_order_line_id::text,
-			v.goods_receipt_id::text, g.grn_number, v.goods_receipt_line_id::text, v.goods_receipt_unit_id::text, g.supplier_reference
+			v.goods_receipt_id::text, g.grn_number, v.goods_receipt_line_id::text, v.goods_receipt_unit_id::text, g.supplier_reference,
+			v.opening_stock_batch_id::text, ob.reference, v.opening_stock_row_number
 		`+unitFrom+`
 		LEFT JOIN purchase_orders po ON po.id = v.purchase_order_id
 		LEFT JOIN goods_receipts g ON g.id = v.goods_receipt_id
+		LEFT JOIN opening_stock_import_batches ob ON ob.id = v.opening_stock_batch_id
 		WHERE v.id = $1`, id)
 	u, err := scanUnitWith(row, &src.PurchaseOrderID, &src.PurchaseOrderNumber, &src.PurchaseOrderLineID,
-		&src.GoodsReceiptID, &src.GoodsReceiptNumber, &src.GoodsReceiptLineID, &src.GoodsReceiptUnitID, &src.SupplierReference)
+		&src.GoodsReceiptID, &src.GoodsReceiptNumber, &src.GoodsReceiptLineID, &src.GoodsReceiptUnitID, &src.SupplierReference,
+		&src.OpeningStockBatchID, &src.OpeningStockBatchReference, &src.OpeningStockRowNumber)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -369,6 +433,64 @@ func RegisterFromReceiptUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, 
 			"status": StatusReceivedPendingPDI, "sourceType": SourceGoodsReceipt, "goodsReceiptId": receiptID,
 			"goodsReceiptNumber": grnNumber, "goodsReceiptUnitId": receiptUnitID, "purchaseOrderId": poID,
 			"brandId": brandID, "variantId": variantID, "movementId": movementID,
+		}}); err != nil {
+		return Registration{}, err
+	}
+	return r, nil
+}
+
+// OpeningStockUnit is one committed opening-stock row (G-07): the resolved
+// catalogue, location and optional existing supplier, the identifiers as
+// uploaded (trimmed), the opening status, received date and acquisition cost.
+type OpeningStockUnit struct {
+	BatchID, BatchReference                   string
+	RowNumber                                 int
+	BrandID, ModelID, VariantID, LocationID   string
+	SupplierID                                *string
+	ChassisNumber                             string
+	MotorSerial, BatterySerial, ChargerSerial *string
+	Status, ReceivedDate, UnitCost            string
+}
+
+// RegisterOpeningStockUnit creates one opening-stock vehicle unit inside the
+// batch's commit transaction: the unit (source OPENING_STOCK, pointing at its
+// staged row; no purchase order or goods receipt is invented, IMP-005), its
+// REGISTERED history entry, its OPENING_BALANCE movement (E-01) and the audit
+// event. The database checks the unit matches its row and that the batch's
+// commit exists; the chassis unique key is the final word on duplicates.
+func RegisterOpeningStockUnit(ctx context.Context, tx pgx.Tx, actor audit.Actor, requestID string, in OpeningStockUnit) (Registration, error) {
+	if actor.Type != audit.ActorUser || actor.UserID == "" {
+		return Registration{}, errors.New("vehicle units are registered by a signed-in user")
+	}
+	var r Registration
+	err := tx.QueryRow(ctx, `INSERT INTO vehicle_units (brand_id, model_id, variant_id, status, chassis_number, motor_serial,
+			battery_serial, charger_serial, location_id, source_type, supplier_id, received_date, unit_cost, registered_by,
+			opening_stock_batch_id, opening_stock_row_number)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		RETURNING id::text, unit_number`,
+		in.BrandID, in.ModelID, in.VariantID, in.Status, in.ChassisNumber, in.MotorSerial, in.BatterySerial, in.ChargerSerial,
+		in.LocationID, SourceOpeningStock, in.SupplierID, in.ReceivedDate, in.UnitCost, actor.UserID, in.BatchID,
+		in.RowNumber).Scan(&r.ID, &r.UnitNumber)
+	if err != nil {
+		return Registration{}, registrationError(err, "")
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO vehicle_unit_events (vehicle_unit_id, action, to_status, source_type, source_id,
+			source_reference, actor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		r.ID, ActionRegistered, in.Status, SourceOpeningStock, in.BatchID, in.BatchReference, actor.UserID); err != nil {
+		return Registration{}, fmt.Errorf("record vehicle unit history: %w", err)
+	}
+	movementID, err := stock.RecordOpeningBalance(ctx, tx, actor, stock.OpeningBalance{UnitID: r.ID, BatchID: in.BatchID,
+		BatchReference: in.BatchReference, RowNumber: in.RowNumber, Status: in.Status, LocationID: in.LocationID,
+		RequestID: requestID})
+	if err != nil {
+		return Registration{}, err
+	}
+	// As for receipts, the cost stays out of the audit summary.
+	if err := audit.Record(ctx, tx, audit.Event{Actor: actor, Action: "vehicle_unit.registered", EntityType: "vehicle_unit",
+		EntityID: r.ID, Reference: r.UnitNumber, RequestID: requestID, Summary: audit.Summary{
+			"status": in.Status, "sourceType": SourceOpeningStock, "openingStockBatchId": in.BatchID,
+			"openingStockBatchReference": in.BatchReference, "openingStockRowNumber": in.RowNumber,
+			"brandId": in.BrandID, "variantId": in.VariantID, "locationId": in.LocationID, "movementId": movementID,
 		}}); err != nil {
 		return Registration{}, err
 	}

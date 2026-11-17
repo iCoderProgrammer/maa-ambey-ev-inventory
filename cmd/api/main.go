@@ -16,9 +16,11 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/database"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/logger"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/attachments"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/openingstock"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pdi"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
@@ -110,13 +112,26 @@ func run() error {
 	supplierHandler := suppliers.NewHandler(suppliers.NewService(suppliers.NewPGStore(pool), log), accessHandler, log)
 	purchaseOrderHandler := purchasing.NewHandler(purchasing.NewService(purchasing.NewPGStore(pool), log), accessHandler, log)
 	goodsReceiptHandler := receiving.NewHandler(receiving.NewService(receiving.NewPGStore(pool), log), accessHandler, log)
-	vehicleUnitHandler := vehicles.NewHandler(vehicles.NewService(vehicles.NewPGStore(pool), log), accessHandler, log)
+	calendar, err := ageing.NewCalendar(cfg.BusinessTimeZone, nil)
+	if err != nil {
+		return fmt.Errorf("business calendar: %w", err)
+	}
+	ageingSvc := ageing.NewService(ageing.NewPGStore(pool), calendar, log)
+	ageingHandler := ageing.NewHandler(ageingSvc, accessHandler, log)
+	openingStatuses, err := openingstock.ParseOpeningStatuses(cfg.OpeningStockApprovedStatuses)
+	if err != nil {
+		return fmt.Errorf("OPENING_STOCK_APPROVED_STATUSES: %w", err)
+	}
+	openingStockHandler := openingstock.NewHandler(openingstock.NewService(openingstock.NewPGStore(pool), objects, calendar,
+		openingstock.Limits{MaxBytes: cfg.ImportMaxBytes, MaxRows: cfg.ImportMaxRows, PreviewTTL: cfg.ImportPreviewTTL,
+			OpeningStatuses: openingStatuses}, log), accessHandler, log)
+	vehicleUnitHandler := vehicles.NewHandler(vehicles.NewService(vehicles.NewPGStore(pool), log).WithAgeing(ageingSvc), accessHandler, log)
 	stockHandler := stock.NewHandler(stock.NewService(stock.NewPGStore(pool), log), accessHandler, log)
 	pdiHandler := pdi.NewHandler(pdi.NewService(pdi.NewPGStore(pool), log), accessHandler, log)
 	stockItemHandler := stockitems.NewHandler(stockitems.NewService(stockitems.NewPGStore(pool), log), accessHandler, log)
 	log.Info("attachment storage ready", slog.String("driver", objects.Driver()), slog.Int64("max_bytes", cfg.AttachmentMaxBytes))
 
-	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, StockMovements: stockHandler, StockItems: stockItemHandler, PDI: pdiHandler, Version: version})
+	router, err := server.NewRouter(server.Deps{Config: cfg, Log: log, DB: pool, Schema: schema, Auth: authHandler, Access: accessHandler, Attachments: attachmentHandler, Catalogue: catalogueHandler, Pricing: pricingHandler, Suppliers: supplierHandler, PurchaseOrders: purchaseOrderHandler, GoodsReceipts: goodsReceiptHandler, VehicleUnits: vehicleUnitHandler, StockMovements: stockHandler, StockItems: stockItemHandler, PDI: pdiHandler, Ageing: ageingHandler, OpeningStock: openingStockHandler, Version: version})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

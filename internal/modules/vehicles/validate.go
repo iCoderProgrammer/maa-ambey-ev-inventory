@@ -1,6 +1,8 @@
 package vehicles
 
 import (
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
+
 	"slices"
 	"strconv"
 	"strings"
@@ -21,7 +23,16 @@ type ListQuery struct {
 	ReceivedFrom, ReceivedTo, MinAgeDays, MaxAgeDays string
 	// Sort is one of SortOrders (default "-createdAt").
 	Sort string
+	// AgeingBand is a band key of the current ageing configuration (E-07);
+	// OriginStatus is KNOWN (reliable origin date, so an age) or MISSING.
+	AgeingBand, OriginStatus string
 }
+
+// Origin status filter values (E-07).
+const (
+	OriginKnown   = "KNOWN"
+	OriginMissing = "MISSING"
+)
 
 // SortOrders are the accepted list orders: a field, descending with a leading "-".
 // Every order ends with the unit ID, so pages are stable.
@@ -40,9 +51,13 @@ type ListFilter struct {
 	ReceivedFrom, ReceivedTo                                                 string // YYYY-MM-DD or ""
 	MinAgeDays, MaxAgeDays                                                   *int
 	Sort                                                                     string
-	LocationIDs, ScopeLocationIDs                                            []string
-	AllLocations                                                             bool
-	Page, Limit                                                              int
+	// Ageing (E-07): AsOf is the business date ages count to (set by the service);
+	// BandKey is validated against the current configuration and resolved to Band.
+	AsOf, OriginStatus, BandKey   string
+	Band                          *ageing.Band
+	LocationIDs, ScopeLocationIDs []string
+	AllLocations                  bool
+	Page, Limit                   int
 }
 
 type checker struct{ fields []FieldProblem }
@@ -104,6 +119,18 @@ func validateList(q ListQuery) (ListFilter, error) {
 	f.MaxAgeDays = c.optionalDays("maxAgeDays", q.MaxAgeDays)
 	if f.MinAgeDays != nil && f.MaxAgeDays != nil && *f.MinAgeDays > *f.MaxAgeDays {
 		c.add("maxAgeDays", "must not be less than minAgeDays")
+	}
+	switch f.OriginStatus = strings.TrimSpace(q.OriginStatus); f.OriginStatus {
+	case "", OriginKnown, OriginMissing:
+	default:
+		c.add("originStatus", "must be KNOWN or MISSING")
+	}
+	f.BandKey = strings.TrimSpace(q.AgeingBand)
+	if f.BandKey != "" && f.OriginStatus == OriginMissing {
+		c.add("ageingBand", "cannot be combined with originStatus=MISSING: records without an origin date have no band")
+	}
+	if (f.MinAgeDays != nil || f.MaxAgeDays != nil) && f.OriginStatus == OriginMissing {
+		c.add("originStatus", "cannot be MISSING together with minAgeDays/maxAgeDays: records without an origin date have no age")
 	}
 	if s := strings.TrimSpace(q.Sort); s != "" {
 		if !slices.Contains(SortOrders, s) {

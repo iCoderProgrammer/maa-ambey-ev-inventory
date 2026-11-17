@@ -1,0 +1,84 @@
+G-07 Opening stock import commit & idempotency (BACKEND ONLY) — verification evidence (2026-11-16)
+Base: dev @ b122188 with E-06 + E-07 + G-06 uncommitted (preserved; baseline diff/status snapshot taken before G-07 and
+compared at the end: no baseline change lost). Throwaway PostgreSQL 18 container only (e06-pg, 127.0.0.1:55498): one
+scratch database per Go test, plus scratch database g07_mig for the migration round trip. e06_test (used by the running
+throwaway API) was NOT migrated to 24 (not approved). Shared dev DB untouched. No seed, fixture or stock in production paths.
+
+PRODUCTION GATES (all enforced, none resolved here)
+  stock.import.approve and stock.import.commit: new, sensitive, granted to no role (RB-5). Preview permission grants neither.
+  OPENING_STOCK_APPROVED_STATUSES default empty -> every commit 409 OPENING_STATUSES_NOT_APPROVED (OQ-47).
+  Commit needs a recorded physical-count approval (409 IMPORT_APPROVAL_REQUIRED otherwise); A-04/H-08 sign-off pending.
+  Warnings never accepted at commit (OQ-49). Unverified/inactive catalogue mappings never committed (BLOCKED rows).
+
+MIGRATION 000024 (scratch database g07_mig)
+  up -> version 24; down 1 -> version 23 (opening_stock_import_approvals/commits gone, vehicle_units opening columns gone);
+  up -> version 24. Down refuses once any approval, commit, opening-stock unit or OPENING_BALANCE movement exists.
+
+BACKEND CHECKS
+  gofmt -l cmd internal -> none (after formatting G-06's server.go/server_test.go/main.go/service.go/store.go, which the
+    G-06 evidence wrongly reported clean) · go vet ./... -> 0 · go mod tidy -diff -> 0 · make swagger + make swagger-check -> 0
+  go build ./... -> 0 · golangci-lint NOT RUN (not installed)
+  TEST_DATABASE_URL= go test -count=1 ./... -> all packages ok (first run: vehicles TestMovementValuesMatchTheLedger failed
+    because its migration list lacked 000024; list updated, then ok)
+  TEST_DATABASE_URL=<e06_test> REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./... -> every package ok except
+    internal/database TestDevelopmentSchemaIsCurrent ("database at 23, build expects 24": it checks the TEST_DATABASE_URL
+    database itself, which was deliberately not migrated). Re-run with TEST_DATABASE_URL=<g07_mig, version 24>:
+    internal/database ok. Packages ok: cmd/access, cmd/migrate, cmd/user, audit, config, isolation, access, ageing,
+    attachments, auth, catalogue, health, openingstock (G-06 + G-07), pdi, pricing, purchasing, receiving (D-04/D-07),
+    stock (E-01/E-02/E-06), stockitems, suppliers, vehicles (D-08/E-07), server, migrations.
+  Concurrency/rollback tests repeated: go test -count=5 -run 'TestConcurrentCommitsCreateOnce|TestCommitRollsBack' -> ok.
+
+NEW TESTS (internal/modules/openingstock)
+  unit (commit_test.go): TestBatchGate (eligible; committed; rejected; no/other template; expired; no approval; no
+    approved status), TestSameSource (identical; changed value; changed line; row count; malformed line), TestRowGate
+    (valid; fatal error; unverified mapping BLOCKED; warning -> WARNING_NOT_ACCEPTED; status not approved; zero cost;
+    not eligible at preview; missing line; location/variant changed since preview; mixed batch), TestValidateApproval
+    (required fields, attestations must be true, date format/not future, control characters, blank note; replay
+    recognition), TestParseOpeningStatuses (empty approves nothing; dedupe; SOLD/lower-case/RESERVED refused).
+  integration (commit_integration_test.go, PostgreSQL + HTTP):
+    TestCommitCreatesStockOnceWithProvenance: commit before approval 409; approval 403 without permission (preview or
+      commit holder), 422 body, 201, identical repeat 200 replay, different 409; preview holder 403 on commit; missing
+      key 422; commit 201 (3 units, OSC reference, units with line/unit/movement); each unit: OPENING_STOCK, batch line,
+      no PO/GRN, supplier only where named, serial/date/cost from file, committer as actor; OPENING_BALANCE none->status
+      0->1 sourced from the batch; REGISTERED history; audit approved/committed + 3 unit events without cost; staged row
+      keeps the source values; replay same key 200 replayed (no new movement); other user/other key 409
+      IMPORT_ALREADY_COMMITTED (names OSC); same key on another batch 409 IDEMPOTENCY_KEY_REUSED; approval after commit
+      409; batch view shows approval+commit (status PREVIEWED, commitAvailable false); GET commit 200 / 404 / 403; DB
+      refuses UPDATE/DELETE of commits, approvals, opening units and OPENING_BALANCE movements; DB refuses an
+      opening-stock unit without its batch's commit; E-07: vehicle detail AGED from the approved date with originSource
+      OPENING_STOCK and source.openingStockBatch*; vehicle list includes the units; E-06: reconciliation has 0 discrepancies.
+    TestCommitRefusesAndCreatesNothing: preview with an ERROR line / BLOCKED (pending brand) / rejected file cannot be
+      approved (409 INVALID_STATE) nor committed; unknown batch 404; conflict after approval (open receipt draft with a
+      line's chassis) -> 422 IMPORT_ROWS_BLOCKED rows[4].chassis_number DUPLICATE_CHASSIS_ON_RECEIPT, stock+batch digest
+      unchanged; chassis registered meanwhile -> rows[5] DUPLICATE_CHASSIS_EXISTING, 0 units; variant unverified after
+      approval -> rows[3].variant_code VARIANT_NOT_ACTIVE (BLOCKED); QUALITY_HOLD not approved -> STATUS_NOT_APPROVED;
+      warning preview not approvable; uploader with commit but location out of scope -> 403; committer without every
+      location -> 404; stored file deleted -> 409 IMPORT_SOURCE_INVALID; stored file tampered -> 409
+      IMPORT_SOURCE_INVALID; expired -> 409 IMPORT_PREVIEW_EXPIRED; 0 opening units and 0 commits at the end.
+    TestCommitBlockedWithoutApprovedStatuses: production default (no approved status): specification shows none;
+      approved batch -> 409 OPENING_STATUSES_NOT_APPROVED, nothing changed.
+    TestCommitRollsBackOnFailureAndRetries: failure injected inside the transaction after the units -> 500; units,
+      history, movements, balances, commits, batch and audit_events all unchanged; same request again -> 201 (3 units);
+      E-07: receivedDatesApproved=false -> MISSING_ORIGIN / OPENING_NOT_APPROVED, ageDays null (never zero).
+    TestConcurrentCommitsCreateOnce: 10 simultaneous requests (5 same user+key, 5 another user with own keys) ->
+      exactly one 201; same-key requests 200 replayed or 409; others 409 IMPORT_ALREADY_COMMITTED; 3 units, 3 movements,
+      1 commit.
+  Defects found by these tests and fixed: (1) attachments.owner_id is text: comparison needed b.id::text (500);
+  (2) REAL CONCURRENCY BUG: the batch lock and the "already committed?" check were one statement, so a request that
+  waited on the lock still saw the pre-lock snapshot and re-validated against the winner's units (422 instead of
+  409/replay; the unique keys still prevented duplicates). The lock is now its own statement. Test failed before, passes after.
+
+REGRESSION
+  G-06 preview tests (same package) ok; preview still writes only batch/rows/attachment/audit (G-06 digest test ok).
+  D-04/D-07 receiving, E-01/E-02/E-06 stock, B-08 audit, E-07 ageing + vehicles: ok (see package list).
+
+FRONTEND (not changed — backend-only task)
+  ui: npx tsc -b -> 0. npx vitest run --maxWorkers=6 src/features/openingstock src/features/vehicles src/features/stock
+  -> 116 passed, 3 FAILED: the swagger contract tests detect the new server fields, as designed:
+    openingStock.test.tsx (batch: approval, commit), stock/timeline.test.tsx (movement type OPENING_BALANCE),
+    vehicles/vehicles.test.tsx (source: openingStockBatchId, openingStockBatchReference, openingStockRowNumber).
+  Also needed by the frontend before any opening stock exists: ui zod enums accept only GOODS_RECEIPT as a vehicle
+  sourceType and no OPENING_BALANCE/OPENING_STOCK in movement schemas, so screens would refuse opening-stock units.
+  To fix in the G-07 frontend task (left failing on purpose; no test or timeout changed).
+
+BROWSER: NOT APPLICABLE (backend only; no screen).

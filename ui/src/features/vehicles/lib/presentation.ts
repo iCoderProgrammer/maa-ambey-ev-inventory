@@ -41,6 +41,7 @@ export const movementTypeLabels: Record<VehicleUnitMovementType, string> = {
   REJECT: 'Rejected',
   DISPLAY_ON: 'Put on display',
   DISPLAY_OFF: 'Taken off display',
+  OPENING_BALANCE: 'Opening balance (opening stock import)',
 }
 
 export const documentTypeLabels: Record<VehicleUnitDocument['documentType'], string> = {

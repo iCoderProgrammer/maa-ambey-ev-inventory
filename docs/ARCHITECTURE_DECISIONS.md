@@ -849,6 +849,179 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-028 — Stock ledger reconciliation (E-06)
+
+- **Status:** Accepted (read-only report; production grant of the new permission pending — RB-5 / A-05).
+- **What it checks (LED-001…LED-004, INV-009).** Vehicle units: no movement (`VEHICLE_NO_MOVEMENTS`), history not
+  starting with the RECEIPT (`VEHICLE_MISSING_RECEIPT`), a later RECEIPT (`VEHICLE_REPEATED_RECEIPT`), status or
+  location different from the latest movement (`VEHICLE_STATUS_MISMATCH`, `VEHICLE_LOCATION_MISMATCH`), latest
+  movement not leaving the unit held (`VEHICLE_NOT_HELD`), a movement not starting at the status/location/quantity the
+  previous one ended at (`VEHICLE_BROKEN_CHAIN`). Parts, per SKU and location: balance ≠ quantity after the latest
+  movement, 0 without one (`PARTS_BALANCE_MISMATCH`), movements without a balance row (`PARTS_BALANCE_MISSING`),
+  a balance below zero (`PARTS_NEGATIVE_BALANCE`), a movement not starting from what the previous one left, the first
+  from 0 (`PARTS_BROKEN_CHAIN`). Only rules already in the schema/business rules are checked; no state or transition
+  is invented. **Severity:** HIGH = the record disagrees with the ledger or its origin is missing (stock figures are
+  wrong); MEDIUM = the history is inconsistent while the record still matches its latest movement.
+- **Why, when the database already refuses drift at commit** (`vehicle_units_ledger_reconciles`,
+  `stock_item_balances_ledger_reconciles`): reconciliation is the independent after-the-fact check. It detects drift
+  if those guards were ever bypassed (a database owner can switch triggers off — audit M-2) and is the basis for
+  H-08 (opening stock and physical reconciliation).
+- **Read-only, one snapshot.** All queries run in one `READ ONLY, REPEATABLE READ` transaction: the database itself
+  refuses any write (tested: SQLSTATE 25006), and a movement committed during a run is wholly outside it, so
+  concurrent stock changes cannot create false findings (tested with a commit between the queries and under load).
+  Concurrent runs therefore need no lock. Nothing is repaired; corrections use the approved count/adjustment flow
+  (E-05) or a future approved reversal flow (OQ-33).
+- **No stored runs (no run table).** E-06 asked not to add database writes merely to log a run. A run is
+  `GET /stock-reconciliation`: computed on request, returned with a `runId` that is written only to the structured
+  server log (`stock reconciliation started/completed/failed` with user, coverage, counts, duration). Filters and
+  paging are applied to the full result in memory, so the summary always describes the whole run and every page is
+  self-consistent (each page request is its own run). Discrepancy `reference` is deterministic
+  (`TYPE:item[:location][:movement]`), so the same finding has the same reference on every run. Persisted run history
+  or a scheduled job can be added if the owner asks for one (no scheduler exists).
+- **Permission.** New `stock.reconciliation.view` (migration 000021; catalogue row only, no grant). Rows also need the
+  item's own view rule (as E-02): vehicle units `vehicle_units.view` + current location in scope (or none yet);
+  parts balances `stock.parts.view` + location in scope. Holding the report permission without either is 403. A
+  location outside the scope is named by ID only; no cost is read. No per-user brand scope exists (RB-5).
+- **Scale.** Set-based SQL (window functions, `DISTINCT ON`) over the whole ledger per run; fine at pilot volume
+  (≈3 ms on the throwaway stack). At ~10⁵–10⁶ movements, measure in H-05; persisted runs or a scheduled job would then
+  avoid recomputing per page.
+- **Screen.** `/inventory/reconciliation` (nav link with the new permission): a run starts only when the user asks;
+  it is never re-run in the background (no refetch on focus/reconnect/remount); "Run again" and changed filters start
+  new runs; a run from earlier in the session is shown with its own time. Summary metrics, filters in the URL,
+  expected (ledger) vs actual (record), explanation, stable reference, links only where the user may open the
+  record. No repair or adjust control.
+
+## ADR-029 — Stock ageing (E-07)
+
+- **Status:** Accepted for goods-receipt stock. Opening-stock origin is implemented as a rule but cannot be exercised
+  until G-06/G-07 create opening-stock units. Band thresholds are PROPOSED (LED-008 recommended defaults) until the
+  owner approves them; the business time zone default needs confirmation (OQ-45).
+- **Origin date (LED-008).** Only an approved origin: the unit's `received_date` when its goods receipt is `POSTED`
+  and its received date equals the receipt's (already enforced at registration by `vehicle_units_source_check`), source
+  `GRN`; later an approved opening-stock date (`OPENING_STOCK`, G-07). Never `created_at`, registration, PO, PDI, today
+  or a fallback. Anything else is `MISSING_ORIGIN` with a reason (`GRN_NOT_POSTED`, `GRN_DATE_MISMATCH`,
+  `FUTURE_ORIGIN_DATE`, `UNSUPPORTED_SOURCE`, `OPENING_NOT_APPROVED`, `NO_ORIGIN_DATE`): no age, no band, counted
+  separately, never shown as 0 days. With the database guards in place only `FUTURE_ORIGIN_DATE` can arise in normal
+  use (a receipt dated after today's business date); the others signal data drift (see ADR-028).
+- **Business date and calculation.** Ages count to the business date: the current date in `BUSINESS_TIME_ZONE`
+  (IANA, default `Asia/Kolkata`; tzdata embedded). Origin dates are date-only; age = business date − origin date in
+  whole calendar days (no partial days; received today = 0). D-08's `ageDays` (previously the database's UTC
+  `current_date`) now equals `ageing.ageDays` and is null without a reliable origin; `minAgeDays`/`maxAgeDays` use the
+  same business date and select only units with a reliable origin. The rule lives in one Go function
+  (`ageing.Evaluate`); list/summary SQL filters use the same conditions (tested to agree).
+- **Bands.** Configurable data, not code: `stock_ageing_band_sets` (versions) + `stock_ageing_bands` (migration
+  000022). Convention: `minDays <= age <= maxDays`, both inclusive, whole days; the first band starts at 0, each starts
+  the day after the previous ends (no gap/overlap), only the last is open-ended — validated by the API (field errors)
+  and again at commit by a constraint trigger. Versions are append-only (the one allowed change is PROPOSED →
+  APPROVED); bands are applied on read, so a change never rewrites stock history. Version 1 = LED-008 recommended
+  defaults (0–30, 31–60, 61–90, >90), `PROPOSED`. `POST /stock-ageing/band-sets` proposes a new version
+  (`stock.ageing.configure`, optimistic `expectedVersion`), `POST /stock-ageing/band-sets/approve` approves the current
+  proposal (same permission, never by its proposer — maker-checker; audited, refusals DENIED). The current version is
+  used whether proposed or approved; its status is shown wherever bands are shown. With no configuration, ages are
+  still returned without bands. No configuration screen yet (API only; not in E-07's UI scope).
+- **API.** Extends D-08 rather than a parallel API: every unit (list/detail) carries `ageing`; list filters
+  `ageingBand` (key of the current set; unknown → 422) and `originStatus=KNOWN|MISSING`; `GET
+  /vehicle-units/ageing-summary` counts the same filters by band and missing reason (total = withOrigin +
+  missingOrigin); `GET /stock-ageing/configuration` (vehicle_units.view or stock.ageing.configure). Read paths change
+  nothing. Location scope as D-08; no per-user brand scope (RB-5).
+- **Scope limits.** Vehicles only: parts are fungible quantities (no GRN per piece, no FIFO layers), so LED-008 has
+  no per-piece origin for them. Sold/delivered units do not exist yet; when F-07 adds them, whether their age stops at
+  the sale date is an owner decision (OQ-46). Ages are calculated for every unit regardless of status.
+
+## ADR-030 — Opening stock import preview (G-06)
+
+- **Status:** Accepted (preview only; commit is G-07). Template content awaits A-04 sign-off; limits are proposals.
+- **Template OS-IMPORT-1 (CSV only).** First line `#template:OS-IMPORT-1`, second line the header, one vehicle per line
+  from line 3; columns in any order, optional ones may be left out, unknown/duplicate columns refuse the file. Columns
+  (A-04 field list × existing schema): brand*, model_code*, variant_code*, colour, chassis_number*, motor_serial,
+  battery_serial, charger_serial, location_code*, stock_status*, received_date (YYYY-MM-DD), provenance*, supplier,
+  purchase_order_reference, goods_receipt_reference, supplier_invoice_reference, acquisition_cost, notes (* required).
+  The template carries no data row. **XLSX is not accepted**: A-04's approved artefact is a `.csv`, the repo has no
+  spreadsheet parser, and adding one is an unapproved dependency (OQ-48). Content is sniffed (`text/plain` + `.csv`);
+  zip/PDF/images are 415 whatever their name.
+- **Storage.** The original file is stored privately with B-09's object store and an `attachments` row
+  (`text/csv`, owner `opening_stock_import`) — the generic attachment upload still refuses CSV. Visible to the
+  uploader, or a holder of `stock.import.preview` with every location, who also has `attachments.view`.
+- **Staging.** One immutable batch per upload (`opening_stock_import_batches`: reference `OSI-…`, file attachment,
+  name, SHA-256, size, uploader, time, template version, business date, expiry, status PREVIEWED/REJECTED, counts,
+  file issues) and one immutable row per line (`opening_stock_import_rows`: line number, status, source values as
+  uploaded, normalised values and resolved IDs, display snapshot, issues). A file that is not the template is kept as
+  REJECTED with its issues and no rows (empty, too large and non-CSV files store nothing). Idempotency-Key per uploader:
+  same key + same file replays the batch (also when concurrent), another file is 409. A corrected file is a new batch.
+- **Validation (server only; nothing corrected or guessed).** Required/length/control characters; brand by exact name
+  (case-insensitive), model by internal code within that brand, variant by code within that model, colour by name or
+  code; an unknown reference is ERROR, an existing but unverified/inactive one BLOCKED_UNVERIFIED_MAPPING (the real
+  launch brands are pending today, so their rows are blocked); location known, active and in the uploader's scope;
+  stock status one of RECEIVED_PENDING_PDI, QUALITY_HOLD, AVAILABLE, DISPLAY, REJECTED (OQ-47); received date not after
+  the business date (E-07 calendar), day-month-year gets a suggestion only; cost digits with ≤2 decimals. Chassis
+  (trimmed, upper-cased, as D-04/D-05) duplicates within the file, against vehicle units or on an open receipt draft
+  are ERROR (IMP-002); motor/battery/charger duplicates are WARNING while their uniqueness is unapproved (OQ-4). Missing
+  received date or cost are WARNING (E-07 age stays MISSING_ORIGIN until an opening date is approved; cost basis OQ-29).
+  Row status: ERROR > BLOCKED > WARNING > VALID; only VALID/WARNING rows could proceed.
+- **Non-mutating.** Upload writes only the attachment row, the batch, its rows and audit events
+  (`attachment.uploaded`, `opening_stock_import.previewed`). No vehicle unit, receipt, movement, balance, catalogue or
+  supplier change (tested by table digests). No commit route exists; `commitAvailable` is always false.
+- **Expiry.** `expires_at` = upload + `IMPORT_PREVIEW_TTL` (default 7 days); afterwards the batch is history only.
+  Nothing is deleted (retention of staged rows/files is OQ-48).
+- **G-07 contract.** G-07 consumes a non-expired PREVIEWED batch by ID and must: re-validate every row against the
+  database at commit (catalogue, identifiers and scope may have changed), refuse ERROR/BLOCKED rows (all-or-nothing on
+  fatal errors, FR-014), use `normalised` IDs/values and `source` for provenance, use the batch SHA-256 + ID for
+  idempotency (IMP-003), record approved opening dates and add its own status transition (new migration).
+- **Limits (proposals):** `IMPORT_MAX_BYTES` 5 MiB, `IMPORT_MAX_ROWS` 5000.
+
+---
+
+## ADR-031 — Opening stock import commit and idempotency (G-07, backend)
+
+- **Status:** Accepted (backend). Production commits stay **blocked** until the owner decides OQ-47 (approved opening
+  statuses), grants `stock.import.approve` / `stock.import.commit` (RB-5) and a real client file passes preview and
+  physical-count approval (A-04, H-08). Nothing here creates or seeds stock.
+- **Two steps, two permissions (both sensitive, granted to no role).** `POST /opening-stock-imports/{id}/approval`
+  (`stock.import.approve`) records once, immutably, the signed physical count reference and date, that mappings and
+  duplicates were reviewed (both must be true) and `receivedDatesApproved` (the file's received dates are the agreed
+  opening-stock dates, LED-008). Only a non-expired PREVIEWED OS-IMPORT-1 batch whose every line is VALID can be
+  approved. `POST /opening-stock-imports/{id}/commit` (`stock.import.commit`, `Idempotency-Key`) commits it.
+  `stock.import.preview` grants neither. Batch, rows and commit are readable with any of the three permissions.
+- **Never trust the preview.** The commit re-reads the stored file (attachment owned by the batch; SHA-256, size,
+  template version, identical lines and values to the staged rows) and, inside one transaction, locks the batch row
+  (its own `FOR UPDATE` statement, so a waiting request sees the winner's commit), share-locks the referenced brands,
+  models, variants, colours, locations and suppliers, and re-runs the G-06 validation against the current database
+  with the committer's location scope. A line is committed only if it is VALID now, could proceed at preview, still
+  resolves to the same brand/model/variant/location/chassis/status, has an approved opening status and a cost above
+  zero. **Warnings are not accepted** (no approved rule, OQ-49) — such previews cannot even be approved. Any refused
+  line → 422 `IMPORT_ROWS_BLOCKED` (details `rows[line].field`), nothing written, batch unchanged; unmatched rows stay
+  in the preview for correction (a corrected file is a new batch).
+- **All or nothing, once.** One transaction: commit row (`opening_stock_import_commits`, `OSC-…`, unique per batch and
+  per committer+key), then per line the vehicle unit, its REGISTERED history entry, its `OPENING_BALANCE` movement and
+  the audit events, then `opening_stock_import.committed`. The database enforces at COMMIT that units = batch rows =
+  `units_created`, that every unit has its entry movement (LED-003), that an opening-stock unit exists only with its
+  batch's commit and matches its staged row, and that a row becomes at most one unit. Approvals, commits, units,
+  movements and history are immutable. Any failure rolls everything back and the same request can be retried.
+- **Batch state.** The staged `status` stays PREVIEWED/REJECTED (immutable). The lifecycle is derived: approved when an
+  approval row exists, COMMITTED when the commit row exists — unique and immutable, so no API returns a committed batch
+  to an eligible state. The batch API adds `approval` and `commit`; `commitAvailable` stays false for the G-06 screens.
+- **Idempotency.** Same user + same key + same batch after success → 200, `replayed: true`, `Idempotent-Replayed: true`
+  (also for concurrent duplicates and a lost response). Same key for another batch → 409 `IDEMPOTENCY_KEY_REUSED`. A
+  batch committed by anyone else → 409 `IMPORT_ALREADY_COMMITTED` (with its OSC reference). Approval repeated
+  identically by its approver → 200 replay; any other approval → 409 `IMPORT_ALREADY_APPROVED`.
+- **Provenance (IMP-003, IMP-005).** `vehicle_units.source_type = 'OPENING_STOCK'` with `opening_stock_batch_id` +
+  `opening_stock_row_number` (FK to the staged row: source values as uploaded, normalised values, resolved IDs; the
+  batch holds file attachment, name, SHA-256, template version, uploader and upload time; the commit holds committer,
+  time and approval). No PO/GRN is invented (those columns stay NULL); a supplier is linked only when the file named an
+  existing one. Cost = the file's acquisition cost (cost basis still OQ-29). Colour stays on the staged row (vehicle
+  units have no colour column).
+- **Ledger (E-01).** New movement type `OPENING_BALANCE` (vehicle only, 0 → 1, none → the opening status, at the
+  unit's location, source `OPENING_STOCK` = batch ID + OSI reference), recorded by `stock.RecordOpeningBalance` in the
+  same ledger and triggers; it must be the unit's first movement, from its own batch. E-06 treats it as an entry
+  movement like RECEIPT. The DB allows the five in-stock statuses; which of them a commit accepts is configuration
+  `OPENING_STOCK_APPROVED_STATUSES` (default empty → 409 `OPENING_STATUSES_NOT_APPROVED` for every commit).
+- **E-07.** Unchanged semantics: an opening-stock unit is AGED from its received date only when its batch approval has
+  `receivedDatesApproved = true`; otherwise MISSING_ORIGIN / OPENING_NOT_APPROVED (no age, never zero).
+- **Rollback.** Migration 000024's down refuses once any approval, commit, opening-stock unit or OPENING_BALANCE
+  movement exists; it never deletes preview data.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -894,3 +1067,11 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-40 | Stock adjustment approval policy: is there a value/quantity threshold below which no approval is needed (LED-005), who approves (owner only? inventory manager?), may the owner self-approve in a small team, should counters see the expected quantity (blind counts), and should count numbers restart per year/location? E-05: every count needs an approver who took no part in it; numbers `SC-000001…`. | E-05, A-05, RB-5 |
 | OQ-41 | PDI checklist policy: which inspection items does the client require (per brand/model?), is a NOT_APPLICABLE outcome allowed and for which items, must HOLD/REJECT always carry photo/document evidence (D-06 reads INV-008 "issue notes and evidence" as yes), may PASS be recorded without a photo, who may record PDI and decide holds/rejections (maker-checker?), and should inspection numbers restart per year/location? D-06: no item seeded, PASS refused until an item applies, every applicable item must be answered PASS/FAIL, HOLD/REJECT need notes + ≥ 1 attachment, numbers `PDI-000001…`. | D-06, A-05, RB-5 |
 | OQ-7 | Are invoices legally issued by this app or by external accounting software? | F-10 |
+| OQ-42 | **Owner decision (audit H-1, 2026-11-16).** Brand activation checks `warranty_terms` and `identifier_rules` are permanently pending and no registry task builds them, so no brand can be activated through the product and no real purchase order can be created. Which task should build approved per-brand warranty terms and identifier rules (new task, or C-06/D-05 scope extension)? Not part of E-06. | A-03, C-05, D-02 (real use) |
+| OQ-43 | **Owner decision (audit M-1, 2026-11-16).** Goods receipt drafts/posting do not re-check that the brand/model/variant is still operational (ADR-012 says D-03 must; BR-008). Should receiving against an already-approved PO be refused after a brand is archived or its authorisation revoked, or allowed? Not part of E-06. | D-03, D-07 |
+| OQ-45 | **Stock ageing (E-07).** (a) Approve the ageing bands: version 1 is LED-008's recommended 0–30 / 31–60 / 61–90 / >90 days, recorded PROPOSED — confirm or replace (via `POST /stock-ageing/band-sets`), and approve (someone other than the proposer). (b) Confirm the business time zone ages are counted in (default `Asia/Kolkata`). (c) Is "accepted GRN date" the goods' received date on the posted receipt (used now) or the posting date? | E-07, G-02 |
+| OQ-46 | **Stock ageing after sale (E-07 → F-07).** When units can be sold/delivered, should their age stop at the sale/delivery date, and should sold/delivered units be excluded from stock ageing reports (REP-001)? E-07 ages every unit it lists. | F-07, G-02 |
+| OQ-47 | **Opening stock (G-06).** Which statuses may opening stock arrive in? G-06 accepts RECEIVED_PENDING_PDI, QUALITY_HOLD, AVAILABLE, DISPLAY, REJECTED (the in-stock statuses the ledger can hold) and refuses reserved/sold/delivered/service/return statuses. Must opening units go through PDI again before sale? | G-06, G-07, H-08 |
+| OQ-48 | **Opening stock import (G-06).** (a) Confirm the OS-IMPORT-1 columns (A-04) and whether XLSX upload is required (needs an approved parser dependency). (b) Approve the limits (5 MiB, 5000 rows) and preview lifetime (7 days). (c) Retention: may staged previews and their files be purged after expiry, and after how long? | A-04, G-06, G-07 |
+| OQ-49 | **Opening stock commit (G-07).** (a) May any preview warning be accepted at commit (missing received date or cost, possible duplicate motor/battery/charger serial)? G-07 accepts none: such lines must be corrected first. (b) Who may approve (physical-count sign-off) and commit opening stock, and must they be different people from the uploader / each other? G-07 enforces only the separate permissions, granted to no role. (c) Which opening statuses are approved (sets `OPENING_STOCK_APPROVED_STATUSES`, see OQ-47)? | A-04, G-07, H-08 |
+| OQ-44 | **Owner decision (audit M-4, 2026-11-16).** There is no audit-log viewer and no registry task for one (B-08 prompt refers to an "audit-list task"); `audit.events.view` exists unused. Should a task be added? Not part of E-06. | B-08, H-04 |

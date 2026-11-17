@@ -46,6 +46,17 @@ const unit: VehicleUnit = {
   supplierName: 'Example Supplier',
   receivedDate: '2026-11-10',
   ageDays: 2,
+  ageing: {
+    status: 'AGED',
+    originDate: '2026-11-10',
+    originSource: 'GRN',
+    ageDays: 2,
+    bandKey: '0-30',
+    bandLabel: '0–30 days',
+    missingReason: null,
+    missingExplanation: null,
+    asOf: '2026-11-12',
+  },
   unitCost: null,
   costCurrency: null,
   costHidden: true,
@@ -87,6 +98,9 @@ const detail = (over: Partial<VehicleUnitDetail> = {}): VehicleUnitDetail => ({
     goodsReceiptUnitId: 'gu1',
     supplierReference: 'DC-1',
     receivedDate: '2026-11-10',
+    openingStockBatchId: null,
+    openingStockBatchReference: null,
+    openingStockRowNumber: null,
   },
   events: [
     {
@@ -255,6 +269,44 @@ interface State {
   me?: Me
 }
 
+const ledBands = [
+  { key: '0-30', label: '0–30 days', minDays: 0, maxDays: 30 },
+  { key: '31-60', label: '31–60 days', minDays: 31, maxDays: 60 },
+  { key: '61-90', label: '61–90 days', minDays: 61, maxDays: 90 },
+  { key: 'over-90', label: 'Over 90 days', minDays: 91, maxDays: null },
+]
+const ageingSummary = {
+  asOf: '2026-11-12',
+  timeZone: 'Asia/Kolkata',
+  configured: true,
+  bandSet: { version: 1, status: 'PROPOSED', source: 'LED-008' },
+  total: 2,
+  withOrigin: 2,
+  missingOrigin: 0,
+  bands: ledBands.map((b, i) => ({ ...b, count: i === 0 ? 2 : 0 })),
+  unbanded: 0,
+  missingByReason: {},
+}
+const ageingConfiguration = {
+  configured: true,
+  bandSet: {
+    version: 1,
+    status: 'PROPOSED',
+    source: 'LED-008',
+    createdById: null,
+    createdByName: null,
+    createdAt: t,
+    approvedById: null,
+    approvedByName: null,
+    approvedAt: null,
+    approvalReference: null,
+    bands: ledBands,
+  },
+  timeZone: 'Asia/Kolkata',
+  asOf: '2026-11-12',
+  boundaryRule: 'minDays <= age <= maxDays',
+}
+
 function apiMock(state: State = {}, handler: Handler = () => undefined) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     const url = new URL(input as string, 'http://localhost')
@@ -264,6 +316,8 @@ function apiMock(state: State = {}, handler: Handler = () => undefined) {
     const json = (data: unknown) => Promise.resolve(Response.json({ data }))
     if (p === '/api/v1/me') return json(state.me ?? me(VIEW))
     if (p === '/api/v1/vehicle-units') return json(page(state.list ?? [unit, available]))
+    if (p === '/api/v1/vehicle-units/ageing-summary') return json(ageingSummary)
+    if (p === '/api/v1/stock-ageing/configuration') return json(ageingConfiguration)
     if (p === '/api/v1/vehicle-units/u1') return json(state.detail ?? detail())
     if (p === '/api/v1/vehicle-units/u1/stock-movements')
       return json({ ...page(state.movements ?? [movement(), hold]), limit: 20 })
@@ -377,7 +431,9 @@ describe('vehicle list page', () => {
     expect(r.getByText('Not saleable')).toBeInTheDocument()
     expect(r.getByText('SR1 — Showroom One')).toBeInTheDocument()
     expect(r.getByText('Example Supplier')).toBeInTheDocument()
-    expect(r.getByText('2 days in stock')).toBeInTheDocument()
+    // Stock age, band and origin come from the server's ageing (E-07).
+    expect(r.getByText('2 days')).toBeInTheDocument()
+    expect(r.getByText('0–30 days')).toBeInTheDocument()
     // The available unit carries no "not saleable" marker.
     const other = within(table).getByRole('link', { name: 'MAE-VEH-000002' }).closest('tr')
     expect(within(other as HTMLElement).queryByText('Not saleable')).toBeNull()

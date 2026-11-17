@@ -13,7 +13,7 @@ import "github.com/gin-gonic/gin"
 //	@Param			stockItemId		query	string	false	"SKU ID (not with vehicleUnitId)"
 //	@Param			q				query	string	false	"Unit number, chassis/frame number or SKU code (substring, max 100)"
 //	@Param			movementType	query	string	false	"Movement type"	Enums(RECEIPT, PDI_PASS, QUALITY_HOLD, REJECT, DISPLAY_ON, DISPLAY_OFF, PARTS_RECEIPT, PARTS_ISSUE, COUNT_ADJUSTMENT)
-//	@Param			sourceType		query	string	false	"Source type"	Enums(GOODS_RECEIPT, PDI_INSPECTION, STAFF_ACTION, SUPPLIER_DELIVERY, STOCK_COUNT)
+//	@Param			sourceType		query	string	false	"Source type"	Enums(GOODS_RECEIPT, PDI_INSPECTION, STAFF_ACTION, SUPPLIER_DELIVERY, STOCK_COUNT, OPENING_STOCK)
 //	@Param			sourceReference	query	string	false	"Source reference, e.g. GRN-000001 (exact, case-insensitive, max 100)"
 //	@Param			actorId			query	string	false	"User ID of the actor"
 //	@Param			locationId		query	string	false	"Location ID (in the caller's scope)"

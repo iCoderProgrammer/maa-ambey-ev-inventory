@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // BUSINESS_TIME_ZONE must load in minimal containers
 )
 
 // Supported application environments.
@@ -63,6 +64,19 @@ type Config struct {
 	// AttachmentSigningKey signs short-lived download links. Required outside
 	// development/test; there an empty key means a random per-process key.
 	AttachmentSigningKey string
+	// BusinessTimeZone is the IANA zone of the business calendar stock ages are
+	// counted on (E-07, ADR-029). Default Asia/Kolkata (the showroom's zone);
+	// confirmation pending (OQ-45).
+	BusinessTimeZone string
+	// Opening stock import preview (G-06): file size and row limits, and how long
+	// a preview stays usable for G-07 (proposals; configurable).
+	ImportMaxBytes   int64
+	ImportMaxRows    int
+	ImportPreviewTTL time.Duration
+	// OpeningStockApprovedStatuses (G-07, OQ-47): comma-separated stock statuses the
+	// owner approved for committed opening stock. Empty (the default) blocks every
+	// commit; checked against the template's statuses at start-up (cmd/api).
+	OpeningStockApprovedStatuses string
 }
 
 // Attachment limits.
@@ -122,6 +136,11 @@ func load(getenv func(string) string) (Config, error) {
 	cfg.AttachmentMaxBytes = int64(p.int("ATTACHMENT_MAX_BYTES", 10<<20))
 	cfg.AttachmentLinkTTL = p.duration("ATTACHMENT_LINK_TTL", 5*time.Minute)
 	cfg.AttachmentSigningKey = strings.TrimSpace(getenv("ATTACHMENT_SIGNING_KEY"))
+	cfg.BusinessTimeZone = p.str("BUSINESS_TIME_ZONE", "Asia/Kolkata")
+	cfg.ImportMaxBytes = int64(p.int("IMPORT_MAX_BYTES", 5<<20))
+	cfg.ImportMaxRows = p.int("IMPORT_MAX_ROWS", 5000)
+	cfg.ImportPreviewTTL = p.duration("IMPORT_PREVIEW_TTL", 7*24*time.Hour)
+	cfg.OpeningStockApprovedStatuses = p.str("OPENING_STOCK_APPROVED_STATUSES", "")
 
 	errs := p.errs
 	errs = append(errs, cfg.validate()...)
@@ -133,6 +152,18 @@ func load(getenv func(string) string) (Config, error) {
 
 func (c Config) validate() []error {
 	var errs []error
+	if c.ImportMaxBytes < 1024 || c.ImportMaxBytes > 50<<20 {
+		errs = append(errs, fmt.Errorf("IMPORT_MAX_BYTES must be from 1024 to %d (got %d)", 50<<20, c.ImportMaxBytes))
+	}
+	if c.ImportMaxRows < 1 || c.ImportMaxRows > 50000 {
+		errs = append(errs, fmt.Errorf("IMPORT_MAX_ROWS must be from 1 to 50000 (got %d)", c.ImportMaxRows))
+	}
+	if c.ImportPreviewTTL < time.Hour {
+		errs = append(errs, fmt.Errorf("IMPORT_PREVIEW_TTL must be at least 1h (got %s)", c.ImportPreviewTTL))
+	}
+	if _, err := time.LoadLocation(c.BusinessTimeZone); err != nil || c.BusinessTimeZone == "" {
+		errs = append(errs, fmt.Errorf("BUSINESS_TIME_ZONE must be an IANA time zone name such as Asia/Kolkata (got %q)", c.BusinessTimeZone))
+	}
 
 	switch c.AppEnv {
 	case EnvDevelopment, EnvTest, EnvStaging, EnvProduction:

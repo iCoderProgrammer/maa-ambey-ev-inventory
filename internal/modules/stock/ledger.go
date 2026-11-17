@@ -79,6 +79,40 @@ func RecordReceipt(ctx context.Context, tx pgx.Tx, actor audit.Actor, r Receipt)
 	return id, nil
 }
 
+// OpeningBalance is the ledger entry of one opening-stock unit, for RecordOpeningBalance.
+type OpeningBalance struct {
+	UnitID         string
+	BatchID        string
+	BatchReference string
+	RowNumber      int
+	Status         string
+	LocationID     string
+	RequestID      string
+}
+
+// RecordOpeningBalance writes a newly created opening-stock unit's
+// OPENING_BALANCE movement (0 -> 1, none -> its opening status, at its
+// location, sourced from its import batch) inside the committing transaction.
+// The database checks it is the unit's first movement, from its own batch.
+func RecordOpeningBalance(ctx context.Context, tx pgx.Tx, actor audit.Actor, o OpeningBalance) (string, error) {
+	if actor.Type != audit.ActorUser || actor.UserID == "" {
+		return "", errors.New("stock movements are recorded for a signed-in user")
+	}
+	row := strconv.Itoa(o.RowNumber)
+	var id string
+	err := tx.QueryRow(ctx, `INSERT INTO stock_movements (vehicle_unit_id, movement_type, quantity_before, quantity_after,
+			from_status, to_status, to_location_id, source_type, source_id, source_reference, actor_id, request_id,
+			idempotency_key, request_hash)
+		VALUES ($1, $2, 0, 1, NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id::text`,
+		o.UnitID, TypeOpeningBalance, o.Status, o.LocationID, SourceOpeningStock, o.BatchID, o.BatchReference,
+		actor.UserID, nullable(o.RequestID), "opening-"+o.BatchID+"-"+row,
+		requestHash(TypeOpeningBalance, o.BatchID, row)).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("record opening balance movement: %w", err)
+	}
+	return id, nil
+}
+
 func nullable(s string) any {
 	if s == "" {
 		return nil

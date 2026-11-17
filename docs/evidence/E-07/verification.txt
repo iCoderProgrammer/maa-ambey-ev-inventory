@@ -1,0 +1,75 @@
+E-07 Stock ageing calculations — verification evidence (2026-11-16)
+Base: dev @ b122188 with E-06 uncommitted (preserved). Throwaway PostgreSQL 18 container only (e06-pg,
+127.0.0.1:55498); scratch databases per Go test. Shared dev database untouched.
+
+BACKEND
+  gofmt -l cmd internal                    -> no files
+  go vet ./...                             -> exit 0
+  go mod tidy -diff                        -> exit 0
+  make -s swagger / swagger-check          -> regenerated / exit 0
+  go build ./...                           -> exit 0
+  golangci-lint                            -> NOT RUN (not installed)
+  TEST_DATABASE_URL= go test -count=1 ./...                         -> all packages ok
+  TEST_DATABASE_URL=<throwaway> REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./...
+                                                                     -> all 23 packages ok (incl. stock = E-06,
+                                                                        vehicles = D-04/D-08, receiving = D-07,
+                                                                        database = migration round trip)
+  New tests:
+    internal/modules/ageing/ageing_test.go: TestEvaluateBoundaries (0,1,29,30,31,32,59,60,61,62,89,90,91,92,36500
+      + a custom set), TestEvaluateWithoutConfiguration, TestOriginRules (approved opening stock; opening not approved;
+      no date; GRN not posted / missing; date mismatch; future; unknown source; bad date; zero-day),
+      TestValidateBands (overlap, gap, not from 0, open not last, bounded last, max<min, duplicate/bad key, empty
+      label, negative, >36500, empty, >20), TestCalendarUsesTheBusinessTimeZone (UTC evening = next IST day; DST)
+    internal/modules/vehicles/ageing_integration_test.go (PostgreSQL, fixed business clock):
+      TestAgeingBandBoundariesAndFilters (15 GRN units at boundary ages; list/detail/summary/band filter/min-max/
+        originStatus agree; unknown band 422; next day moves 30 -> 31 into the next band)
+      TestAgeingMissingAndUnreliableOrigins (date mismatch, receipt not posted, future date: no age/band, reasons,
+        MISSING/KNOWN filters, never selected by band or maxAgeDays=0, summary by reason, conflicting filters 422)
+      TestAgeingPermissionsAndScope (403 without permission; L1-scoped user sees/counts L1 + no-location only;
+        out-of-scope location 422; location/brand filters; configuration read needs vehicle_units.view; propose/
+        approve need stock.ageing.configure)
+      TestAgeingBandConfigurationLifecycle (9 invalid configurations 422 with field; 409 stale version; v2
+        PROPOSED applies on next read; self-approval 403 + DENIED audit; other approves; second approve 409; audits;
+        DB refuses UPDATE/DELETE of bands/sets and a gapped set at commit; stock/GRN/movement/event tables
+        fingerprint unchanged)
+    internal/modules/vehicles/http_test.go TestAgeingQueriesAreCheckedFirst (401/403/422 before any read; no write
+      methods on the summary route)
+  Updated: TestFiltersCombineAcrossModelDatesAgeAndStatus (D-08) now counts ages to the business date.
+  Migration 000022: up 22 -> down 1 (tables gone) -> up 22 (v1 PROPOSED with 4 bands). Down refusal once a person
+    proposed a configuration: verified in a rolled-back transaction ("ageing band configurations were proposed or
+    approved; rolling back E-07 would destroy that history").
+
+FRONTEND (ui/)
+  npx eslint . --max-warnings=0 -> exit 0
+  npx prettier --check .        -> all formatted
+  npx tsc -b --noEmit           -> exit 0; tsc -p tsconfig.e2e.json --noEmit -> exit 0
+  npx vitest run (default parallelism) -> 2-3 tests timed out at 5 s (vehiclePages "combines filters", "pages on the
+      server", receiving duplicateIdentifier) with machine load average 14.5 on 12 cores; the same tests take
+      0.1-1.4 s in isolation. NOT counted as passed.
+  npx vitest run --maxWorkers=4 -> 36 files, 390 tests passed (10 new in features/vehicles/ageing.test.tsx)
+  npx vite build --outDir <scratch> -> built
+  No timeout or check was changed.
+
+END-TO-END (Playwright headless; API :8197 from this tree with BUSINESS_TIME_ZONE=Asia/Kolkata, Vite :5197)
+  Fixture: one APPROVED purchase order (quantity 100) inserted with SQL (brand activation impossible through the
+    product, audit H-1); PROPOSED grants for e2e.recon: goods_receipts.view/manage/post, purchase_orders.view.
+  e2e/ageing.e2e.ts desktop + Pixel 7: PASS. Seven goods receipts created, captured and POSTED through the API with
+    received dates 0/30/31/60/61/90/91 days before the business date; API ages = exactly those values and bands;
+    screen rows show the same; summary 2/2/2/1 + 0 missing; band tile filters server-side (URL ageingBand=31-60,
+    summary 2); one unit's date shifted by psql -> "No reliable origin date", "Date does not match goods receipt",
+    API ageDays null and bandKey null, missing tile 1 and originStatus=MISSING filter; detail "Why no age"; restored;
+    91-day detail "91 days (as of …)", "Over 90 days"; no sideways scroll; no console errors.
+  e2e/reconciliation.e2e.ts desktop + Pixel 7: PASS (E-06 regression, now with posted vehicle units present).
+
+BROWSER (user's Chrome via Claude in Chrome, throwaway stack, account e2e.recon) — PARTIAL
+  Vehicle Units: Stock age column ("91 days", "Over 90 days", "from goods receipt of 17 Aug 2026"); Stock ageing
+  panel "14 vehicles as of 16 Nov 2026 (Asia/Kolkata) … version 1 … proposed and awaiting owner approval", tiles
+  4/4/4/2/0; clicking "61–90 days" -> URL ?ageingBand=61-90, select shows the band, summary 4, rows only 61 and 90
+  days. No console errors.
+  NOT DONE in the browser: the missing-origin drift and detail steps — the tool safety check became unavailable
+  (no verdict) for shell, navigate and click actions, so the walkthrough was stopped instead of retried. These
+  steps are covered by the Playwright run above.
+
+NOT VERIFIED / BLOCKED
+  Scenario B (opening stock): BLOCKED — no opening-stock record can exist until G-06/G-07 (vehicle_units.source_type
+  CHECK allows GOODS_RECEIPT only). The OPENING_STOCK rule is unit-tested only.

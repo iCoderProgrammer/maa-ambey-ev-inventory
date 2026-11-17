@@ -86,6 +86,21 @@ const (
 	// and their checklist uses PermVehicleUnitView.
 	PermPDIRecord          = "vehicle_units.pdi.record"
 	PermPDIChecklistManage = "vehicle_units.pdi.checklist.manage"
+	// Ledger reconciliation report (E-06, migration 000021). Read-only; rows also
+	// need PermVehicleUnitView (vehicle units) or PermPartsView (parts balances).
+	PermReconciliationView = "stock.reconciliation.view"
+	// Stock ageing band configuration (E-07, migration 000022): propose and approve
+	// (approval by someone other than the proposer). Reading ages and bands uses
+	// PermVehicleUnitView.
+	PermAgeingConfigure = "stock.ageing.configure"
+	// Opening stock import preview (G-06, migration 000023): upload files and see
+	// their validation previews. Creates no stock; committing is G-07.
+	PermImportPreview = "stock.import.preview"
+	// Opening stock import commit (G-07, migration 000024). Approve: record a
+	// batch's physical-count reconciliation approval. Commit: turn an approved
+	// batch into vehicle units. Separate from preview; granted to no role (RB-5).
+	PermImportApprove = "stock.import.approve"
+	PermImportCommit  = "stock.import.commit"
 )
 
 // AllPermissions lists every key the code knows.
@@ -102,7 +117,8 @@ var AllPermissions = []string{
 	PermVehicleUnitView, PermVehicleUnitCostView, PermVehicleUnitDisplayManage,
 	PermStockItemView, PermStockItemManage, PermStockItemArchive,
 	PermPartsView, PermPartsReceive, PermPartsIssue, PermAdjustmentView,
-	PermPDIRecord, PermPDIChecklistManage,
+	PermPDIRecord, PermPDIChecklistManage, PermReconciliationView, PermAgeingConfigure, PermImportPreview,
+	PermImportApprove, PermImportCommit,
 }
 
 // ErrOutOfScope means a location outside the user's assigned scope was requested.

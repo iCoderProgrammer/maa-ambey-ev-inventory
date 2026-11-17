@@ -28,6 +28,7 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	view := h.access.Require(access.PermVehicleUnitView)
 	rg.GET("/vehicle-units", view, h.List)
+	rg.GET("/vehicle-units/ageing-summary", view, h.AgeingSummary)
 	rg.GET("/vehicle-units/:id", view, h.Get)
 	rg.GET("/vehicle-units/:id/stock-movements", view, h.Movements)
 }
@@ -94,7 +95,7 @@ func WriteDuplicateIdentifier(c *gin.Context, err error, field string) bool {
 // List godoc
 //
 //	@Summary		List vehicle units
-//	@Description	Newest registration first by default (sort). q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine (AND). receivedFrom/receivedTo are inclusive dates; minAgeDays/maxAgeDays are inclusive whole days since the received date (ageDays, database date). Colour is not filterable: units carry no colour (not captured on receipt). Every sort ends with the unit ID, so pages are stable. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.
+//	@Description	Newest registration first by default (sort). q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine (AND). receivedFrom/receivedTo are inclusive dates; Stock ageing (E-07, ADR-029): every unit carries ageing (origin date and source GRN — the posted goods receipt's received date —, age in whole days to the business date in the business time zone, band of the current configuration, or MISSING_ORIGIN with a reason and no age/band); ageDays is ageing.ageDays and null without a reliable origin. minAgeDays/maxAgeDays are inclusive whole days and ageingBand a band key (minDays <= age <= maxDays); all three select only units with a reliable origin. originStatus=KNOWN|MISSING selects by origin reliability. An unknown ageingBand, or ageingBand/minAgeDays/maxAgeDays with originStatus=MISSING, is 422. Colour is not filterable: units carry no colour (not captured on receipt). Every sort ends with the unit ID, so pages are stable. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.
 //	@Tags			vehicle-units
 //	@Produce		json
 //	@Param			q				query	string	false	"Search unit number or identifier"
@@ -111,26 +112,69 @@ func WriteDuplicateIdentifier(c *gin.Context, err error, field string) bool {
 //	@Param			receivedTo		query	string	false	"Received on or before (YYYY-MM-DD)"
 //	@Param			minAgeDays		query	int		false	"At least this many days since received (0-36500)"
 //	@Param			maxAgeDays		query	int		false	"At most this many days since received (0-36500)"
+//	@Param			ageingBand		query	string	false	"Ageing band key of the current configuration (GET /stock-ageing/configuration)"
+//	@Param			originStatus	query	string	false	"KNOWN: reliable origin date (has an age); MISSING: none"	Enums(KNOWN, MISSING)
 //	@Param			sort			query	string	false	"Order (default -createdAt)"	Enums(-createdAt, createdAt, -receivedDate, receivedDate, unitNumber, -unitNumber)
 //	@Param			page			query	int		false	"Page (from 1)"
 //	@Param			limit			query	int		false	"Page size (1-100, default 25)"
 //	@Success		200	{object}	httpx.DataResponse{data=vehicles.UnitPage}
 //	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
 //	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
-//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, sort, page, limit)"
+//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, ageingBand, originStatus, sort, page, limit)"
 //	@Router			/vehicle-units [get]
 func (h *Handler) List(c *gin.Context) {
 	a, ok := h.access.Current(c)
 	if !ok {
 		return
 	}
-	p, err := h.svc.List(c.Request.Context(), a, ListQuery{Query: c.Query("q"), Status: c.Query("status"),
+	p, err := h.svc.List(c.Request.Context(), a, listQuery(c))
+	h.respond(c, UnitPage{Items: p.Items, Page: p.Page, Limit: p.Limit, Total: p.Total}, err)
+}
+
+func listQuery(c *gin.Context) ListQuery {
+	return ListQuery{Query: c.Query("q"), Status: c.Query("status"),
 		BrandID: c.Query("brandId"), ModelID: c.Query("modelId"), VariantID: c.Query("variantId"), SupplierID: c.Query("supplierId"),
 		PurchaseOrderID: c.Query("purchaseOrderId"), GoodsReceiptID: c.Query("goodsReceiptId"),
 		LocationID: c.Query("locationId"), Saleable: c.Query("saleable"), ReceivedFrom: c.Query("receivedFrom"),
 		ReceivedTo: c.Query("receivedTo"), MinAgeDays: c.Query("minAgeDays"), MaxAgeDays: c.Query("maxAgeDays"),
-		Sort: c.Query("sort"), Page: c.Query("page"), Limit: c.Query("limit")})
-	h.respond(c, UnitPage{Items: p.Items, Page: p.Page, Limit: p.Limit, Total: p.Total}, err)
+		AgeingBand: c.Query("ageingBand"), OriginStatus: c.Query("originStatus"),
+		Sort: c.Query("sort"), Page: c.Query("page"), Limit: c.Query("limit")}
+}
+
+// AgeingSummary godoc
+//
+//	@Summary		Vehicle stock ageing summary
+//	@Description	Counts the units the same filters as GET /vehicle-units select (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, ageingBand, originStatus; sort/page/limit are ignored) by ageing band of the current configuration and by missing-origin reason, with exactly the rules of each unit's ageing: total = withOrigin + missingOrigin; withOrigin = sum of band counts + unbanded (unbanded only when no configuration exists). Units without a reliable origin date are counted in missingOrigin, never as 0 days. Read-only; only units without a location or at a location in the caller's scope. Requires vehicle_units.view.
+//	@Tags			vehicle-units
+//	@Produce		json
+//	@Param			q				query	string	false	"Search unit number or identifier"
+//	@Param			status			query	string	false	"Lifecycle status"	Enums(ORDERED, IN_TRANSIT, RECEIVED_PENDING_PDI, QUALITY_HOLD, AVAILABLE, DISPLAY, RESERVED, SERVICE_HOLD, SOLD, DELIVERED, REJECTED, RETURN_PENDING_INSPECTION, RETURNED_TO_SUPPLIER)
+//	@Param			brandId			query	string	false	"Brand ID"
+//	@Param			modelId			query	string	false	"Model ID"
+//	@Param			variantId		query	string	false	"Variant ID"
+//	@Param			supplierId		query	string	false	"Supplier ID"
+//	@Param			purchaseOrderId	query	string	false	"Purchase order ID"
+//	@Param			goodsReceiptId	query	string	false	"Goods receipt ID"
+//	@Param			locationId		query	string	false	"Location ID (must be in the caller's scope)"
+//	@Param			saleable		query	bool	false	"true: AVAILABLE units only; false: every other status"
+//	@Param			receivedFrom	query	string	false	"Received on or after (YYYY-MM-DD)"
+//	@Param			receivedTo		query	string	false	"Received on or before (YYYY-MM-DD)"
+//	@Param			minAgeDays		query	int		false	"At least this many days old (0-36500)"
+//	@Param			maxAgeDays		query	int		false	"At most this many days old (0-36500)"
+//	@Param			ageingBand		query	string	false	"Ageing band key of the current configuration"
+//	@Param			originStatus	query	string	false	"KNOWN or MISSING"	Enums(KNOWN, MISSING)
+//	@Success		200	{object}	httpx.DataResponse{data=vehicles.AgeingSummary}
+//	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
+//	@Failure		422	{object}	httpx.ErrorResponse	"VALIDATION_FAILED (the list filters)"
+//	@Router			/vehicle-units/ageing-summary [get]
+func (h *Handler) AgeingSummary(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	sum, err := h.svc.AgeingSummary(c.Request.Context(), a, listQuery(c))
+	h.respond(c, sum, err)
 }
 
 // Get godoc

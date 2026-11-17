@@ -1,0 +1,64 @@
+E-06 Ledger reconciliation job/report — verification evidence (2026-11-16)
+Base: dev @ b122188 (clean except the untracked audit reports). Throwaway PostgreSQL 18 container only
+(e06-pg, 127.0.0.1:55498); the shared dev database and its container were not touched.
+
+BACKEND
+  gofmt -l cmd internal                         -> no files
+  go vet ./...                                  -> exit 0
+  go mod tidy -diff                             -> exit 0
+  make -s swagger (regenerated) / swagger-check -> exit 0
+  go build ./...                                -> exit 0
+  golangci-lint                                 -> NOT RUN (not installed)
+  TEST_DATABASE_URL= go test -count=1 ./...     -> all packages ok
+  TEST_DATABASE_URL=<throwaway> REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./...
+      -> first run: internal/database failed (base test DB not migrated: documented prerequisite of
+         make test-integration, environment); after `migrate up` on the throwaway base DB: all packages ok
+  Reconciliation tests (internal/modules/stock), all PASS:
+      unit (no DB):   TestReconcileRouteDeniesByDefault, TestReconcileVisibilityFollowsItemPermissions,
+                      TestReconcileShapesOrdersFiltersAndPages, TestReconcileValidatesTheQuery,
+                      TestReconcileFailureIsSafeAndLogged
+      integration:    TestReconcileCleanLedger, TestReconcileDetectsVehicleStateAndLocationDrift,
+                      TestReconcileDetectsPartsBalanceDrift, TestReconcileDetectsMissingAndInconsistentHistory,
+                      TestReconcileIsRepeatableAndReadOnly, TestReconcilePermissionsAndScope,
+                      TestReconcileUsesOneSnapshot, TestReconcileTransactionRefusesWrites,
+                      TestReconcileDatabaseFailure
+  Mutation checks (reverted): READ COMMITTED instead of REPEATABLE READ -> TestReconcileUsesOneSnapshot FAILS;
+      parts location scope removed -> TestReconcilePermissionsAndScope FAILS.
+  Migration 000021: up -> version 21 (permission row present, not sensitive); down 1 -> 20 (row removed); up -> 21.
+      down while a role holds the permission -> refused (FK RESTRICT, SQLSTATE 23001); golang-migrate then marks the
+      version dirty (standard behaviour; revoke the grant and force the version).
+
+FRONTEND (ui/)
+  npx eslint . --max-warnings=0   -> exit 0
+  npx prettier --check .          -> all files formatted
+  npx tsc -b --noEmit             -> exit 0; tsc -p tsconfig.e2e.json --noEmit -> exit 0
+  npx vitest run                  -> 35 files, 380 tests passed (13 new in features/reconciliation)
+  npx vite build --outDir <scratch> -> built (existing >500 kB chunk warning, audit L-2)
+
+END-TO-END (Playwright, headless, throwaway stack: API :8197 from this tree, Vite :5197)
+  e2e/reconciliation.e2e.ts desktop + Pixel 7: 4 passed; --repeat-each=2: 8 passed (before and after the UI fix).
+  Flow: SKU + supplier + receipt of 10 through the API -> run: "Ledger agrees" -> balance set to 13 with psql (user
+  triggers off for one statement) -> run again: PARTS_BALANCE_MISMATCH expected 10 PCS, actual 13 PCS, HIGH,
+  reference PARTS_BALANCE_MISMATCH:<item>:<location> -> rerun: same reference -> filter MEDIUM: "No discrepancies
+  match these filters", summary unchanged -> movements count unchanged, balance still the drifted 13 (no repair),
+  zero non-GET requests -> no sideways scroll -> restored -> "Ledger agrees". User without the report permission:
+  page denied, no nav link, API 403.
+
+BROWSER (user's Chrome via Claude in Chrome, new tab, throwaway stack, account e2e.recon)
+  deep link -> sign-in -> back to /inventory/reconciliation; "not run" state; Run -> clean (8 balances, 0 vehicles);
+  drift injected (REC-DMWIWR5BP 10 -> 13) -> Run again -> 1 HIGH discrepancy, expected 10 PCS / actual 13 PCS;
+  severity filter MEDIUM -> filtered-empty, URL ?severity=MEDIUM; Clear filters; Movement 1 link -> ledger entry
+  "Parts received 0 -> 10 PCS"; repeat run -> new runId, same finding.
+  DEFECT FOUND AND FIXED: after navigating away and back, the page said "has not been run" while showing "Last run",
+  and "Run reconciliation" returned the cached run (same runId). Fix: a cached run is shown as that run with its own
+  time; Run / Run again always asks the server. Regression test added; re-verified in the browser (no automatic
+  re-run on return; Run again -> new run).
+  After 5 runs: stock_movements still 8 rows, drifted balance still 13 (nothing repaired); restored to 10 -> clean.
+  Console: no errors. Network: reconciliation requests GET only. One 503 on /stock-movements = client-aborted request
+  during fast navigation (pre-existing logging issue, audit L-4; not E-06).
+  Server log: "stock reconciliation started/completed" JSON lines with run_id, user_id, counts, duration_ms.
+
+NOT VERIFIED HERE
+  Vehicle-unit drift end to end in the browser (the throwaway stack has no vehicle units: creating them needs the
+  DB-inserted activation fixture, audit H-1). Vehicle checks are covered by the PostgreSQL integration tests.
+  D-05 live DUPLICATE_IDENTIFIER browser re-verification: still pending, not run in this task.

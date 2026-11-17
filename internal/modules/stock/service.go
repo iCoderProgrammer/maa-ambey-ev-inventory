@@ -29,6 +29,8 @@ type Repository interface {
 	GetCount(ctx context.Context, scope access.Scope, id string) (StockCount, error)
 	ListCounts(ctx context.Context, f CountListFilter) (CountPage, error)
 	RecordCountRefusal(ctx context.Context, actor audit.Actor, requestID, countID, action, reason string) error
+	// Reconcile (E-06): reads units, balances and the ledger from one read-only snapshot.
+	Reconcile(ctx context.Context, f ReconcileFilter) (ReconcileData, error)
 }
 
 // Service checks who may make the API's movements (again, after the route

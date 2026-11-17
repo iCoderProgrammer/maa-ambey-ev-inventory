@@ -15,10 +15,12 @@ import (
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/middleware"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/attachments"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/catalogue"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/health"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/openingstock"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pdi"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/pricing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/purchasing"
@@ -59,15 +61,19 @@ type Deps struct {
 	// StockItems serves the spare part and accessory SKU master (E-03).
 	StockItems *stockitems.Handler
 	// PDI serves PDI checklists and inspections (D-06).
-	PDI     *pdi.Handler
-	Version string
+	PDI *pdi.Handler
+	// Ageing serves the stock ageing band configuration (E-07).
+	Ageing *ageing.Handler
+	// OpeningStock serves the opening stock import preview (G-06).
+	OpeningStock *openingstock.Handler
+	Version      string
 }
 
 // NewRouter wires middleware and routes. Feature modules register themselves
 // on the /api/v1 group here.
 func NewRouter(d Deps) (*gin.Engine, error) {
-	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil || d.StockMovements == nil || d.StockItems == nil || d.PDI == nil {
-		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts, VehicleUnits, StockMovements, StockItems and PDI dependencies are required")
+	if d.DB == nil || d.Schema == nil || d.Auth == nil || d.Access == nil || d.Attachments == nil || d.Catalogue == nil || d.Pricing == nil || d.Suppliers == nil || d.PurchaseOrders == nil || d.GoodsReceipts == nil || d.VehicleUnits == nil || d.StockMovements == nil || d.StockItems == nil || d.PDI == nil || d.Ageing == nil || d.OpeningStock == nil {
+		return nil, errors.New("server: DB, Schema, Auth, Access, Attachments, Catalogue, Pricing, Suppliers, PurchaseOrders, GoodsReceipts, VehicleUnits, StockMovements, StockItems, PDI, Ageing and OpeningStock dependencies are required")
 	}
 	if d.Config.AppEnv == config.EnvDevelopment {
 		gin.SetMode(gin.DebugMode)
@@ -132,6 +138,8 @@ func NewRouter(d Deps) (*gin.Engine, error) {
 	d.StockMovements.Register(api)
 	d.PDI.Register(api)
 	d.StockItems.Register(api)
+	d.Ageing.Register(api)
+	d.OpeningStock.Register(api)
 
 	return r, nil
 }

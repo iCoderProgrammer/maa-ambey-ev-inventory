@@ -37,7 +37,7 @@ func NewHandler(svc *Service, accessH *access.Handler, log *slog.Logger) *Handle
 // Register mounts the routes: the two moves no other workflow owns, parts
 // receipts/issues and stock counts. There is no route that writes an arbitrary
 // movement or status, and none that edits or deletes one. The timeline (E-02)
-// only reads the ledger.
+// only reads the ledger, and so does the reconciliation (E-06).
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	display := h.access.Require(access.PermVehicleUnitDisplayManage)
 	rg.POST("/vehicle-units/:id/put-on-display", display, h.PutOnDisplay)
@@ -54,6 +54,8 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	timeline := h.access.RequireAny(access.PermVehicleUnitView, access.PermPartsView)
 	rg.GET("/stock-movements", timeline, h.ListTimeline)
 	rg.GET("/stock-movements/:id", timeline, h.GetTimelineMovement)
+	// Ledger reconciliation (E-06): read-only; rows need the item's own view permission.
+	rg.GET("/stock-reconciliation", h.access.Require(access.PermReconciliationView), h.Reconcile)
 }
 
 func (h *Handler) actor(c *gin.Context) audit.Actor {

@@ -1292,6 +1292,448 @@ definitions:
         example: asha.verma
         type: string
     type: object
+  OpeningStockCommittedUnit:
+    properties:
+      movementId:
+        type: string
+      rowNumber:
+        example: 3
+        type: integer
+      status:
+        example: RECEIVED_PENDING_PDI
+        type: string
+      unitNumber:
+        example: MAE-VEH-000123
+        type: string
+      vehicleUnitId:
+        type: string
+    type: object
+  OpeningStockFileIssue:
+    properties:
+      code:
+        example: MISSING_COLUMN
+        type: string
+      column:
+        example: chassis_number
+        type: string
+      line:
+        example: 2
+        type: integer
+      message:
+        type: string
+    type: object
+  OpeningStockImportApproval:
+    properties:
+      approvedAt:
+        type: string
+      approvedById:
+        type: string
+      approvedByName:
+        type: string
+        x-nullable: true
+      duplicatesReviewed:
+        type: boolean
+      id:
+        type: string
+      mappingsReviewed:
+        type: boolean
+      note:
+        type: string
+        x-nullable: true
+      physicalCountDate:
+        example: "2026-11-15"
+        type: string
+      physicalCountReference:
+        example: PC-2026-11-15
+        type: string
+      receivedDatesApproved:
+        description: |-
+          ReceivedDatesApproved: the file's received dates are the agreed opening-stock
+          dates (LED-008); false keeps the units' age MISSING_ORIGIN (E-07).
+        type: boolean
+    type: object
+  OpeningStockImportApprovalRequest:
+    properties:
+      duplicatesReviewed:
+        type: boolean
+      mappingsReviewed:
+        type: boolean
+      note:
+        type: string
+        x-nullable: true
+      physicalCountDate:
+        example: "2026-11-15"
+        type: string
+      physicalCountReference:
+        example: PC-2026-11-15
+        type: string
+      receivedDatesApproved:
+        type: boolean
+    type: object
+  OpeningStockImportBatch:
+    properties:
+      approval:
+        allOf:
+        - $ref: '#/definitions/OpeningStockImportApproval'
+        description: 'Approval: the recorded physical-count approval (G-07); null
+          until approved.'
+        x-nullable: true
+      businessDate:
+        example: "2026-11-16"
+        type: string
+      commit:
+        allOf:
+        - $ref: '#/definitions/OpeningStockImportCommitSummary'
+        description: |-
+          Commit: the batch's commit (G-07); null until committed. Once set the batch
+          is COMMITTED for good (status stays the staging status PREVIEWED).
+        x-nullable: true
+      commitAvailable:
+        description: |-
+          CommitAvailable stays false: the G-06 screens never offer a commit. The
+          commit is POST /opening-stock-imports/{id}/commit (G-07); see approval/commit.
+        type: boolean
+      expired:
+        description: 'Expired: the preview is history only; G-07 must refuse to commit
+          it.'
+        type: boolean
+      expiresAt:
+        type: string
+      fileAttachmentId:
+        type: string
+      fileIssues:
+        items:
+          $ref: '#/definitions/OpeningStockFileIssue'
+        type: array
+      fileName:
+        example: opening-stock.csv
+        type: string
+      fileSha256:
+        type: string
+      fileSizeBytes:
+        example: 2048
+        type: integer
+      id:
+        type: string
+      reference:
+        example: OSI-000001
+        type: string
+      status:
+        enum:
+        - PREVIEWED
+        - REJECTED
+        example: PREVIEWED
+        type: string
+      summary:
+        $ref: '#/definitions/OpeningStockImportSummary'
+      templateVersion:
+        example: OS-IMPORT-1
+        type: string
+        x-nullable: true
+      uploadedAt:
+        type: string
+      uploadedById:
+        type: string
+      uploadedByName:
+        type: string
+        x-nullable: true
+    type: object
+  OpeningStockImportBatchPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/OpeningStockImportBatch'
+        type: array
+      limit:
+        example: 25
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  OpeningStockImportCommit:
+    properties:
+      approvalId:
+        type: string
+      batchId:
+        type: string
+      batchReference:
+        example: OSI-000001
+        type: string
+      batchStatus:
+        description: 'BatchStatus is COMMITTED: the batch can never be committed again.'
+        enum:
+        - COMMITTED
+        example: COMMITTED
+        type: string
+      commitId:
+        type: string
+      committedAt:
+        type: string
+      committedById:
+        type: string
+      committedByName:
+        type: string
+        x-nullable: true
+      fileSha256:
+        type: string
+      movementType:
+        enum:
+        - OPENING_BALANCE
+        example: OPENING_BALANCE
+        type: string
+      reference:
+        example: OSC-000001
+        type: string
+      replayed:
+        description: 'Replayed: this request repeated an earlier successful commit
+          (same key); nothing new was created.'
+        type: boolean
+      sourceType:
+        description: |-
+          Provenance: units have source OPENING_STOCK and an OPENING_BALANCE movement
+          sourced from the batch; each points at its file line.
+        enum:
+        - OPENING_STOCK
+        example: OPENING_STOCK
+        type: string
+      templateVersion:
+        example: OS-IMPORT-1
+        type: string
+      units:
+        items:
+          $ref: '#/definitions/OpeningStockCommittedUnit'
+        type: array
+      unitsCreated:
+        example: 120
+        type: integer
+    type: object
+  OpeningStockImportCommitSummary:
+    properties:
+      committedAt:
+        type: string
+      committedById:
+        type: string
+      committedByName:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      reference:
+        example: OSC-000001
+        type: string
+      unitsCreated:
+        example: 120
+        type: integer
+    type: object
+  OpeningStockImportRow:
+    properties:
+      canProceed:
+        type: boolean
+      duplicate:
+        type: boolean
+      issues:
+        items:
+          $ref: '#/definitions/OpeningStockRowIssue'
+        type: array
+      normalised:
+        $ref: '#/definitions/OpeningStockNormalisedRow'
+      resolved:
+        additionalProperties: {}
+        type: object
+      rowNumber:
+        example: 3
+        type: integer
+      source:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        enum:
+        - VALID
+        - WARNING
+        - ERROR
+        - BLOCKED_UNVERIFIED_MAPPING
+        example: VALID
+        type: string
+      unresolved:
+        type: boolean
+    type: object
+  OpeningStockImportRowPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/OpeningStockImportRow'
+        type: array
+      limit:
+        example: 50
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 0
+        type: integer
+    type: object
+  OpeningStockImportSpecification:
+    properties:
+      approvedOpeningStatuses:
+        description: 'ApprovedOpeningStatuses: the statuses a commit accepts (OQ-47);
+          empty blocks every commit (G-07).'
+        items:
+          type: string
+        type: array
+      businessDate:
+        example: "2026-11-16"
+        type: string
+      columns:
+        items:
+          $ref: '#/definitions/OpeningStockTemplateColumn'
+        type: array
+      firstLine:
+        example: '#template:OS-IMPORT-1'
+        type: string
+      format:
+        type: string
+      maxBytes:
+        example: 5242880
+        type: integer
+      maxRows:
+        example: 5000
+        type: integer
+      notes:
+        items:
+          type: string
+        type: array
+      previewTtlHours:
+        example: 168
+        type: integer
+      stockStatuses:
+        items:
+          type: string
+        type: array
+      templateVersion:
+        example: OS-IMPORT-1
+        type: string
+      timeZone:
+        example: Asia/Kolkata
+        type: string
+    type: object
+  OpeningStockImportSummary:
+    properties:
+      blockedRows:
+        example: 3
+        type: integer
+      canProceedRows:
+        example: 112
+        type: integer
+      duplicateRows:
+        example: 4
+        type: integer
+      errorRows:
+        example: 5
+        type: integer
+      skippedBlankRows:
+        description: 'SkippedBlankRows: lines with no value at all (ignored).'
+        example: 0
+        type: integer
+      totalRows:
+        example: 120
+        type: integer
+      unresolvedRows:
+        example: 3
+        type: integer
+      validRows:
+        example: 100
+        type: integer
+      warningRows:
+        example: 12
+        type: integer
+    type: object
+  OpeningStockNormalisedRow:
+    properties:
+      acquisitionCost:
+        type: string
+        x-nullable: true
+      batteryNormalised:
+        type: string
+        x-nullable: true
+      brandId:
+        type: string
+        x-nullable: true
+      chargerNormalised:
+        type: string
+        x-nullable: true
+      chassisNormalised:
+        type: string
+        x-nullable: true
+      chassisNumber:
+        type: string
+        x-nullable: true
+      colourId:
+        type: string
+        x-nullable: true
+      locationId:
+        type: string
+        x-nullable: true
+      modelId:
+        type: string
+        x-nullable: true
+      motorNormalised:
+        type: string
+        x-nullable: true
+      receivedDate:
+        type: string
+        x-nullable: true
+      stockStatus:
+        type: string
+        x-nullable: true
+      supplierId:
+        type: string
+        x-nullable: true
+      variantId:
+        type: string
+        x-nullable: true
+    type: object
+  OpeningStockRowIssue:
+    properties:
+      code:
+        example: DUPLICATE_CHASSIS_IN_FILE
+        type: string
+      field:
+        example: chassis_number
+        type: string
+      message:
+        type: string
+      severity:
+        enum:
+        - ERROR
+        - BLOCKED
+        - WARNING
+        example: ERROR
+        type: string
+      suggestion:
+        type: string
+    type: object
+  OpeningStockTemplateColumn:
+    properties:
+      description:
+        type: string
+      format:
+        example: text
+        type: string
+      maxLength:
+        example: 100
+        type: integer
+      name:
+        example: chassis_number
+        type: string
+      required:
+        type: boolean
+    type: object
   PDIChecklistItem:
     properties:
       brandId:
@@ -2556,6 +2998,197 @@ definitions:
         example: ready
         type: string
     type: object
+  ReconciliationCoverage:
+    properties:
+      allLocations:
+        description: 'AllLocations: every location; otherwise LocationIDs (the caller''s
+          scope).'
+        type: boolean
+      locationIds:
+        items:
+          type: string
+        type: array
+      parts:
+        type: boolean
+      vehicleUnits:
+        type: boolean
+    type: object
+  ReconciliationDiscrepancy:
+    properties:
+      actual:
+        example: DISPLAY
+        type: string
+        x-nullable: true
+      brandId:
+        description: Brand of a vehicle unit (parts have no brand); null on STOCK_ITEM
+          rows.
+        type: string
+        x-nullable: true
+      brandName:
+        example: Brand A
+        type: string
+        x-nullable: true
+      detectedAt:
+        type: string
+      expected:
+        description: 'Expected: the value the ledger implies. Actual: the value the
+          record (or movement) holds.'
+        example: AVAILABLE
+        type: string
+        x-nullable: true
+      explanation:
+        type: string
+      itemType:
+        enum:
+        - VEHICLE_UNIT
+        - STOCK_ITEM
+        example: VEHICLE_UNIT
+        type: string
+      locationCode:
+        example: SR1
+        type: string
+        x-nullable: true
+      locationId:
+        description: |-
+          The record's location (the unit's current location, the balance's location); code/name
+          are null when it is outside the caller's scope, all three when there is none.
+        type: string
+        x-nullable: true
+      locationName:
+        type: string
+        x-nullable: true
+      movementIds:
+        description: 'MovementIDs: the ledger entries the finding is about (oldest
+          first); may be empty.'
+        items:
+          type: string
+        type: array
+      reference:
+        description: 'Reference is stable for the same finding across runs: TYPE:item
+          ID[:location ID][:movement ID].'
+        example: VEHICLE_STATUS_MISMATCH:3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b
+        type: string
+      severity:
+        enum:
+        - HIGH
+        - MEDIUM
+        example: HIGH
+        type: string
+      stockItem:
+        allOf:
+        - $ref: '#/definitions/ReconciliationStockItem'
+        description: 'StockItem: STOCK_ITEM rows; null on VEHICLE_UNIT rows.'
+        x-nullable: true
+      type:
+        enum:
+        - VEHICLE_NO_MOVEMENTS
+        - VEHICLE_MISSING_RECEIPT
+        - VEHICLE_REPEATED_RECEIPT
+        - VEHICLE_STATUS_MISMATCH
+        - VEHICLE_LOCATION_MISMATCH
+        - VEHICLE_NOT_HELD
+        - VEHICLE_BROKEN_CHAIN
+        - PARTS_BALANCE_MISMATCH
+        - PARTS_BALANCE_MISSING
+        - PARTS_NEGATIVE_BALANCE
+        - PARTS_BROKEN_CHAIN
+        example: VEHICLE_STATUS_MISMATCH
+        type: string
+      vehicleUnit:
+        allOf:
+        - $ref: '#/definitions/ReconciliationVehicleUnit'
+        description: 'VehicleUnit: VEHICLE_UNIT rows; null on STOCK_ITEM rows.'
+        x-nullable: true
+    type: object
+  ReconciliationReport:
+    properties:
+      completedAt:
+        type: string
+      coverage:
+        $ref: '#/definitions/ReconciliationCoverage'
+      durationMs:
+        example: 35
+        type: integer
+      items:
+        description: 'Items: the discrepancies matching the filters, severity then
+          type then reference.'
+        items:
+          $ref: '#/definitions/ReconciliationDiscrepancy'
+        type: array
+      limit:
+        example: 50
+        type: integer
+      page:
+        example: 1
+        type: integer
+      runAt:
+        type: string
+      runId:
+        description: RunID identifies this run in the server logs; runs are not stored.
+        type: string
+      status:
+        enum:
+        - COMPLETED
+        example: COMPLETED
+        type: string
+      summary:
+        $ref: '#/definitions/ReconciliationSummary'
+      total:
+        description: 'Total: discrepancies matching the filters.'
+        example: 0
+        type: integer
+    type: object
+  ReconciliationStockItem:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      sku:
+        example: BRK-PAD-01
+        type: string
+      uom:
+        example: PCS
+        type: string
+    type: object
+  ReconciliationSummary:
+    properties:
+      bySeverity:
+        additionalProperties:
+          type: integer
+        type: object
+      byType:
+        additionalProperties:
+          type: integer
+        type: object
+      discrepancies:
+        example: 0
+        type: integer
+      movementsChecked:
+        example: 910
+        type: integer
+      partBalancesChecked:
+        example: 40
+        type: integer
+      recordsChecked:
+        example: 160
+        type: integer
+      vehicleUnitsChecked:
+        example: 120
+        type: integer
+    type: object
+  ReconciliationVehicleUnit:
+    properties:
+      chassisNumber:
+        example: CH-0001
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      unitNumber:
+        example: MAE-VEH-000001
+        type: string
+    type: object
   RoleMatrix:
     properties:
       approvedGrantCount:
@@ -2603,6 +3236,167 @@ definitions:
       signedOut:
         example: true
         type: boolean
+    type: object
+  StockAgeing:
+    properties:
+      ageDays:
+        description: 'AgeDays: whole days from the origin date to AsOf; null without
+          a reliable origin.'
+        example: 24
+        type: integer
+        x-nullable: true
+      asOf:
+        description: AsOf is the business date the age is counted to.
+        example: "2026-11-16"
+        type: string
+      bandKey:
+        description: |-
+          BandKey/BandLabel: the band of AgeDays in the current configuration; null without
+          an age or without a configuration.
+        example: 0-30
+        type: string
+        x-nullable: true
+      bandLabel:
+        example: 0–30 days
+        type: string
+        x-nullable: true
+      missingExplanation:
+        type: string
+        x-nullable: true
+      missingReason:
+        description: 'MissingReason/MissingExplanation: why there is no reliable origin;
+          null when AGED.'
+        enum:
+        - UNSUPPORTED_SOURCE
+        - GRN_NOT_POSTED
+        - GRN_DATE_MISMATCH
+        - OPENING_NOT_APPROVED
+        - NO_ORIGIN_DATE
+        - FUTURE_ORIGIN_DATE
+        type: string
+        x-nullable: true
+      originDate:
+        example: "2026-10-23"
+        type: string
+        x-nullable: true
+      originSource:
+        enum:
+        - GRN
+        - OPENING_STOCK
+        example: GRN
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - AGED
+        - MISSING_ORIGIN
+        example: AGED
+        type: string
+    type: object
+  StockAgeingApproveInput:
+    properties:
+      reference:
+        description: 'Reference: optional approval reference (e.g. meeting minute),
+          up to 200 characters.'
+        type: string
+        x-nullable: true
+      version:
+        example: 2
+        type: integer
+    type: object
+  StockAgeingBand:
+    properties:
+      key:
+        example: 0-30
+        type: string
+      label:
+        example: 0–30 days
+        type: string
+      maxDays:
+        example: 30
+        type: integer
+        x-nullable: true
+      minDays:
+        example: 0
+        type: integer
+    type: object
+  StockAgeingBandSet:
+    properties:
+      approvalReference:
+        type: string
+        x-nullable: true
+      approvedAt:
+        type: string
+        x-nullable: true
+      approvedById:
+        type: string
+        x-nullable: true
+      approvedByName:
+        type: string
+        x-nullable: true
+      bands:
+        items:
+          $ref: '#/definitions/StockAgeingBand'
+        type: array
+      createdAt:
+        type: string
+      createdById:
+        description: 'CreatedByID/Name: null when recorded by the migration.'
+        type: string
+        x-nullable: true
+      createdByName:
+        type: string
+        x-nullable: true
+      source:
+        type: string
+      status:
+        enum:
+        - PROPOSED
+        - APPROVED
+        example: PROPOSED
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+  StockAgeingConfiguration:
+    properties:
+      asOf:
+        example: "2026-11-16"
+        type: string
+      bandSet:
+        allOf:
+        - $ref: '#/definitions/StockAgeingBandSet'
+        description: 'BandSet: the current version; null when not configured.'
+        x-nullable: true
+      boundaryRule:
+        description: BoundaryRule states how bands are applied.
+        type: string
+      configured:
+        description: 'Configured: false when no band configuration exists (ages are
+          still calculated, without bands).'
+        type: boolean
+      timeZone:
+        description: 'TimeZone and AsOf: the business calendar ages are counted on.'
+        example: Asia/Kolkata
+        type: string
+    type: object
+  StockAgeingProposeInput:
+    properties:
+      bands:
+        items:
+          $ref: '#/definitions/StockAgeingBand'
+        type: array
+      expectedVersion:
+        description: ExpectedVersion is the current version (0 when none exists);
+          a different one is 409 VERSION_CONFLICT.
+        example: 1
+        type: integer
+      source:
+        description: 'Source: where the thresholds come from (document or decision
+          reference), 1-300 characters.'
+        example: Owner decision 2026-11-20
+        type: string
     type: object
   StockCount:
     properties:
@@ -3755,6 +4549,7 @@ definitions:
         - PARTS_RECEIPT
         - PARTS_ISSUE
         - COUNT_ADJUSTMENT
+        - OPENING_BALANCE
         example: PDI_PASS
         type: string
       note:
@@ -3792,6 +4587,7 @@ definitions:
         - STAFF_ACTION
         - SUPPLIER_DELIVERY
         - STOCK_COUNT
+        - OPENING_STOCK
         example: PDI_INSPECTION
         type: string
       stockItem:
@@ -3868,15 +4664,99 @@ definitions:
         example: MAE-VEH-000001
         type: string
     type: object
+  VehicleAgeingBandCount:
+    properties:
+      count:
+        example: 7
+        type: integer
+      key:
+        example: 0-30
+        type: string
+      label:
+        example: 0–30 days
+        type: string
+      maxDays:
+        example: 30
+        type: integer
+        x-nullable: true
+      minDays:
+        example: 0
+        type: integer
+    type: object
+  VehicleAgeingSummary:
+    properties:
+      asOf:
+        description: 'AsOf/TimeZone: the business date ages are counted to.'
+        example: "2026-11-16"
+        type: string
+      bandSet:
+        allOf:
+        - $ref: '#/definitions/VehicleAgeingSummaryBandSet'
+        x-nullable: true
+      bands:
+        description: 'Bands: every band of the configuration, in order, with its count
+          (0 included); empty when not configured.'
+        items:
+          $ref: '#/definitions/VehicleAgeingBandCount'
+        type: array
+      configured:
+        description: 'Configured: a band configuration exists; BandSet identifies
+          it (null when not configured).'
+        type: boolean
+      missingByReason:
+        additionalProperties:
+          type: integer
+        description: MissingByReason counts MissingOrigin by reason.
+        type: object
+      missingOrigin:
+        example: 1
+        type: integer
+      timeZone:
+        example: Asia/Kolkata
+        type: string
+      total:
+        description: Total units selected = WithOrigin + MissingOrigin.
+        example: 12
+        type: integer
+      unbanded:
+        description: 'Unbanded: units with an age but no band (only when no configuration
+          exists).'
+        example: 0
+        type: integer
+      withOrigin:
+        example: 11
+        type: integer
+    type: object
+  VehicleAgeingSummaryBandSet:
+    properties:
+      source:
+        type: string
+      status:
+        enum:
+        - PROPOSED
+        - APPROVED
+        example: PROPOSED
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
   VehicleUnit:
     properties:
       ageDays:
         description: |-
-          AgeDays is the number of days since the received date (database date). It
-          is the plain days-in-stock figure the list filters on; ageing buckets and
-          policy are E-07.
+          AgeDays is the stock age in whole days from the approved origin date to the
+          business date (E-07, ADR-029) — the same value as ageing.ageDays; null when the
+          unit has no reliable origin date (never a fabricated age).
         example: 12
         type: integer
+        x-nullable: true
+      ageing:
+        allOf:
+        - $ref: '#/definitions/StockAgeing'
+        description: |-
+          Ageing is the unit's stock ageing (E-07): origin date and source, age, band, or
+          why no reliable origin date exists. Calculated by the server on every read.
       batterySerial:
         type: string
         x-nullable: true
@@ -3931,6 +4811,7 @@ definitions:
       sourceType:
         enum:
         - GOODS_RECEIPT
+        - OPENING_STOCK
         example: GOODS_RECEIPT
         type: string
       status:
@@ -3980,11 +4861,18 @@ definitions:
     properties:
       ageDays:
         description: |-
-          AgeDays is the number of days since the received date (database date). It
-          is the plain days-in-stock figure the list filters on; ageing buckets and
-          policy are E-07.
+          AgeDays is the stock age in whole days from the approved origin date to the
+          business date (E-07, ADR-029) — the same value as ageing.ageDays; null when the
+          unit has no reliable origin date (never a fabricated age).
         example: 12
         type: integer
+        x-nullable: true
+      ageing:
+        allOf:
+        - $ref: '#/definitions/StockAgeing'
+        description: |-
+          Ageing is the unit's stock ageing (E-07): origin date and source, age, band, or
+          why no reliable origin date exists. Calculated by the server on every read.
       batterySerial:
         type: string
         x-nullable: true
@@ -4053,6 +4941,7 @@ definitions:
       sourceType:
         enum:
         - GOODS_RECEIPT
+        - OPENING_STOCK
         example: GOODS_RECEIPT
         type: string
       status:
@@ -4161,6 +5050,7 @@ definitions:
       sourceType:
         enum:
         - GOODS_RECEIPT
+        - OPENING_STOCK
         example: GOODS_RECEIPT
         type: string
       toStatus:
@@ -4198,6 +5088,7 @@ definitions:
         - REJECT
         - DISPLAY_ON
         - DISPLAY_OFF
+        - OPENING_BALANCE
         example: RECEIPT
         type: string
       note:
@@ -4215,6 +5106,7 @@ definitions:
         - GOODS_RECEIPT
         - PDI_INSPECTION
         - STAFF_ACTION
+        - OPENING_STOCK
         example: GOODS_RECEIPT
         type: string
       toLocationCode:
@@ -4278,6 +5170,19 @@ definitions:
       goodsReceiptUnitId:
         type: string
         x-nullable: true
+      openingStockBatchId:
+        description: 'Opening stock (G-07): the import batch, its OSI reference and
+          the file line the unit came from.'
+        type: string
+        x-nullable: true
+      openingStockBatchReference:
+        example: OSI-000001
+        type: string
+        x-nullable: true
+      openingStockRowNumber:
+        example: 3
+        type: integer
+        x-nullable: true
       purchaseOrderId:
         type: string
         x-nullable: true
@@ -4304,6 +5209,7 @@ definitions:
       type:
         enum:
         - GOODS_RECEIPT
+        - OPENING_STOCK
         example: GOODS_RECEIPT
         type: string
     type: object
@@ -6295,6 +7201,499 @@ paths:
       summary: Verify a model
       tags:
       - catalogue
+  /opening-stock-imports:
+    get:
+      description: The caller's batches, newest first (every batch for a caller with
+        every location). Requires stock.import.preview.
+      parameters:
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 25)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportBatchPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (page, limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: List opening stock import previews
+      tags:
+      - opening-stock-imports
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Stores the CSV privately and validates it: the file (UTF-8 text,
+        .csv, template marker and version, header with every required column, no duplicate
+        or unknown column, at least one and at most maxRows data rows) and every row
+        (required values, lengths, catalogue brand → model → variant → colour resolved
+        exactly — never guessed —, brand/model/variant/colour verification and activation,
+        location known, active and in the caller''s scope, stock status, received
+        date not after the business date, cost format, supplier, chassis/frame duplicates
+        within the file, against vehicle units and against open receipt drafts, and
+        motor/battery/charger possible duplicates as warnings while their uniqueness
+        is unapproved). Row status: ERROR (cannot be imported as is), BLOCKED_UNVERIFIED_MAPPING
+        (maps to a catalogue entry that is not verified/active), WARNING (importable,
+        review), VALID. A file that cannot be read as the template is stored as a
+        REJECTED batch with fileIssues and no rows. THE PREVIEW CREATES NO STOCK:
+        no vehicle unit, receipt, movement, balance or catalogue change; only the
+        batch, its rows, the file''s private attachment and audit events are written.
+        Idempotency-Key is required: the same key with the same file returns the first
+        batch (200, Idempotent-Replayed: true); with another file 409. Requires stock.import.preview
+        and X-CSRF-Token.'
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: The filled template (.csv)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Replay of the same request
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportBatch'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportBatch'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "413":
+          description: FILE_TOO_LARGE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (file, Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Upload an opening stock file for preview
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/{id}:
+    get:
+      description: 'The batch: file reference (attachment ID, name, SHA-256, size),
+        uploader, upload time, template version, business date, expiry (expired: history
+        only, G-07 must refuse it), status, summary counts and file issues. commitAvailable
+        is always false: committing is the separate G-07 workflow. Another user''s
+        batch is 404 unless the caller has every location. Requires stock.import.preview.'
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportBatch'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get an opening stock import preview
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/{id}/approval:
+    post:
+      consumes:
+      - application/json
+      description: 'Records, once, that the batch was reconciled to a signed physical
+        count: physicalCountReference (1-100 characters) and physicalCountDate (not
+        after today), mappingsReviewed and duplicatesReviewed (both must be true)
+        and receivedDatesApproved (whether the file''s received dates are the agreed
+        opening-stock dates; false leaves the units'' stock age MISSING_ORIGIN in
+        E-07). Only a non-expired PREVIEWED batch in OS-IMPORT-1 whose every line
+        is VALID can be approved; every line''s location must be in the caller''s
+        scope. The same approval repeated by its approver returns 200 (Idempotent-Replayed:
+        true); any other approval of an approved batch is 409. Approvals are never
+        changed or deleted. Requires stock.import.approve (granted to no role until
+        the owner signs off) and X-CSRF-Token. Creates no stock.'
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Approval
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/OpeningStockImportApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Replay of the same approval
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportApproval'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportApproval'
+              type: object
+        "400":
+          description: BAD_REQUEST (malformed JSON)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN (permission, or a line's location outside the caller's
+            scope) or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: INVALID_STATE (rejected/other template, or not every line VALID),
+            IMPORT_PREVIEW_EXPIRED, IMPORT_ALREADY_APPROVED or IMPORT_ALREADY_COMMITTED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (physicalCountReference, physicalCountDate,
+            mappingsReviewed, duplicatesReviewed, receivedDatesApproved, note)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Approve an opening stock import batch (G-07)
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/{id}/commit:
+    get:
+      description: 'The commit of a committed batch: commit ID and OSC reference,
+        batch, COMMITTED status, units created (line, vehicle unit, unit number, status,
+        OPENING_BALANCE movement), committer, time, approval and file fingerprint.
+        404 until the batch is committed. Requires stock.import.preview, stock.import.approve
+        or stock.import.commit.'
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportCommit'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Get an opening stock import batch's commit (G-07)
+      tags:
+      - opening-stock-imports
+    post:
+      description: 'Turns the batch into stock exactly once, all lines or none. Never
+        trusts the preview: the stored file is read again (SHA-256, size, template
+        version, same lines and values as staged) and, in one transaction with the
+        batch locked and the catalogue/locations/suppliers share-locked, every line
+        is re-validated against the current database (catalogue verification and activation,
+        location active and in the caller''s scope, chassis/frame duplicates against
+        vehicle units, receipt drafts and the file, stock status approved for opening
+        stock, positive cost, same resolution as the approved preview). Warnings are
+        not accepted (no approved rule, OQ-49). Any refused line → 422 IMPORT_ROWS_BLOCKED
+        (details: rows[line].field — CODE (SEVERITY): message) and nothing is written.
+        On success each line becomes a vehicle unit (source OPENING_STOCK, linked
+        to its batch line; no supplier/PO/GRN history is invented), with a REGISTERED
+        history entry, an OPENING_BALANCE stock movement (none → its status, 0 → 1,
+        at its location, source = the batch) and audit events. Idempotency-Key is
+        required: the same key from the same user returns the commit again (200, Idempotent-Replayed:
+        true, replayed: true); the same key for another batch is 409. A batch committed
+        by anyone else is 409 IMPORT_ALREADY_COMMITTED. Requires stock.import.commit
+        (separate from preview and approval; granted to no role until the owner signs
+        off) and X-CSRF-Token.'
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: 8-100 letters, digits, - or _
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Replay of the same request
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportCommit'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportCommit'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN (permission, or a line's location outside the caller's
+            scope) or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: IMPORT_APPROVAL_REQUIRED, IMPORT_ALREADY_COMMITTED, IMPORT_PREVIEW_EXPIRED,
+            OPENING_STATUSES_NOT_APPROVED, IMPORT_SOURCE_INVALID, INVALID_STATE, DUPLICATE_IDENTIFIER
+            (registered concurrently) or IDEMPOTENCY_KEY_REUSED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: IMPORT_ROWS_BLOCKED (details per line and field) or VALIDATION_FAILED
+            (Idempotency-Key)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Commit an approved opening stock import batch (G-07)
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/{id}/rows:
+    get:
+      description: 'Staged rows in file order (rowNumber = line in the uploaded file):
+        the values exactly as uploaded (source), the normalised values and resolved
+        references G-07 will use (normalised, null when invalid), a display snapshot
+        of the resolution (resolved) and every issue (field, code, severity, message,
+        suggestion). Filters: status, duplicate=true (any duplicate identifier issue),
+        unresolved=true (any catalogue/location mapping issue). Requires stock.import.preview.'
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Row status
+        enum:
+        - VALID
+        - WARNING
+        - ERROR
+        - BLOCKED_UNVERIFIED_MAPPING
+        in: query
+        name: status
+        type: string
+      - description: Only rows with a duplicate identifier issue
+        in: query
+        name: duplicate
+        type: boolean
+      - description: Only rows with an unresolved catalogue or location mapping
+        in: query
+        name: unresolved
+        type: boolean
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-200, default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportRowPage'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (status, duplicate, unresolved, page, limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Rows of an opening stock import preview
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/specification:
+    get:
+      description: The template version, accepted format (CSV UTF-8 only; XLSX is
+        refused), size/row limits, preview lifetime, every column (name, required,
+        max length, format, meaning) and the accepted stock statuses, plus the business
+        date dates are checked against. Requires stock.import.preview.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockImportSpecification'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Opening stock template specification
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/template:
+    get:
+      description: A CSV file with the template marker line (#template:OS-IMPORT-1)
+        and the column header line, and no data rows. Requires stock.import.preview.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Download the opening stock template
+      tags:
+      - opening-stock-imports
   /pdi-checklist-items:
     get:
       description: 'The configurable PDI checklist (no item is seeded: an empty list
@@ -7864,6 +9263,154 @@ paths:
       summary: List purchase orders open for receipts
       tags:
       - goods-receipts
+  /stock-ageing/band-sets:
+    post:
+      consumes:
+      - application/json
+      description: 'Records a new configuration version (status PROPOSED) after expectedVersion
+        (409 VERSION_CONFLICT otherwise). Bands: 1-20, keys unique (1-32 lower-case
+        letters, digits, - or _), labels 1-60 characters, whole days 0-36500; the
+        first starts at 0, each starts the day after the previous one ends (no gap
+        or overlap), only the last has no maxDays (open-ended). source names the document
+        or decision the thresholds come from. Earlier versions are kept unchanged
+        and no stock record is rewritten (ages and bands are calculated on read).
+        Audited (stock_ageing.bands_proposed). Requires stock.ageing.configure and
+        X-CSRF-Token.'
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: Configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockAgeingProposeInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockAgeingBandSet'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: VERSION_CONFLICT
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (expectedVersion, source, bands, bands[i].key|label|minDays|maxDays)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Propose an ageing band configuration
+      tags:
+      - stock-ageing
+  /stock-ageing/band-sets/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approves the current version while it is PROPOSED (409 INVALID_STATE
+        otherwise). The person who proposed it cannot approve it (403 SELF_APPROVAL_NOT_ALLOWED,
+        audited DENIED); the migration's LED-008 proposal can be approved by any holder
+        of the permission. Only the approval fields change. Audited (stock_ageing.bands_approved).
+        Requires stock.ageing.configure and X-CSRF-Token.
+      parameters:
+      - description: CSRF token from the session
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: Version to approve
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/StockAgeingApproveInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockAgeingBandSet'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "409":
+          description: INVALID_STATE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "415":
+          description: UNSUPPORTED_MEDIA_TYPE
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (version, reference)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Approve the proposed ageing band configuration
+      tags:
+      - stock-ageing
+  /stock-ageing/configuration:
+    get:
+      description: 'The current ageing band configuration (latest version, PROPOSED
+        until approved), the business time zone and today''s business date ages are
+        counted to, and the boundary rule: a band covers minDays <= age <= maxDays
+        in whole days (both inclusive), the last band is open-ended, age = business
+        date - origin date. configured is false (bandSet null) when no configuration
+        exists; ages are then still calculated, without bands. Read-only. Requires
+        vehicle_units.view or stock.ageing.configure.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/StockAgeingConfiguration'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Stock ageing configuration
+      tags:
+      - stock-ageing
   /stock-counts:
     get:
       description: 'Counts (adjustment requests) at the locations in the caller''s
@@ -9087,6 +10634,7 @@ paths:
         - STAFF_ACTION
         - SUPPLIER_DELIVERY
         - STOCK_COUNT
+        - OPENING_STOCK
         in: query
         name: sourceType
         type: string
@@ -9194,6 +10742,106 @@ paths:
       summary: One stock movement
       tags:
       - stock-movements
+  /stock-reconciliation:
+    get:
+      description: 'Runs the read-only ledger reconciliation now and returns its summary
+        and one page of discrepancies. Vehicle units are compared with their stock
+        movements: no movement (VEHICLE_NO_MOVEMENTS), history not starting with the
+        RECEIPT (VEHICLE_MISSING_RECEIPT), a later RECEIPT (VEHICLE_REPEATED_RECEIPT),
+        status or location different from the latest movement (VEHICLE_STATUS_MISMATCH,
+        VEHICLE_LOCATION_MISMATCH), latest movement not leaving the unit held (VEHICLE_NOT_HELD),
+        a movement not starting where the previous one ended (VEHICLE_BROKEN_CHAIN).
+        Parts balances per SKU and location: balance different from the quantity after
+        the latest movement, 0 without one (PARTS_BALANCE_MISMATCH), movements without
+        a balance record (PARTS_BALANCE_MISSING), a balance below zero (PARTS_NEGATIVE_BALANCE),
+        a movement not starting from the quantity the previous one left, the first
+        from 0 (PARTS_BROKEN_CHAIN). HIGH: the record disagrees with the ledger or
+        its origin is missing; MEDIUM: the history is inconsistent while the record
+        matches its latest movement. Every query runs in one read-only, repeatable-read
+        transaction: the result is one consistent snapshot and nothing is written,
+        corrected or stored (runs are logged on the server under runId only). The
+        summary counts the whole run; itemType, type, severity and locationId (in
+        scope) filter the returned items, ordered by severity, type and reference;
+        reference is stable across runs. Rows are what the caller may see: vehicle
+        units need vehicle_units.view and a current location in scope (or none yet);
+        parts balances need stock.parts.view at a location in scope; a location outside
+        the scope is named by ID only. No cost is returned. Requires stock.reconciliation.view
+        and vehicle_units.view or stock.parts.view.'
+      parameters:
+      - description: Item type
+        enum:
+        - VEHICLE_UNIT
+        - STOCK_ITEM
+        in: query
+        name: itemType
+        type: string
+      - description: Discrepancy type
+        enum:
+        - VEHICLE_NO_MOVEMENTS
+        - VEHICLE_MISSING_RECEIPT
+        - VEHICLE_REPEATED_RECEIPT
+        - VEHICLE_STATUS_MISMATCH
+        - VEHICLE_LOCATION_MISMATCH
+        - VEHICLE_NOT_HELD
+        - VEHICLE_BROKEN_CHAIN
+        - PARTS_BALANCE_MISMATCH
+        - PARTS_BALANCE_MISSING
+        - PARTS_NEGATIVE_BALANCE
+        - PARTS_BROKEN_CHAIN
+        in: query
+        name: type
+        type: string
+      - description: Severity
+        enum:
+        - HIGH
+        - MEDIUM
+        in: query
+        name: severity
+        type: string
+      - description: Location ID of the record (in the caller's scope)
+        in: query
+        name: locationId
+        type: string
+      - description: Page (from 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (1-100, default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/ReconciliationReport'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (itemType, type, severity, locationId, page,
+            limit)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "500":
+          description: INTERNAL_ERROR (the run failed; nothing was changed)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Stock ledger reconciliation
+      tags:
+      - stock-reconciliation
   /supplier-brand-links:
     get:
       description: By brand or by supplier (one is required); up to 200, open ones
@@ -10276,16 +11924,22 @@ paths:
       description: 'Newest registration first by default (sort). q matches the unit
         number and the chassis/frame, motor, battery and charger identifiers after
         normalisation (trimmed, upper-case; part of a value is enough). Filters combine
-        (AND). receivedFrom/receivedTo are inclusive dates; minAgeDays/maxAgeDays
-        are inclusive whole days since the received date (ageDays, database date).
-        Colour is not filterable: units carry no colour (not captured on receipt).
-        Every sort ends with the unit ID, so pages are stable. saleable=true lists
-        only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD,
-        REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock
-        (INV-006/007, PO-006). Only units without a location or at a location in the
-        caller''s scope are listed; a locationId outside the scope is refused. unitCost
-        and costCurrency are null, and costHidden true, without vehicle_units.cost.view.
-        Requires vehicle_units.view.'
+        (AND). receivedFrom/receivedTo are inclusive dates; Stock ageing (E-07, ADR-029):
+        every unit carries ageing (origin date and source GRN — the posted goods receipt''s
+        received date —, age in whole days to the business date in the business time
+        zone, band of the current configuration, or MISSING_ORIGIN with a reason and
+        no age/band); ageDays is ageing.ageDays and null without a reliable origin.
+        minAgeDays/maxAgeDays are inclusive whole days and ageingBand a band key (minDays
+        <= age <= maxDays); all three select only units with a reliable origin. originStatus=KNOWN|MISSING
+        selects by origin reliability. An unknown ageingBand, or ageingBand/minAgeDays/maxAgeDays
+        with originStatus=MISSING, is 422. Colour is not filterable: units carry no
+        colour (not captured on receipt). Every sort ends with the unit ID, so pages
+        are stable. saleable=true lists only AVAILABLE units: units pending PDI, on
+        QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED
+        are never saleable stock (INV-006/007, PO-006). Only units without a location
+        or at a location in the caller''s scope are listed; a locationId outside the
+        scope is refused. unitCost and costCurrency are null, and costHidden true,
+        without vehicle_units.cost.view. Requires vehicle_units.view.'
       parameters:
       - description: Search unit number or identifier
         in: query
@@ -10358,6 +12012,17 @@ paths:
         in: query
         name: maxAgeDays
         type: integer
+      - description: Ageing band key of the current configuration (GET /stock-ageing/configuration)
+        in: query
+        name: ageingBand
+        type: string
+      - description: 'KNOWN: reliable origin date (has an age); MISSING: none'
+        enum:
+        - KNOWN
+        - MISSING
+        in: query
+        name: originStatus
+        type: string
       - description: Order (default -createdAt)
         enum:
         - -createdAt
@@ -10400,7 +12065,8 @@ paths:
         "422":
           description: VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId,
             supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom,
-            receivedTo, minAgeDays, maxAgeDays, sort, page, limit)
+            receivedTo, minAgeDays, maxAgeDays, ageingBand, originStatus, sort, page,
+            limit)
           schema:
             $ref: '#/definitions/ErrorResponse'
       summary: List vehicle units
@@ -10797,4 +12463,125 @@ paths:
       summary: Take a vehicle unit off display
       tags:
       - stock-movements
+  /vehicle-units/ageing-summary:
+    get:
+      description: 'Counts the units the same filters as GET /vehicle-units select
+        (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId,
+        goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays,
+        ageingBand, originStatus; sort/page/limit are ignored) by ageing band of the
+        current configuration and by missing-origin reason, with exactly the rules
+        of each unit''s ageing: total = withOrigin + missingOrigin; withOrigin = sum
+        of band counts + unbanded (unbanded only when no configuration exists). Units
+        without a reliable origin date are counted in missingOrigin, never as 0 days.
+        Read-only; only units without a location or at a location in the caller''s
+        scope. Requires vehicle_units.view.'
+      parameters:
+      - description: Search unit number or identifier
+        in: query
+        name: q
+        type: string
+      - description: Lifecycle status
+        enum:
+        - ORDERED
+        - IN_TRANSIT
+        - RECEIVED_PENDING_PDI
+        - QUALITY_HOLD
+        - AVAILABLE
+        - DISPLAY
+        - RESERVED
+        - SERVICE_HOLD
+        - SOLD
+        - DELIVERED
+        - REJECTED
+        - RETURN_PENDING_INSPECTION
+        - RETURNED_TO_SUPPLIER
+        in: query
+        name: status
+        type: string
+      - description: Brand ID
+        in: query
+        name: brandId
+        type: string
+      - description: Model ID
+        in: query
+        name: modelId
+        type: string
+      - description: Variant ID
+        in: query
+        name: variantId
+        type: string
+      - description: Supplier ID
+        in: query
+        name: supplierId
+        type: string
+      - description: Purchase order ID
+        in: query
+        name: purchaseOrderId
+        type: string
+      - description: Goods receipt ID
+        in: query
+        name: goodsReceiptId
+        type: string
+      - description: Location ID (must be in the caller's scope)
+        in: query
+        name: locationId
+        type: string
+      - description: 'true: AVAILABLE units only; false: every other status'
+        in: query
+        name: saleable
+        type: boolean
+      - description: Received on or after (YYYY-MM-DD)
+        in: query
+        name: receivedFrom
+        type: string
+      - description: Received on or before (YYYY-MM-DD)
+        in: query
+        name: receivedTo
+        type: string
+      - description: At least this many days old (0-36500)
+        in: query
+        name: minAgeDays
+        type: integer
+      - description: At most this many days old (0-36500)
+        in: query
+        name: maxAgeDays
+        type: integer
+      - description: Ageing band key of the current configuration
+        in: query
+        name: ageingBand
+        type: string
+      - description: KNOWN or MISSING
+        enum:
+        - KNOWN
+        - MISSING
+        in: query
+        name: originStatus
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/VehicleAgeingSummary'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "422":
+          description: VALIDATION_FAILED (the list filters)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Vehicle stock ageing summary
+      tags:
+      - vehicle-units
 swagger: "2.0"

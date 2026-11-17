@@ -27,6 +27,7 @@ export const timelineMovementTypeSchema = z.enum([
   'PARTS_RECEIPT',
   'PARTS_ISSUE',
   'COUNT_ADJUSTMENT',
+  'OPENING_BALANCE',
 ])
 export type TimelineMovementType = z.infer<typeof timelineMovementTypeSchema>
 
@@ -36,6 +37,7 @@ export const timelineSourceTypeSchema = z.enum([
   'STAFF_ACTION',
   'SUPPLIER_DELIVERY',
   'STOCK_COUNT',
+  'OPENING_STOCK',
 ])
 export type TimelineSourceType = z.infer<typeof timelineSourceTypeSchema>
 

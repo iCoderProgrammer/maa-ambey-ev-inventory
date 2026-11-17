@@ -671,6 +671,121 @@ Rules: ADR-024. Schema: migration 000019 (`pdi_checklist_items`, `pdi_inspection
   or chassis are audited `pdi_inspection.recorded` DENIED (entity `vehicle_unit`). Checklist changes are audited
   `pdi_checklist_item.created` / `.retired`.
 
+## Stock ledger reconciliation (E-06)
+
+`GET /api/v1/stock-reconciliation` — runs the read-only reconciliation now (ADR-028) and returns
+`{ data: ReconciliationReport }`. Requires `stock.reconciliation.view` and `vehicle_units.view` and/or
+`stock.parts.view`; rows follow the item's own view rule and location scope. No body, no CSRF (GET), no write.
+
+- Query (all optional): `itemType` (`VEHICLE_UNIT`|`STOCK_ITEM`), `type` (discrepancy type), `severity`
+  (`HIGH`|`MEDIUM`), `locationId` (in scope), `page` (from 1), `limit` (1–100, default 50).
+- Report: `runId` (log correlation; runs are not stored), `status` (`COMPLETED`), `runAt`, `completedAt`, `durationMs`,
+  `coverage` `{vehicleUnits, parts, allLocations, locationIds}`, `summary` `{vehicleUnitsChecked, partBalancesChecked,
+  recordsChecked, movementsChecked, discrepancies, byType, bySeverity}` (whole run, not the page), `items`, `page`,
+  `limit`, `total` (after filters). Items are ordered HIGH first, then type, then reference.
+- Discrepancy: `reference` (stable across runs: `TYPE:itemId[:locationId][:movementId]`), `itemType`, `type`,
+  `severity`, `vehicleUnit` `{id, unitNumber, chassisNumber}` | `stockItem` `{id, sku, name, uom}`, `brandId`/`brandName`
+  (vehicles), `locationId`/`locationCode`/`locationName` (code/name null outside the scope), `expected` (ledger),
+  `actual` (record), `explanation`, `movementIds` (oldest first), `detectedAt` (= `runAt`).
+- Errors: 401; 403 `FORBIDDEN` (no report permission, or neither item permission); 422 `VALIDATION_FAILED` (`itemType`,
+  `type`, `severity`, `locationId` incl. "is not one of your locations", `page`, `limit`); 500 `INTERNAL_ERROR` (the run
+  failed; nothing changed, no partial report). `Cache-Control: no-store`.
+
+## Stock ageing (E-07)
+
+Ages are calculated by the server on every read (ADR-029); the client never derives an age or a band.
+
+- Every vehicle unit (list and detail) has `ageing`: `status` (`AGED`|`MISSING_ORIGIN`), `originDate`, `originSource`
+  (`GRN`; `OPENING_STOCK` once G-07 exists), `ageDays` (whole days from the origin to the business date `asOf`),
+  `bandKey`/`bandLabel` (null only when no band configuration exists), `missingReason` + `missingExplanation` (when
+  `MISSING_ORIGIN`: no age, no band), `asOf`. The unit's `ageDays` equals `ageing.ageDays` (null without a reliable
+  origin — previously always a number).
+- `GET /vehicle-units` adds `ageingBand` (band key of the current configuration; unknown key → 422) and
+  `originStatus` (`KNOWN`|`MISSING`). `ageingBand`, `minAgeDays`, `maxAgeDays` select only units with a reliable
+  origin; combining any of them with `originStatus=MISSING` → 422.
+- `GET /vehicle-units/ageing-summary` (vehicle_units.view): the list filters without sort/paging →
+  `{asOf, timeZone, configured, bandSet{version,status,source}|null, total, withOrigin, missingOrigin, bands[{key,label,
+  minDays,maxDays,count}], unbanded, missingByReason{}}` with total = withOrigin + missingOrigin and withOrigin = Σ band
+  counts + unbanded.
+- `GET /stock-ageing/configuration` (vehicle_units.view or stock.ageing.configure): `{configured, bandSet|null,
+  timeZone, asOf, boundaryRule}`. Bands: `{key, label, minDays, maxDays|null}`; a band covers minDays ≤ age ≤ maxDays.
+- `POST /stock-ageing/band-sets` (stock.ageing.configure, CSRF): `{expectedVersion, source, bands[]}` → 201 new
+  PROPOSED version; 409 `VERSION_CONFLICT`; 422 field errors (`bands[i].key|label|minDays|maxDays`: start at 0, no gap
+  or overlap, only the last open-ended, unique keys). Audited `stock_ageing.bands_proposed`.
+- `POST /stock-ageing/band-sets/approve` (stock.ageing.configure, CSRF): `{version, reference?}` → 200 APPROVED; 403
+  `SELF_APPROVAL_NOT_ALLOWED` (audited DENIED); 409 `INVALID_STATE` (not the current proposal). Audited
+  `stock_ageing.bands_approved`.
+- Configuration: `BUSINESS_TIME_ZONE` (IANA, default `Asia/Kolkata`).
+
+## Opening stock import preview (G-06)
+
+Preview only (ADR-030): nothing here creates or changes stock. All routes need `stock.import.preview`.
+
+- `GET /opening-stock-imports/specification` → template version, format, firstLine, maxBytes, maxRows,
+  previewTtlHours, columns[{name, required, maxLength, format, description}], stockStatuses, businessDate, timeZone, notes.
+- `GET /opening-stock-imports/template` → `text/csv` attachment `opening-stock-template-OS-IMPORT-1.csv` (marker + header).
+- `POST /opening-stock-imports` (multipart `file`, `Idempotency-Key`, CSRF) → 201 `OpeningStockImportBatch`
+  (status PREVIEWED or REJECTED with `fileIssues[{code,line,column,message}]`); 200 + `Idempotent-Replayed: true` for the
+  same key and file; 409 `IDEMPOTENCY_KEY_REUSED` (same key, other file); 413 `FILE_TOO_LARGE`; 415
+  `UNSUPPORTED_MEDIA_TYPE` (not a UTF-8 text `.csv`, e.g. XLSX); 422 `VALIDATION_FAILED` (`file` missing/empty,
+  `Idempotency-Key`). Batch: id, reference, status, templateVersion, fileName, fileSha256, fileSizeBytes,
+  fileAttachmentId, uploadedById/Name, uploadedAt, businessDate, expiresAt, expired, summary{totalRows, validRows,
+  warningRows, errorRows, blockedRows, canProceedRows, duplicateRows, unresolvedRows, skippedBlankRows}, fileIssues,
+  commitAvailable (always false).
+- `GET /opening-stock-imports` (page, limit ≤100) → the caller's batches (all with every location).
+- `GET /opening-stock-imports/{id}` → batch; another user's batch is 404 unless the caller has every location.
+- `GET /opening-stock-imports/{id}/rows` (status, duplicate, unresolved, page, limit ≤200) → rows in file order:
+  rowNumber (file line), status (VALID|WARNING|ERROR|BLOCKED_UNVERIFIED_MAPPING), canProceed, duplicate, unresolved,
+  source (values as uploaded), normalised (IDs/values for G-07, null when invalid), resolved (display snapshot),
+  issues[{field, code, severity ERROR|BLOCKED|WARNING, message, suggestion?}]. 422 for invalid filters.
+- Example issue: `{"field":"chassis_number","code":"DUPLICATE_CHASSIS_IN_FILE","severity":"ERROR","message":"Chassis/frame CH-1 also appears on line(s) 6 of this file."}`.
+
+## Opening stock import commit (G-07, ADR-031)
+
+Backend only; the confirmation screen is the G-07 frontend. Both write routes need `X-CSRF-Token`.
+
+| Route | Permission | Purpose |
+| --- | --- | --- |
+| `POST /opening-stock-imports/{id}/approval` | `stock.import.approve` | Record the physical-count approval (once) |
+| `POST /opening-stock-imports/{id}/commit` | `stock.import.commit` + `Idempotency-Key` | Commit the batch (once, all lines or none) |
+| `GET /opening-stock-imports/{id}/commit` | preview, approve or commit | The commit (404 until committed) |
+
+`GET /opening-stock-imports`, `/{id}` and `/{id}/rows` now also accept `stock.import.approve` or `stock.import.commit`.
+The batch gains `approval` and `commit` (null until set); `commitAvailable` stays false. The specification gains
+`approvedOpeningStatuses` (empty = every commit refused).
+
+Approval body: `{"physicalCountReference": "…" (1-100), "physicalCountDate": "YYYY-MM-DD" (not after today),
+"mappingsReviewed": true, "duplicatesReviewed": true, "receivedDatesApproved": true|false, "note": "…"|null}` →
+201 `OpeningStockImportApproval`; identical repeat by the approver → 200 + `Idempotent-Replayed: true`.
+
+Commit (no body) → 201 `OpeningStockImportCommit`: `commitId`, `reference` (OSC-…), `batchId`, `batchReference`,
+`batchStatus` (COMMITTED), `unitsCreated`, `units[]` (`rowNumber`, `vehicleUnitId`, `unitNumber`, `status`,
+`movementId`), `committedById/Name`, `committedAt`, `approvalId`, `fileSha256`, `templateVersion`, `sourceType`
+(OPENING_STOCK), `movementType` (OPENING_BALANCE), `replayed`. Same key again → 200, `replayed: true`.
+
+Errors (standard envelope):
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `FORBIDDEN` | permission missing, or a line's location outside the caller's scope |
+| 404 | `NOT_FOUND` | unknown batch, or another user's batch without every location |
+| 409 | `IMPORT_APPROVAL_REQUIRED` | no recorded physical-count approval |
+| 409 | `IMPORT_ALREADY_APPROVED` | a different approval exists |
+| 409 | `IMPORT_ALREADY_COMMITTED` | committed by another request/user (message names the OSC reference) |
+| 409 | `IMPORT_PREVIEW_EXPIRED` | preview past `expiresAt` |
+| 409 | `OPENING_STATUSES_NOT_APPROVED` | `OPENING_STOCK_APPROVED_STATUSES` empty (OQ-47) |
+| 409 | `IMPORT_SOURCE_INVALID` | stored file missing or not matching its SHA-256/size/template/staged lines |
+| 409 | `INVALID_STATE` | rejected file / other template; approval of a preview with non-VALID lines |
+| 409 | `DUPLICATE_IDENTIFIER` | a chassis registered concurrently between re-validation and insert |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | the key already committed another batch |
+| 422 | `IMPORT_ROWS_BLOCKED` | re-validation refused lines; `details[]`: `field` = `rows[<line>].<column>`, `message` = `CODE (SEVERITY): text` |
+| 422 | `VALIDATION_FAILED` | approval body or `Idempotency-Key` invalid |
+
+Commit-time codes besides the G-06 row codes: `WARNING_NOT_ACCEPTED`, `STATUS_NOT_APPROVED`, `COST_NOT_POSITIVE`,
+`PREVIEW_ROW_NOT_ELIGIBLE`, `CHANGED_SINCE_PREVIEW`. Ledger: movement type `OPENING_BALANCE`, source type
+`OPENING_STOCK` (timeline and vehicle movement filters accept both); vehicle `sourceType` `OPENING_STOCK` with
+`source.openingStockBatchId`, `openingStockBatchReference`, `openingStockRowNumber`.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

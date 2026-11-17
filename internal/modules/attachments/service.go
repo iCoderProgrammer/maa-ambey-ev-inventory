@@ -161,6 +161,10 @@ func canSee(a access.Access, att Attachment) bool {
 		// inspection links only files at the unit's own location, so the location
 		// check above also keeps evidence inside the unit's location scope.
 		return a.Has(access.PermVehicleUnitView)
+	case "opening_stock_import":
+		// Opening stock import files (G-06): the uploader, or a holder of the import
+		// permission with every location (rows may name any of the uploader's locations).
+		return a.Has(access.PermImportPreview) && (att.UploadedBy == a.UserID || a.Scope.All)
 	default:
 		// Other owners need their module's check, which none provides yet.
 		// Deny rather than guess.

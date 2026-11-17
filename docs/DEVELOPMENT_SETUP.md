@@ -273,6 +273,29 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   `e2e/parts-stock.e2e.ts` (E-04) uses `E2E_CATALOGUE_*` with `stock.parts.view/receive/issue`,
   `stock_items.view/manage` and `suppliers.view/manage`, and `E2E_CATALOGUE_VIEWER_*` with `stock_items.view` and
   `stock.parts.view`; both need a location in their scope (`cmd/access scope-add`). Throwaway database only.
+  `e2e/reconciliation.e2e.ts` (E-06) uses `E2E_CATALOGUE_*` with `stock.reconciliation.view`, `vehicle_units.view`,
+  `stock.parts.view/receive`, `stock_items.view/manage` and `suppliers.view/manage` and a location in scope, and
+  `E2E_CATALOGUE_VIEWER_*` **without** `stock.reconciliation.view` (must be refused). It injects a parts-balance drift
+  with psql inside the database container (`E2E_RECON_DB_CONTAINER`, `E2E_RECON_DB_USER`, `E2E_RECON_DB_NAME`) by
+  switching the balance table's user triggers off for one statement, and restores it; without those variables the
+  drift test is skipped. **Throwaway database only — never point it at a shared or production database.**
+  `e2e/ageing.e2e.ts` (E-07) uses `E2E_CATALOGUE_*` with `goods_receipts.view/manage/post` and `vehicle_units.view`
+  and a location in scope, `E2E_AGEING_PO` (an `APPROVED` purchase order with one line of quantity ≥ 7, inserted as a
+  throwaway fixture — brand activation is not possible through the product, audit H-1) and the `E2E_RECON_DB_*`
+  variables (psql drift of one unit's received date, restored at the end). It creates and posts seven receipts per
+  run through the API with received dates 0/30/31/60/61/90/91 days before the business date. Throwaway database only.
+  The API reads `BUSINESS_TIME_ZONE` (default `Asia/Kolkata`) for stock ages.
+  `e2e/opening-stock.e2e.ts` (G-06) uses `E2E_CATALOGUE_*` with `stock.import.preview` and `vehicle_units.view` and a
+  location in scope, `E2E_CATALOGUE_VIEWER_*` **without** `stock.import.preview`, `E2E_OS_BRAND`/`E2E_OS_MODEL`/
+  `E2E_OS_VARIANT` naming an ACTIVE catalogue entry (throwaway fixture) and the `E2E_RECON_DB_*` variables (row counts
+  only — it writes nothing with psql). It uploads a controlled CSV and checks that no stock table changed. The API reads
+  `IMPORT_MAX_BYTES`, `IMPORT_MAX_ROWS` and `IMPORT_PREVIEW_TTL`. Throwaway database only.
+  `e2e/opening-stock-commit.e2e.ts` (G-07) uses the same variables, with `E2E_CATALOGUE_*` also holding
+  `stock.import.approve` and `stock.import.commit` (PROPOSED grants, `RBAC_ALLOW_PROPOSED_GRANTS=true`), and an API
+  started with `OPENING_STOCK_APPROVED_STATUSES` containing `AVAILABLE` and not `QUALITY_HOLD` (a test setting, never an
+  owner decision). It approves and commits controlled files — this CREATES vehicle units: throwaway database only.
+  Run each stack on its own host name or one at a time: the session cookie is per host, not per port, so two
+  stacks on `localhost` in one browser sign each other out.
   `e2e/stock-counts.e2e.ts` (E-05) uses `E2E_CATALOGUE_*` (the E-04 grants plus `stock.adjustment.view/create`),
   `E2E_PRICE_APPROVER_*` (`stock.adjustment.view/approve`), `E2E_CATALOGUE_VIEWER_*` (`stock.adjustment.view`) and
   `E2E_*` (no grants, denied); all three granted users need the same location in scope. Throwaway database only.

@@ -38,14 +38,18 @@ import {
   type VehicleUnitSort,
   type VehicleUnitStatus,
 } from './api/vehicleUnits'
+import { AgeingCell, AgeingSummaryPanel } from './components/Ageing'
+import { ageingRows } from './lib/ageingRows'
 import {
+  useAgeingConfiguration,
+  useAgeingSummary,
   useVehicleUnit,
   useVehicleUnitList,
   useVehicleUnitMovements,
   useVehicleUnitPerms,
 } from './hooks/useVehicleUnits'
+import { originStatusLabels } from './lib/ageing'
 import {
-  ageText,
   describeVehicleUnitReadError,
   documentTypeLabels,
   isSaleable,
@@ -81,6 +85,8 @@ const listKeys = [
   'receivedTo',
   'minAgeDays',
   'maxAgeDays',
+  'ageingBand',
+  'originStatus',
   'sort',
 ] as const
 
@@ -259,10 +265,34 @@ function VehicleList() {
     receivedTo: values.receivedTo || undefined,
     minAgeDays: numberOrRaw(values.minAgeDays),
     maxAgeDays: numberOrRaw(values.maxAgeDays),
+    ageingBand: values.ageingBand || undefined,
+    originStatus: (values.originStatus || undefined) as 'KNOWN' | 'MISSING' | undefined,
     sort: (values.sort || undefined) as VehicleUnitSort | undefined,
     page,
     limit: PAGE_SIZE,
   })
+  // E-07: the same filters, counted by ageing band on the server.
+  const ageingSummary = useAgeingSummary({
+    q: values.q || undefined,
+    status: (values.status || undefined) as VehicleUnitStatus | undefined,
+    saleable: values.saleable === '' ? undefined : values.saleable === 'true',
+    brandId: values.brandId || undefined,
+    modelId: values.modelId || undefined,
+    variantId: values.variantId || undefined,
+    locationId: values.locationId || undefined,
+    supplierId: values.supplierId || undefined,
+    receivedFrom: values.receivedFrom || undefined,
+    receivedTo: values.receivedTo || undefined,
+    minAgeDays: numberOrRaw(values.minAgeDays),
+    maxAgeDays: numberOrRaw(values.maxAgeDays),
+    ageingBand: values.ageingBand || undefined,
+    originStatus: (values.originStatus || undefined) as 'KNOWN' | 'MISSING' | undefined,
+  })
+  const ageingConfig = useAgeingConfiguration()
+  const bandOptions = (ageingConfig.data?.bandSet?.bands ?? []).map((b) => ({
+    value: b.key,
+    label: b.label,
+  }))
   // Option lists come from the catalogue, supplier and access APIs (never hardcoded).
   const brands = useBrands({ limit: 100 }, { enabled: perms.viewCatalogue })
   const models = useModels(
@@ -313,16 +343,8 @@ function VehicleList() {
       render: (u) => locationText(u.locationCode, u.locationName),
     },
     { key: 'supplier', header: 'Supplier', render: (u) => u.supplierName ?? '—' },
-    {
-      key: 'received',
-      header: 'Received',
-      render: (u) => (
-        <span className="flex flex-col">
-          <span>{formatDate(u.receivedDate)}</span>
-          <span className="text-xs text-muted">{ageText(u.ageDays)} in stock</span>
-        </span>
-      ),
-    },
+    { key: 'received', header: 'Received', render: (u) => formatDate(u.receivedDate) },
+    { key: 'age', header: 'Stock age', render: (u) => <AgeingCell ageing={u.ageing} /> },
     ...(perms.viewCost
       ? [
           {
@@ -536,6 +558,33 @@ function VehicleList() {
           }}
         />
         <FilterSelect
+          label="Ageing band"
+          value={values.ageingBand}
+          options={bandOptions}
+          allLabel={
+            ageingConfig.data && !ageingConfig.data.configured ? 'No bands configured' : 'All bands'
+          }
+          disabled={bandOptions.length === 0}
+          onChange={(v) => {
+            set({ ageingBand: v, ...(v ? { originStatus: '' } : {}) })
+          }}
+        />
+        <FilterSelect
+          label="Origin date"
+          value={values.originStatus}
+          options={[
+            { value: 'KNOWN', label: originStatusLabels.KNOWN },
+            { value: 'MISSING', label: originStatusLabels.MISSING },
+          ]}
+          allLabel="All vehicles"
+          onChange={(v) => {
+            set({
+              originStatus: v,
+              ...(v === 'MISSING' ? { ageingBand: '', minAgeDays: '', maxAgeDays: '' } : {}),
+            })
+          }}
+        />
+        <FilterSelect
           label="Sort by"
           value={values.sort}
           options={vehicleUnitSorts
@@ -547,6 +596,24 @@ function VehicleList() {
           }}
         />
       </Toolbar>
+      <AgeingSummaryPanel
+        summary={ageingSummary.data}
+        isPending={ageingSummary.isPending}
+        error={ageingSummary.error}
+        onRetry={() => void ageingSummary.refetch()}
+        activeBand={values.ageingBand}
+        activeOrigin={values.originStatus}
+        onBand={(key) => {
+          set({ ageingBand: key, originStatus: '' })
+        }}
+        onMissing={() => {
+          set(
+            values.originStatus === 'MISSING'
+              ? { originStatus: '' }
+              : { originStatus: 'MISSING', ageingBand: '', minAgeDays: '', maxAgeDays: '' },
+          )
+        }}
+      />
       {body}
     </>
   )
@@ -566,6 +633,8 @@ const filterLabels: Record<string, string> = {
   receivedTo: 'Received to',
   minAgeDays: 'Min. days in stock',
   maxAgeDays: 'Max. days in stock',
+  ageingBand: 'Ageing band',
+  originStatus: 'Origin date',
   sort: 'Sort by',
   page: 'Page',
   limit: 'Page size',
@@ -678,7 +747,7 @@ function DetailBody({ id, back, header }: { id: string; back: string; header: Re
               ['Variant', u.variantName],
               ['Status', <UnitStatusBadge status={u.status} />],
               ['Location', locationText(u.locationCode, u.locationName)],
-              ['Days in stock', ageText(u.ageDays)],
+              ...ageingRows(u.ageing),
               ...(cost !== null
                 ? ([['Acquisition cost (excl. tax)', cost]] as [string, string][])
                 : []),
@@ -745,10 +814,22 @@ function ProcurementCard({ unit: u }: { unit: VehicleUnitDetail }) {
     ) : (
       <span className="font-mono">{s.goodsReceiptNumber}</span>
     )
+  // Opening stock (G-07): no purchase order or goods receipt exists; the unit names its import line.
+  const opening =
+    s.type === 'OPENING_STOCK' && s.openingStockBatchId ? (
+      <Link
+        to={`/inventory/opening-stock/${s.openingStockBatchId}`}
+        className={`${linkClass} font-mono`}
+      >
+        {s.openingStockBatchReference ?? 'Import batch'}
+        {s.openingStockRowNumber !== null ? ` · line ${String(s.openingStockRowNumber)}` : ''}
+      </Link>
+    ) : null
   return (
     <Card title="Procurement" description="Where this vehicle came from.">
       <DefinitionList
         items={[
+          ...(opening ? ([['Opening stock import', opening]] as [string, ReactNode][]) : []),
           ['Supplier', s.supplierName ?? '—'],
           ['Purchase order', po],
           ['Goods receipt', grn],
@@ -942,6 +1023,13 @@ function MovementSource({ m, unitId }: { m: VehicleUnitMovement; unitId: string 
   if (m.sourceType === 'PDI_INSPECTION' && m.sourceReference) {
     return (
       <Link to={`/procurement/pdi/${unitId}`} className={`${linkClass} font-mono`}>
+        {m.sourceReference}
+      </Link>
+    )
+  }
+  if (m.sourceType === 'OPENING_STOCK' && m.sourceReference && m.sourceId) {
+    return (
+      <Link to={`/inventory/opening-stock/${m.sourceId}`} className={`${linkClass} font-mono`}>
         {m.sourceReference}
       </Link>
     )

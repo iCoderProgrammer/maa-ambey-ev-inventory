@@ -16,6 +16,7 @@ import (
 
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/httpx"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/auth"
 )
 
@@ -46,6 +47,30 @@ type harness struct {
 	t      *testing.T
 	router *gin.Engine
 	grants *grants
+	// clock is the business calendar's clock (E-07); setToday fixes it.
+	mu    sync.Mutex
+	clock time.Time
+}
+
+// setToday fixes the business date (noon in the business time zone).
+func (h *harness) setToday(date string) {
+	d, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation(ageing.DefaultTimeZone)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.clock = time.Date(d.Year(), d.Month(), d.Day(), 12, 0, 0, 0, loc)
+}
+
+func (h *harness) now() time.Time {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.clock.IsZero() {
+		return time.Now()
+	}
+	return h.clock
 }
 
 func newHarness(t *testing.T, authStore auth.Store, repo Repository) *harness {
@@ -64,7 +89,19 @@ func newHarness(t *testing.T, authStore auth.Store, repo Repository) *harness {
 	api := r.Group("/api/v1")
 	api.Use(authH.RequireSession(auth.PublicRoutes("/api/v1")...))
 	authH.Register(api)
-	NewHandler(NewService(repo, log), access.NewHandler(h.grants, false, log), log).Register(api)
+	accessH := access.NewHandler(h.grants, false, log)
+	svc := NewService(repo, log)
+	// With a database: the real band configuration and a controllable business clock (E-07).
+	if pg, ok := repo.(*PGStore); ok {
+		cal, err := ageing.NewCalendar(ageing.DefaultTimeZone, h.now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ageingSvc := ageing.NewService(ageing.NewPGStore(pg.pool), cal, log)
+		svc.WithAgeing(ageingSvc)
+		ageing.NewHandler(ageingSvc, accessH, log).Register(api)
+	}
+	NewHandler(svc, accessH, log).Register(api)
 	h.router = r
 	return h
 }

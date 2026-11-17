@@ -94,6 +94,16 @@ export const Permission = {
   /** PDI checklist and disposition (D-06). Reading uses VehicleUnitView. No role holds these yet. */
   PDIRecord: 'vehicle_units.pdi.record',
   PDIChecklistManage: 'vehicle_units.pdi.checklist.manage',
+  /**
+   * Read-only stock ledger reconciliation report (E-06). Rows also need VehicleUnitView or
+   * PartsView. No role holds it until the owner signs off.
+   */
+  ReconciliationView: 'stock.reconciliation.view',
+  /** Opening stock import preview (G-06): upload files and see previews; creates no stock. No role holds it yet. */
+  ImportPreview: 'stock.import.preview',
+  // G-07: record a batch's physical-count approval / commit it (granted to no role until signed off).
+  ImportApprove: 'stock.import.approve',
+  ImportCommit: 'stock.import.commit',
 } as const
 
 /** GET /me — the signed-in user's roles, effective permissions and location scope. */

@@ -166,6 +166,8 @@ export interface UploadOptions {
   signal?: AbortSignal
   /** Called with 0–1 as the request body is sent. */
   onProgress?: (fraction: number) => void
+  /** Extra request headers (e.g. Idempotency-Key). */
+  headers?: Record<string, string>
 }
 
 function networkError(): ApiError {
@@ -183,7 +185,7 @@ export function apiUpload<S extends z.ZodType>(
   path: string,
   schema: S,
   form: FormData,
-  { signal, onProgress }: UploadOptions = {},
+  { signal, onProgress, headers: extraHeaders }: UploadOptions = {},
 ): Promise<z.infer<S>> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -192,6 +194,8 @@ export function apiUpload<S extends z.ZodType>(
     xhr.setRequestHeader('Accept', 'application/json')
     const csrfToken = getCsrfToken()
     if (csrfToken) xhr.setRequestHeader(CSRF_HEADER, csrfToken)
+    for (const [name, value] of Object.entries(extraHeaders ?? {}))
+      xhr.setRequestHeader(name, value)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total)
     }

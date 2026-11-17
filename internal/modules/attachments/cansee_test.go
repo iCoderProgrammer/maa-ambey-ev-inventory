@@ -56,3 +56,28 @@ func TestCanSeeLinkedAttachments(t *testing.T) {
 		t.Fatal("uploader sees a linked document without its module's view permission")
 	}
 }
+
+// Opening stock import files (G-06): attachments.view and stock.import.preview,
+// and either the uploader or a holder of every location. The generic upload
+// allow-list still refuses CSV: import files arrive only through the import route.
+func TestCanSeeOpeningStockImportFiles(t *testing.T) {
+	file := Attachment{UploadedBy: "u1", OwnerType: "opening_stock_import", OwnerID: "b1", ContentType: "text/csv"}
+	perms := []string{access.PermAttachmentsView, access.PermImportPreview}
+	if !canSee(access.NewAccess("u1", nil, perms, nil, false), file) {
+		t.Fatal("uploader cannot see their import file")
+	}
+	if canSee(access.NewAccess("u2", nil, perms, nil, false), file) {
+		t.Fatal("another importer sees the file")
+	}
+	if !canSee(access.NewAccess("u2", nil, append(perms, access.PermAllLocations), nil, false), file) {
+		t.Fatal("an all-locations importer cannot see the file")
+	}
+	for _, p := range [][]string{{access.PermAttachmentsView}, {access.PermImportPreview}} {
+		if canSee(access.NewAccess("u1", nil, p, nil, false), file) {
+			t.Fatalf("visible with only %v", p)
+		}
+	}
+	if _, ok := fileType("text/csv"); ok {
+		t.Fatal("generic uploads must not accept CSV")
+	}
+}

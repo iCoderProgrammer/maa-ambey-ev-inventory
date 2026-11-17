@@ -19,6 +19,8 @@
 package vehicles
 
 import (
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
+
 	"errors"
 	"slices"
 	"strings"
@@ -59,7 +61,11 @@ var Statuses = []string{StatusOrdered, StatusInTransit, StatusReceivedPendingPDI
 	StatusReturnPendingInspection, StatusReturnedToSupplier}
 
 // Source types (DB CHECK vehicle_units_source_valid).
-const SourceGoodsReceipt = "GOODS_RECEIPT"
+const (
+	SourceGoodsReceipt = "GOODS_RECEIPT"
+	// SourceOpeningStock: created by a committed opening-stock import batch (G-07).
+	SourceOpeningStock = "OPENING_STOCK"
+)
 
 // History actions (vehicle_unit_events.action).
 const ActionRegistered = "REGISTERED"
@@ -91,14 +97,22 @@ type Unit struct {
 	LocationID        *string `json:"locationId" extensions:"x-nullable"`
 	LocationCode      *string `json:"locationCode" extensions:"x-nullable" example:"SR1"`
 	LocationName      *string `json:"locationName" extensions:"x-nullable"`
-	SourceType        string  `json:"sourceType" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT"`
+	SourceType        string  `json:"sourceType" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT,OPENING_STOCK"`
 	SupplierID        *string `json:"supplierId" extensions:"x-nullable"`
 	SupplierName      *string `json:"supplierName" extensions:"x-nullable"`
 	ReceivedDate      string  `json:"receivedDate" example:"2026-10-23"`
-	// AgeDays is the number of days since the received date (database date). It
-	// is the plain days-in-stock figure the list filters on; ageing buckets and
-	// policy are E-07.
-	AgeDays int `json:"ageDays" example:"12"`
+	// AgeDays is the stock age in whole days from the approved origin date to the
+	// business date (E-07, ADR-029) — the same value as ageing.ageDays; null when the
+	// unit has no reliable origin date (never a fabricated age).
+	AgeDays *int `json:"ageDays" extensions:"x-nullable" example:"12"`
+	// Ageing is the unit's stock ageing (E-07): origin date and source, age, band, or
+	// why no reliable origin date exists. Calculated by the server on every read.
+	Ageing ageing.Result `json:"ageing"`
+	// grnStatus/grnDate: the unit's goods receipt as read (origin check).
+	grnStatus, grnDate *string
+	// openingDateApproved: an opening-stock unit's batch approval says its received
+	// dates are the agreed opening-stock dates (origin check, G-07).
+	openingDateApproved *bool
 	// UnitCost is the acquisition cost (excluding tax); null without vehicle_units.cost.view.
 	UnitCost     *string   `json:"unitCost" extensions:"x-nullable" example:"95000.00"`
 	CostCurrency *string   `json:"costCurrency" extensions:"x-nullable" example:"INR"`
@@ -112,7 +126,7 @@ type Unit struct {
 // opened through its own API and permission (purchase_orders.view,
 // goods_receipts.view; the receipt's documents also need attachments.view).
 type Source struct {
-	Type                string  `json:"type" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT"`
+	Type                string  `json:"type" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT,OPENING_STOCK"`
 	SupplierID          *string `json:"supplierId" extensions:"x-nullable"`
 	SupplierName        *string `json:"supplierName" extensions:"x-nullable"`
 	PurchaseOrderID     *string `json:"purchaseOrderId" extensions:"x-nullable"`
@@ -124,6 +138,10 @@ type Source struct {
 	GoodsReceiptUnitID  *string `json:"goodsReceiptUnitId" extensions:"x-nullable"`
 	SupplierReference   *string `json:"supplierReference" extensions:"x-nullable" example:"DC-1234"`
 	ReceivedDate        string  `json:"receivedDate" example:"2026-10-23"`
+	// Opening stock (G-07): the import batch, its OSI reference and the file line the unit came from.
+	OpeningStockBatchID        *string `json:"openingStockBatchId" extensions:"x-nullable"`
+	OpeningStockBatchReference *string `json:"openingStockBatchReference" extensions:"x-nullable" example:"OSI-000001"`
+	OpeningStockRowNumber      *int    `json:"openingStockRowNumber" extensions:"x-nullable" example:"3"`
 } //@name VehicleUnitSource
 
 // Event is one entry of a unit's append-only history, pointing at its source document.
@@ -131,7 +149,7 @@ type Event struct {
 	ID              string    `json:"id"`
 	Action          string    `json:"action" example:"REGISTERED" enums:"REGISTERED"`
 	ToStatus        string    `json:"toStatus" example:"RECEIVED_PENDING_PDI"`
-	SourceType      string    `json:"sourceType" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT"`
+	SourceType      string    `json:"sourceType" example:"GOODS_RECEIPT" enums:"GOODS_RECEIPT,OPENING_STOCK"`
 	SourceID        string    `json:"sourceId"`
 	SourceReference string    `json:"sourceReference" example:"GRN-000001"`
 	ActorID         string    `json:"actorId"`
@@ -181,8 +199,8 @@ type Detail struct {
 
 // Movement types and sources of a vehicle unit's stock movements (E-01, D-06).
 var (
-	MovementTypes       = []string{"RECEIPT", "PDI_PASS", "QUALITY_HOLD", "REJECT", "DISPLAY_ON", "DISPLAY_OFF"}
-	MovementSourceTypes = []string{"GOODS_RECEIPT", "PDI_INSPECTION", "STAFF_ACTION"}
+	MovementTypes       = []string{"RECEIPT", "PDI_PASS", "QUALITY_HOLD", "REJECT", "DISPLAY_ON", "DISPLAY_OFF", "OPENING_BALANCE"}
+	MovementSourceTypes = []string{"GOODS_RECEIPT", "PDI_INSPECTION", "STAFF_ACTION", "OPENING_STOCK"}
 )
 
 // Movement is one entry of a unit's append-only stock movement ledger (E-01),
@@ -191,7 +209,7 @@ var (
 // null for a location outside the caller's scope.
 type Movement struct {
 	ID               string    `json:"id"`
-	MovementType     string    `json:"movementType" enums:"RECEIPT,PDI_PASS,QUALITY_HOLD,REJECT,DISPLAY_ON,DISPLAY_OFF" example:"RECEIPT"`
+	MovementType     string    `json:"movementType" enums:"RECEIPT,PDI_PASS,QUALITY_HOLD,REJECT,DISPLAY_ON,DISPLAY_OFF,OPENING_BALANCE" example:"RECEIPT"`
 	FromStatus       *string   `json:"fromStatus" extensions:"x-nullable"`
 	ToStatus         string    `json:"toStatus" example:"RECEIVED_PENDING_PDI"`
 	FromLocationID   *string   `json:"fromLocationId" extensions:"x-nullable"`
@@ -200,7 +218,7 @@ type Movement struct {
 	ToLocationID     *string   `json:"toLocationId" extensions:"x-nullable"`
 	ToLocationCode   *string   `json:"toLocationCode" extensions:"x-nullable" example:"SR1"`
 	ToLocationName   *string   `json:"toLocationName" extensions:"x-nullable"`
-	SourceType       string    `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION" example:"GOODS_RECEIPT"`
+	SourceType       string    `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION,OPENING_STOCK" example:"GOODS_RECEIPT"`
 	SourceID         *string   `json:"sourceId" extensions:"x-nullable"`
 	SourceReference  *string   `json:"sourceReference" extensions:"x-nullable" example:"GRN-000001"`
 	ActorID          string    `json:"actorId"`

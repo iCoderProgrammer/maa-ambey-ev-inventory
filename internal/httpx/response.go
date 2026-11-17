@@ -64,6 +64,14 @@ const (
 	CodePDIChecklistNotConfigured = "PDI_CHECKLIST_NOT_CONFIGURED"
 	// Receipt posting (D-07): the draft is not ready to post; details name what blocks it. 409.
 	CodePostingBlocked = "POSTING_BLOCKED"
+	// Opening stock import commit (G-07), all 409 except IMPORT_ROWS_BLOCKED (422, details name rows and fields).
+	CodeImportApprovalRequired    = "IMPORT_APPROVAL_REQUIRED"
+	CodeImportAlreadyApproved     = "IMPORT_ALREADY_APPROVED"
+	CodeImportAlreadyCommitted    = "IMPORT_ALREADY_COMMITTED"
+	CodeImportPreviewExpired      = "IMPORT_PREVIEW_EXPIRED"
+	CodeImportSourceInvalid       = "IMPORT_SOURCE_INVALID"
+	CodeImportStatusesNotApproved = "OPENING_STATUSES_NOT_APPROVED"
+	CodeImportRowsBlocked         = "IMPORT_ROWS_BLOCKED"
 )
 
 // DataResponse is the success envelope. In swag annotations use

@@ -2984,6 +2984,690 @@
                 }
             }
         },
+        "/opening-stock-imports": {
+            "get": {
+                "description": "The caller's batches, newest first (every batch for a caller with every location). Requires stock.import.preview.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "List opening stock import previews",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 25)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportBatchPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Stores the CSV privately and validates it: the file (UTF-8 text, .csv, template marker and version, header with every required column, no duplicate or unknown column, at least one and at most maxRows data rows) and every row (required values, lengths, catalogue brand → model → variant → colour resolved exactly — never guessed —, brand/model/variant/colour verification and activation, location known, active and in the caller's scope, stock status, received date not after the business date, cost format, supplier, chassis/frame duplicates within the file, against vehicle units and against open receipt drafts, and motor/battery/charger possible duplicates as warnings while their uniqueness is unapproved). Row status: ERROR (cannot be imported as is), BLOCKED_UNVERIFIED_MAPPING (maps to a catalogue entry that is not verified/active), WARNING (importable, review), VALID. A file that cannot be read as the template is stored as a REJECTED batch with fileIssues and no rows. THE PREVIEW CREATES NO STOCK: no vehicle unit, receipt, movement, balance or catalogue change; only the batch, its rows, the file's private attachment and audit events are written. Idempotency-Key is required: the same key with the same file returns the first batch (200, Idempotent-Replayed: true); with another file 409. Requires stock.import.preview and X-CSRF-Token.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Upload an opening stock file for preview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "The filled template (.csv)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay of the same request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportBatch"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportBatch"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "FILE_TOO_LARGE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (file, Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/specification": {
+            "get": {
+                "description": "The template version, accepted format (CSV UTF-8 only; XLSX is refused), size/row limits, preview lifetime, every column (name, required, max length, format, meaning) and the accepted stock statuses, plus the business date dates are checked against. Requires stock.import.preview.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Opening stock template specification",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportSpecification"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/template": {
+            "get": {
+                "description": "A CSV file with the template marker line (#template:OS-IMPORT-1) and the column header line, and no data rows. Requires stock.import.preview.",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Download the opening stock template",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/{id}": {
+            "get": {
+                "description": "The batch: file reference (attachment ID, name, SHA-256, size), uploader, upload time, template version, business date, expiry (expired: history only, G-07 must refuse it), status, summary counts and file issues. commitAvailable is always false: committing is the separate G-07 workflow. Another user's batch is 404 unless the caller has every location. Requires stock.import.preview.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Get an opening stock import preview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportBatch"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/{id}/approval": {
+            "post": {
+                "description": "Records, once, that the batch was reconciled to a signed physical count: physicalCountReference (1-100 characters) and physicalCountDate (not after today), mappingsReviewed and duplicatesReviewed (both must be true) and receivedDatesApproved (whether the file's received dates are the agreed opening-stock dates; false leaves the units' stock age MISSING_ORIGIN in E-07). Only a non-expired PREVIEWED batch in OS-IMPORT-1 whose every line is VALID can be approved; every line's location must be in the caller's scope. The same approval repeated by its approver returns 200 (Idempotent-Replayed: true); any other approval of an approved batch is 409. Approvals are never changed or deleted. Requires stock.import.approve (granted to no role until the owner signs off) and X-CSRF-Token. Creates no stock.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Approve an opening stock import batch (G-07)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Approval",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/OpeningStockImportApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay of the same approval",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportApproval"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportApproval"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "BAD_REQUEST (malformed JSON)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN (permission, or a line's location outside the caller's scope) or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "INVALID_STATE (rejected/other template, or not every line VALID), IMPORT_PREVIEW_EXPIRED, IMPORT_ALREADY_APPROVED or IMPORT_ALREADY_COMMITTED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (physicalCountReference, physicalCountDate, mappingsReviewed, duplicatesReviewed, receivedDatesApproved, note)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/{id}/commit": {
+            "get": {
+                "description": "The commit of a committed batch: commit ID and OSC reference, batch, COMMITTED status, units created (line, vehicle unit, unit number, status, OPENING_BALANCE movement), committer, time, approval and file fingerprint. 404 until the batch is committed. Requires stock.import.preview, stock.import.approve or stock.import.commit.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Get an opening stock import batch's commit (G-07)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportCommit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Turns the batch into stock exactly once, all lines or none. Never trusts the preview: the stored file is read again (SHA-256, size, template version, same lines and values as staged) and, in one transaction with the batch locked and the catalogue/locations/suppliers share-locked, every line is re-validated against the current database (catalogue verification and activation, location active and in the caller's scope, chassis/frame duplicates against vehicle units, receipt drafts and the file, stock status approved for opening stock, positive cost, same resolution as the approved preview). Warnings are not accepted (no approved rule, OQ-49). Any refused line → 422 IMPORT_ROWS_BLOCKED (details: rows[line].field — CODE (SEVERITY): message) and nothing is written. On success each line becomes a vehicle unit (source OPENING_STOCK, linked to its batch line; no supplier/PO/GRN history is invented), with a REGISTERED history entry, an OPENING_BALANCE stock movement (none → its status, 0 → 1, at its location, source = the batch) and audit events. Idempotency-Key is required: the same key from the same user returns the commit again (200, Idempotent-Replayed: true, replayed: true); the same key for another batch is 409. A batch committed by anyone else is 409 IMPORT_ALREADY_COMMITTED. Requires stock.import.commit (separate from preview and approval; granted to no role until the owner signs off) and X-CSRF-Token.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Commit an approved opening stock import batch (G-07)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "8-100 letters, digits, - or _",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Replay of the same request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportCommit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportCommit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN (permission, or a line's location outside the caller's scope) or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "IMPORT_APPROVAL_REQUIRED, IMPORT_ALREADY_COMMITTED, IMPORT_PREVIEW_EXPIRED, OPENING_STATUSES_NOT_APPROVED, IMPORT_SOURCE_INVALID, INVALID_STATE, DUPLICATE_IDENTIFIER (registered concurrently) or IDEMPOTENCY_KEY_REUSED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "IMPORT_ROWS_BLOCKED (details per line and field) or VALIDATION_FAILED (Idempotency-Key)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/opening-stock-imports/{id}/rows": {
+            "get": {
+                "description": "Staged rows in file order (rowNumber = line in the uploaded file): the values exactly as uploaded (source), the normalised values and resolved references G-07 will use (normalised, null when invalid), a display snapshot of the resolution (resolved) and every issue (field, code, severity, message, suggestion). Filters: status, duplicate=true (any duplicate identifier issue), unresolved=true (any catalogue/location mapping issue). Requires stock.import.preview.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Rows of an opening stock import preview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "VALID",
+                            "WARNING",
+                            "ERROR",
+                            "BLOCKED_UNVERIFIED_MAPPING"
+                        ],
+                        "type": "string",
+                        "description": "Row status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Only rows with a duplicate identifier issue",
+                        "name": "duplicate",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Only rows with an unresolved catalogue or location mapping",
+                        "name": "unresolved",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-200, default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockImportRowPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (status, duplicate, unresolved, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/pdi-checklist-items": {
             "get": {
                 "description": "The configurable PDI checklist (no item is seeded: an empty list means it is not configured). Active items first, by sortOrder then code. brandId lists the items that apply to that brand (every-brand items and the brand's own). Requires vehicle_units.view, vehicle_units.pdi.record or vehicle_units.pdi.checklist.manage.",
@@ -5385,6 +6069,216 @@
                 }
             }
         },
+        "/stock-ageing/band-sets": {
+            "post": {
+                "description": "Records a new configuration version (status PROPOSED) after expectedVersion (409 VERSION_CONFLICT otherwise). Bands: 1-20, keys unique (1-32 lower-case letters, digits, - or _), labels 1-60 characters, whole days 0-36500; the first starts at 0, each starts the day after the previous one ends (no gap or overlap), only the last has no maxDays (open-ended). source names the document or decision the thresholds come from. Earlier versions are kept unchanged and no stock record is rewritten (ages and bands are calculated on read). Audited (stock_ageing.bands_proposed). Requires stock.ageing.configure and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-ageing"
+                ],
+                "summary": "Propose an ageing band configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/StockAgeingProposeInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/StockAgeingBandSet"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "VERSION_CONFLICT",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (expectedVersion, source, bands, bands[i].key|label|minDays|maxDays)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-ageing/band-sets/approve": {
+            "post": {
+                "description": "Approves the current version while it is PROPOSED (409 INVALID_STATE otherwise). The person who proposed it cannot approve it (403 SELF_APPROVAL_NOT_ALLOWED, audited DENIED); the migration's LED-008 proposal can be approved by any holder of the permission. Only the approval fields change. Audited (stock_ageing.bands_approved). Requires stock.ageing.configure and X-CSRF-Token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-ageing"
+                ],
+                "summary": "Approve the proposed ageing band configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token from the session",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Version to approve",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/StockAgeingApproveInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/StockAgeingBandSet"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN, SELF_APPROVAL_NOT_ALLOWED or CSRF_FAILED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "INVALID_STATE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "UNSUPPORTED_MEDIA_TYPE",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (version, reference)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-ageing/configuration": {
+            "get": {
+                "description": "The current ageing band configuration (latest version, PROPOSED until approved), the business time zone and today's business date ages are counted to, and the boundary rule: a band covers minDays \u003c= age \u003c= maxDays in whole days (both inclusive), the last band is open-ended, age = business date - origin date. configured is false (bandSet null) when no configuration exists; ages are then still calculated, without bands. Read-only. Requires vehicle_units.view or stock.ageing.configure.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-ageing"
+                ],
+                "summary": "Stock ageing configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/StockAgeingConfiguration"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stock-counts": {
             "get": {
                 "description": "Counts (adjustment requests) at the locations in the caller's scope, newest first, without lines. status=SUBMITTED is the approval queue. Filters: status, locationId (must be in scope). Requires stock.adjustment.view.",
@@ -7159,7 +8053,8 @@
                             "PDI_INSPECTION",
                             "STAFF_ACTION",
                             "SUPPLIER_DELIVERY",
-                            "STOCK_COUNT"
+                            "STOCK_COUNT",
+                            "OPENING_STOCK"
                         ],
                         "type": "string",
                         "description": "Source type",
@@ -7311,6 +8206,121 @@
                     },
                     "404": {
                         "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stock-reconciliation": {
+            "get": {
+                "description": "Runs the read-only ledger reconciliation now and returns its summary and one page of discrepancies. Vehicle units are compared with their stock movements: no movement (VEHICLE_NO_MOVEMENTS), history not starting with the RECEIPT (VEHICLE_MISSING_RECEIPT), a later RECEIPT (VEHICLE_REPEATED_RECEIPT), status or location different from the latest movement (VEHICLE_STATUS_MISMATCH, VEHICLE_LOCATION_MISMATCH), latest movement not leaving the unit held (VEHICLE_NOT_HELD), a movement not starting where the previous one ended (VEHICLE_BROKEN_CHAIN). Parts balances per SKU and location: balance different from the quantity after the latest movement, 0 without one (PARTS_BALANCE_MISMATCH), movements without a balance record (PARTS_BALANCE_MISSING), a balance below zero (PARTS_NEGATIVE_BALANCE), a movement not starting from the quantity the previous one left, the first from 0 (PARTS_BROKEN_CHAIN). HIGH: the record disagrees with the ledger or its origin is missing; MEDIUM: the history is inconsistent while the record matches its latest movement. Every query runs in one read-only, repeatable-read transaction: the result is one consistent snapshot and nothing is written, corrected or stored (runs are logged on the server under runId only). The summary counts the whole run; itemType, type, severity and locationId (in scope) filter the returned items, ordered by severity, type and reference; reference is stable across runs. Rows are what the caller may see: vehicle units need vehicle_units.view and a current location in scope (or none yet); parts balances need stock.parts.view at a location in scope; a location outside the scope is named by ID only. No cost is returned. Requires stock.reconciliation.view and vehicle_units.view or stock.parts.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-reconciliation"
+                ],
+                "summary": "Stock ledger reconciliation",
+                "parameters": [
+                    {
+                        "enum": [
+                            "VEHICLE_UNIT",
+                            "STOCK_ITEM"
+                        ],
+                        "type": "string",
+                        "description": "Item type",
+                        "name": "itemType",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "VEHICLE_NO_MOVEMENTS",
+                            "VEHICLE_MISSING_RECEIPT",
+                            "VEHICLE_REPEATED_RECEIPT",
+                            "VEHICLE_STATUS_MISMATCH",
+                            "VEHICLE_LOCATION_MISMATCH",
+                            "VEHICLE_NOT_HELD",
+                            "VEHICLE_BROKEN_CHAIN",
+                            "PARTS_BALANCE_MISMATCH",
+                            "PARTS_BALANCE_MISSING",
+                            "PARTS_NEGATIVE_BALANCE",
+                            "PARTS_BROKEN_CHAIN"
+                        ],
+                        "type": "string",
+                        "description": "Discrepancy type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "HIGH",
+                            "MEDIUM"
+                        ],
+                        "type": "string",
+                        "description": "Severity",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location ID of the record (in the caller's scope)",
+                        "name": "locationId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (from 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (1-100, default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/ReconciliationReport"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (itemType, type, severity, locationId, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "INTERNAL_ERROR (the run failed; nothing was changed)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -8991,7 +10001,7 @@
         },
         "/vehicle-units": {
             "get": {
-                "description": "Newest registration first by default (sort). q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine (AND). receivedFrom/receivedTo are inclusive dates; minAgeDays/maxAgeDays are inclusive whole days since the received date (ageDays, database date). Colour is not filterable: units carry no colour (not captured on receipt). Every sort ends with the unit ID, so pages are stable. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
+                "description": "Newest registration first by default (sort). q matches the unit number and the chassis/frame, motor, battery and charger identifiers after normalisation (trimmed, upper-case; part of a value is enough). Filters combine (AND). receivedFrom/receivedTo are inclusive dates; Stock ageing (E-07, ADR-029): every unit carries ageing (origin date and source GRN — the posted goods receipt's received date —, age in whole days to the business date in the business time zone, band of the current configuration, or MISSING_ORIGIN with a reason and no age/band); ageDays is ageing.ageDays and null without a reliable origin. minAgeDays/maxAgeDays are inclusive whole days and ageingBand a band key (minDays \u003c= age \u003c= maxDays); all three select only units with a reliable origin. originStatus=KNOWN|MISSING selects by origin reliability. An unknown ageingBand, or ageingBand/minAgeDays/maxAgeDays with originStatus=MISSING, is 422. Colour is not filterable: units carry no colour (not captured on receipt). Every sort ends with the unit ID, so pages are stable. saleable=true lists only AVAILABLE units: units pending PDI, on QUALITY_HOLD or SERVICE_HOLD, REJECTED, on DISPLAY, RESERVED, SOLD or DELIVERED are never saleable stock (INV-006/007, PO-006). Only units without a location or at a location in the caller's scope are listed; a locationId outside the scope is refused. unitCost and costCurrency are null, and costHidden true, without vehicle_units.cost.view. Requires vehicle_units.view.",
                 "produces": [
                     "application/json"
                 ],
@@ -9100,6 +10110,22 @@
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Ageing band key of the current configuration (GET /stock-ageing/configuration)",
+                        "name": "ageingBand",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "KNOWN",
+                            "MISSING"
+                        ],
+                        "type": "string",
+                        "description": "KNOWN: reliable origin date (has an age); MISSING: none",
+                        "name": "originStatus",
+                        "in": "query"
+                    },
+                    {
                         "enum": [
                             "-createdAt",
                             "createdAt",
@@ -9158,7 +10184,174 @@
                         }
                     },
                     "422": {
-                        "description": "VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, sort, page, limit)",
+                        "description": "VALIDATION_FAILED (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, ageingBand, originStatus, sort, page, limit)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-units/ageing-summary": {
+            "get": {
+                "description": "Counts the units the same filters as GET /vehicle-units select (q, status, saleable, brandId, modelId, variantId, supplierId, purchaseOrderId, goodsReceiptId, locationId, receivedFrom, receivedTo, minAgeDays, maxAgeDays, ageingBand, originStatus; sort/page/limit are ignored) by ageing band of the current configuration and by missing-origin reason, with exactly the rules of each unit's ageing: total = withOrigin + missingOrigin; withOrigin = sum of band counts + unbanded (unbanded only when no configuration exists). Units without a reliable origin date are counted in missingOrigin, never as 0 days. Read-only; only units without a location or at a location in the caller's scope. Requires vehicle_units.view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-units"
+                ],
+                "summary": "Vehicle stock ageing summary",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search unit number or identifier",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "ORDERED",
+                            "IN_TRANSIT",
+                            "RECEIVED_PENDING_PDI",
+                            "QUALITY_HOLD",
+                            "AVAILABLE",
+                            "DISPLAY",
+                            "RESERVED",
+                            "SERVICE_HOLD",
+                            "SOLD",
+                            "DELIVERED",
+                            "REJECTED",
+                            "RETURN_PENDING_INSPECTION",
+                            "RETURNED_TO_SUPPLIER"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Brand ID",
+                        "name": "brandId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "modelId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Variant ID",
+                        "name": "variantId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Supplier ID",
+                        "name": "supplierId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Purchase order ID",
+                        "name": "purchaseOrderId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Goods receipt ID",
+                        "name": "goodsReceiptId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location ID (must be in the caller's scope)",
+                        "name": "locationId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true: AVAILABLE units only; false: every other status",
+                        "name": "saleable",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Received on or after (YYYY-MM-DD)",
+                        "name": "receivedFrom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Received on or before (YYYY-MM-DD)",
+                        "name": "receivedTo",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "At least this many days old (0-36500)",
+                        "name": "minAgeDays",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "At most this many days old (0-36500)",
+                        "name": "maxAgeDays",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ageing band key of the current configuration",
+                        "name": "ageingBand",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "KNOWN",
+                            "MISSING"
+                        ],
+                        "type": "string",
+                        "description": "KNOWN or MISSING",
+                        "name": "originStatus",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/VehicleAgeingSummary"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "VALIDATION_FAILED (the list filters)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -11505,6 +12698,616 @@
                 }
             }
         },
+        "OpeningStockCommittedUnit": {
+            "type": "object",
+            "properties": {
+                "movementId": {
+                    "type": "string"
+                },
+                "rowNumber": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "status": {
+                    "type": "string",
+                    "example": "RECEIVED_PENDING_PDI"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000123"
+                },
+                "vehicleUnitId": {
+                    "type": "string"
+                }
+            }
+        },
+        "OpeningStockFileIssue": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "MISSING_COLUMN"
+                },
+                "column": {
+                    "type": "string",
+                    "example": "chassis_number"
+                },
+                "line": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "OpeningStockImportApproval": {
+            "type": "object",
+            "properties": {
+                "approvedAt": {
+                    "type": "string"
+                },
+                "approvedById": {
+                    "type": "string"
+                },
+                "approvedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "duplicatesReviewed": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mappingsReviewed": {
+                    "type": "boolean"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "physicalCountDate": {
+                    "type": "string",
+                    "example": "2026-11-15"
+                },
+                "physicalCountReference": {
+                    "type": "string",
+                    "example": "PC-2026-11-15"
+                },
+                "receivedDatesApproved": {
+                    "description": "ReceivedDatesApproved: the file's received dates are the agreed opening-stock\ndates (LED-008); false keeps the units' age MISSING_ORIGIN (E-07).",
+                    "type": "boolean"
+                }
+            }
+        },
+        "OpeningStockImportApprovalRequest": {
+            "type": "object",
+            "properties": {
+                "duplicatesReviewed": {
+                    "type": "boolean"
+                },
+                "mappingsReviewed": {
+                    "type": "boolean"
+                },
+                "note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "physicalCountDate": {
+                    "type": "string",
+                    "example": "2026-11-15"
+                },
+                "physicalCountReference": {
+                    "type": "string",
+                    "example": "PC-2026-11-15"
+                },
+                "receivedDatesApproved": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "OpeningStockImportBatch": {
+            "type": "object",
+            "properties": {
+                "approval": {
+                    "description": "Approval: the recorded physical-count approval (G-07); null until approved.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OpeningStockImportApproval"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "businessDate": {
+                    "type": "string",
+                    "example": "2026-11-16"
+                },
+                "commit": {
+                    "description": "Commit: the batch's commit (G-07); null until committed. Once set the batch\nis COMMITTED for good (status stays the staging status PREVIEWED).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OpeningStockImportCommitSummary"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "commitAvailable": {
+                    "description": "CommitAvailable stays false: the G-06 screens never offer a commit. The\ncommit is POST /opening-stock-imports/{id}/commit (G-07); see approval/commit.",
+                    "type": "boolean"
+                },
+                "expired": {
+                    "description": "Expired: the preview is history only; G-07 must refuse to commit it.",
+                    "type": "boolean"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "fileAttachmentId": {
+                    "type": "string"
+                },
+                "fileIssues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockFileIssue"
+                    }
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "opening-stock.csv"
+                },
+                "fileSha256": {
+                    "type": "string"
+                },
+                "fileSizeBytes": {
+                    "type": "integer",
+                    "example": 2048
+                },
+                "id": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string",
+                    "example": "OSI-000001"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PREVIEWED",
+                        "REJECTED"
+                    ],
+                    "example": "PREVIEWED"
+                },
+                "summary": {
+                    "$ref": "#/definitions/OpeningStockImportSummary"
+                },
+                "templateVersion": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "OS-IMPORT-1"
+                },
+                "uploadedAt": {
+                    "type": "string"
+                },
+                "uploadedById": {
+                    "type": "string"
+                },
+                "uploadedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "OpeningStockImportBatchPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockImportBatch"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "OpeningStockImportCommit": {
+            "type": "object",
+            "properties": {
+                "approvalId": {
+                    "type": "string"
+                },
+                "batchId": {
+                    "type": "string"
+                },
+                "batchReference": {
+                    "type": "string",
+                    "example": "OSI-000001"
+                },
+                "batchStatus": {
+                    "description": "BatchStatus is COMMITTED: the batch can never be committed again.",
+                    "type": "string",
+                    "enum": [
+                        "COMMITTED"
+                    ],
+                    "example": "COMMITTED"
+                },
+                "commitId": {
+                    "type": "string"
+                },
+                "committedAt": {
+                    "type": "string"
+                },
+                "committedById": {
+                    "type": "string"
+                },
+                "committedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "fileSha256": {
+                    "type": "string"
+                },
+                "movementType": {
+                    "type": "string",
+                    "enum": [
+                        "OPENING_BALANCE"
+                    ],
+                    "example": "OPENING_BALANCE"
+                },
+                "reference": {
+                    "type": "string",
+                    "example": "OSC-000001"
+                },
+                "replayed": {
+                    "description": "Replayed: this request repeated an earlier successful commit (same key); nothing new was created.",
+                    "type": "boolean"
+                },
+                "sourceType": {
+                    "description": "Provenance: units have source OPENING_STOCK and an OPENING_BALANCE movement\nsourced from the batch; each points at its file line.",
+                    "type": "string",
+                    "enum": [
+                        "OPENING_STOCK"
+                    ],
+                    "example": "OPENING_STOCK"
+                },
+                "templateVersion": {
+                    "type": "string",
+                    "example": "OS-IMPORT-1"
+                },
+                "units": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockCommittedUnit"
+                    }
+                },
+                "unitsCreated": {
+                    "type": "integer",
+                    "example": 120
+                }
+            }
+        },
+        "OpeningStockImportCommitSummary": {
+            "type": "object",
+            "properties": {
+                "committedAt": {
+                    "type": "string"
+                },
+                "committedById": {
+                    "type": "string"
+                },
+                "committedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string",
+                    "example": "OSC-000001"
+                },
+                "unitsCreated": {
+                    "type": "integer",
+                    "example": 120
+                }
+            }
+        },
+        "OpeningStockImportRow": {
+            "type": "object",
+            "properties": {
+                "canProceed": {
+                    "type": "boolean"
+                },
+                "duplicate": {
+                    "type": "boolean"
+                },
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockRowIssue"
+                    }
+                },
+                "normalised": {
+                    "$ref": "#/definitions/OpeningStockNormalisedRow"
+                },
+                "resolved": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "rowNumber": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "source": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "VALID",
+                        "WARNING",
+                        "ERROR",
+                        "BLOCKED_UNVERIFIED_MAPPING"
+                    ],
+                    "example": "VALID"
+                },
+                "unresolved": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "OpeningStockImportRowPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockImportRow"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "OpeningStockImportSpecification": {
+            "type": "object",
+            "properties": {
+                "approvedOpeningStatuses": {
+                    "description": "ApprovedOpeningStatuses: the statuses a commit accepts (OQ-47); empty blocks every commit (G-07).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "businessDate": {
+                    "type": "string",
+                    "example": "2026-11-16"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockTemplateColumn"
+                    }
+                },
+                "firstLine": {
+                    "type": "string",
+                    "example": "#template:OS-IMPORT-1"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "maxBytes": {
+                    "type": "integer",
+                    "example": 5242880
+                },
+                "maxRows": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "notes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "previewTtlHours": {
+                    "type": "integer",
+                    "example": 168
+                },
+                "stockStatuses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "templateVersion": {
+                    "type": "string",
+                    "example": "OS-IMPORT-1"
+                },
+                "timeZone": {
+                    "type": "string",
+                    "example": "Asia/Kolkata"
+                }
+            }
+        },
+        "OpeningStockImportSummary": {
+            "type": "object",
+            "properties": {
+                "blockedRows": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "canProceedRows": {
+                    "type": "integer",
+                    "example": 112
+                },
+                "duplicateRows": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "errorRows": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "skippedBlankRows": {
+                    "description": "SkippedBlankRows: lines with no value at all (ignored).",
+                    "type": "integer",
+                    "example": 0
+                },
+                "totalRows": {
+                    "type": "integer",
+                    "example": 120
+                },
+                "unresolvedRows": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "validRows": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "warningRows": {
+                    "type": "integer",
+                    "example": 12
+                }
+            }
+        },
+        "OpeningStockNormalisedRow": {
+            "type": "object",
+            "properties": {
+                "acquisitionCost": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "batteryNormalised": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chargerNormalised": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNormalised": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "colourId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "modelId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "motorNormalised": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "receivedDate": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "stockStatus": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "supplierId": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "variantId": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "OpeningStockRowIssue": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "DUPLICATE_CHASSIS_IN_FILE"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "chassis_number"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "ERROR",
+                        "BLOCKED",
+                        "WARNING"
+                    ],
+                    "example": "ERROR"
+                },
+                "suggestion": {
+                    "type": "string"
+                }
+            }
+        },
+        "OpeningStockTemplateColumn": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string",
+                    "example": "text"
+                },
+                "maxLength": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "name": {
+                    "type": "string",
+                    "example": "chassis_number"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
         "PDIChecklistItem": {
             "type": "object",
             "properties": {
@@ -13253,6 +15056,261 @@
                 }
             }
         },
+        "ReconciliationCoverage": {
+            "type": "object",
+            "properties": {
+                "allLocations": {
+                    "description": "AllLocations: every location; otherwise LocationIDs (the caller's scope).",
+                    "type": "boolean"
+                },
+                "locationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "parts": {
+                    "type": "boolean"
+                },
+                "vehicleUnits": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ReconciliationDiscrepancy": {
+            "type": "object",
+            "properties": {
+                "actual": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "DISPLAY"
+                },
+                "brandId": {
+                    "description": "Brand of a vehicle unit (parts have no brand); null on STOCK_ITEM rows.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "brandName": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "Brand A"
+                },
+                "detectedAt": {
+                    "type": "string"
+                },
+                "expected": {
+                    "description": "Expected: the value the ledger implies. Actual: the value the record (or movement) holds.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "AVAILABLE"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "itemType": {
+                    "type": "string",
+                    "enum": [
+                        "VEHICLE_UNIT",
+                        "STOCK_ITEM"
+                    ],
+                    "example": "VEHICLE_UNIT"
+                },
+                "locationCode": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "SR1"
+                },
+                "locationId": {
+                    "description": "The record's location (the unit's current location, the balance's location); code/name\nare null when it is outside the caller's scope, all three when there is none.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "locationName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "movementIds": {
+                    "description": "MovementIDs: the ledger entries the finding is about (oldest first); may be empty.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reference": {
+                    "description": "Reference is stable for the same finding across runs: TYPE:item ID[:location ID][:movement ID].",
+                    "type": "string",
+                    "example": "VEHICLE_STATUS_MISMATCH:3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "HIGH",
+                        "MEDIUM"
+                    ],
+                    "example": "HIGH"
+                },
+                "stockItem": {
+                    "description": "StockItem: STOCK_ITEM rows; null on VEHICLE_UNIT rows.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ReconciliationStockItem"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "VEHICLE_NO_MOVEMENTS",
+                        "VEHICLE_MISSING_RECEIPT",
+                        "VEHICLE_REPEATED_RECEIPT",
+                        "VEHICLE_STATUS_MISMATCH",
+                        "VEHICLE_LOCATION_MISMATCH",
+                        "VEHICLE_NOT_HELD",
+                        "VEHICLE_BROKEN_CHAIN",
+                        "PARTS_BALANCE_MISMATCH",
+                        "PARTS_BALANCE_MISSING",
+                        "PARTS_NEGATIVE_BALANCE",
+                        "PARTS_BROKEN_CHAIN"
+                    ],
+                    "example": "VEHICLE_STATUS_MISMATCH"
+                },
+                "vehicleUnit": {
+                    "description": "VehicleUnit: VEHICLE_UNIT rows; null on STOCK_ITEM rows.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ReconciliationVehicleUnit"
+                        }
+                    ],
+                    "x-nullable": true
+                }
+            }
+        },
+        "ReconciliationReport": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "coverage": {
+                    "$ref": "#/definitions/ReconciliationCoverage"
+                },
+                "durationMs": {
+                    "type": "integer",
+                    "example": 35
+                },
+                "items": {
+                    "description": "Items: the discrepancies matching the filters, severity then type then reference.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ReconciliationDiscrepancy"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "runAt": {
+                    "type": "string"
+                },
+                "runId": {
+                    "description": "RunID identifies this run in the server logs; runs are not stored.",
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "COMPLETED"
+                    ],
+                    "example": "COMPLETED"
+                },
+                "summary": {
+                    "$ref": "#/definitions/ReconciliationSummary"
+                },
+                "total": {
+                    "description": "Total: discrepancies matching the filters.",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "ReconciliationStockItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string",
+                    "example": "BRK-PAD-01"
+                },
+                "uom": {
+                    "type": "string",
+                    "example": "PCS"
+                }
+            }
+        },
+        "ReconciliationSummary": {
+            "type": "object",
+            "properties": {
+                "bySeverity": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "byType": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "discrepancies": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "movementsChecked": {
+                    "type": "integer",
+                    "example": 910
+                },
+                "partBalancesChecked": {
+                    "type": "integer",
+                    "example": 40
+                },
+                "recordsChecked": {
+                    "type": "integer",
+                    "example": 160
+                },
+                "vehicleUnitsChecked": {
+                    "type": "integer",
+                    "example": 120
+                }
+            }
+        },
+        "ReconciliationVehicleUnit": {
+            "type": "object",
+            "properties": {
+                "chassisNumber": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "CH-0001"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "unitNumber": {
+                    "type": "string",
+                    "example": "MAE-VEH-000001"
+                }
+            }
+        },
         "RoleMatrix": {
             "type": "object",
             "properties": {
@@ -13320,6 +15378,214 @@
                 "signedOut": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "StockAgeing": {
+            "type": "object",
+            "properties": {
+                "ageDays": {
+                    "description": "AgeDays: whole days from the origin date to AsOf; null without a reliable origin.",
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 24
+                },
+                "asOf": {
+                    "description": "AsOf is the business date the age is counted to.",
+                    "type": "string",
+                    "example": "2026-11-16"
+                },
+                "bandKey": {
+                    "description": "BandKey/BandLabel: the band of AgeDays in the current configuration; null without\nan age or without a configuration.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "0-30"
+                },
+                "bandLabel": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "0–30 days"
+                },
+                "missingExplanation": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "missingReason": {
+                    "description": "MissingReason/MissingExplanation: why there is no reliable origin; null when AGED.",
+                    "type": "string",
+                    "enum": [
+                        "UNSUPPORTED_SOURCE",
+                        "GRN_NOT_POSTED",
+                        "GRN_DATE_MISMATCH",
+                        "OPENING_NOT_APPROVED",
+                        "NO_ORIGIN_DATE",
+                        "FUTURE_ORIGIN_DATE"
+                    ],
+                    "x-nullable": true
+                },
+                "originDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-10-23"
+                },
+                "originSource": {
+                    "type": "string",
+                    "enum": [
+                        "GRN",
+                        "OPENING_STOCK"
+                    ],
+                    "x-nullable": true,
+                    "example": "GRN"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "AGED",
+                        "MISSING_ORIGIN"
+                    ],
+                    "example": "AGED"
+                }
+            }
+        },
+        "StockAgeingApproveInput": {
+            "type": "object",
+            "properties": {
+                "reference": {
+                    "description": "Reference: optional approval reference (e.g. meeting minute), up to 200 characters.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "StockAgeingBand": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "0-30"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "0–30 days"
+                },
+                "maxDays": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 30
+                },
+                "minDays": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "StockAgeingBandSet": {
+            "type": "object",
+            "properties": {
+                "approvalReference": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedAt": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedById": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "approvedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "bands": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/StockAgeingBand"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdById": {
+                    "description": "CreatedByID/Name: null when recorded by the migration.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "createdByName": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "source": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PROPOSED",
+                        "APPROVED"
+                    ],
+                    "example": "PROPOSED"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "StockAgeingConfiguration": {
+            "type": "object",
+            "properties": {
+                "asOf": {
+                    "type": "string",
+                    "example": "2026-11-16"
+                },
+                "bandSet": {
+                    "description": "BandSet: the current version; null when not configured.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/StockAgeingBandSet"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "boundaryRule": {
+                    "description": "BoundaryRule states how bands are applied.",
+                    "type": "string"
+                },
+                "configured": {
+                    "description": "Configured: false when no band configuration exists (ages are still calculated, without bands).",
+                    "type": "boolean"
+                },
+                "timeZone": {
+                    "description": "TimeZone and AsOf: the business calendar ages are counted on.",
+                    "type": "string",
+                    "example": "Asia/Kolkata"
+                }
+            }
+        },
+        "StockAgeingProposeInput": {
+            "type": "object",
+            "properties": {
+                "bands": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/StockAgeingBand"
+                    }
+                },
+                "expectedVersion": {
+                    "description": "ExpectedVersion is the current version (0 when none exists); a different one is 409 VERSION_CONFLICT.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "source": {
+                    "description": "Source: where the thresholds come from (document or decision reference), 1-300 characters.",
+                    "type": "string",
+                    "example": "Owner decision 2026-11-20"
                 }
             }
         },
@@ -14919,7 +17185,8 @@
                         "DISPLAY_OFF",
                         "PARTS_RECEIPT",
                         "PARTS_ISSUE",
-                        "COUNT_ADJUSTMENT"
+                        "COUNT_ADJUSTMENT",
+                        "OPENING_BALANCE"
                     ],
                     "example": "PDI_PASS"
                 },
@@ -14961,7 +17228,8 @@
                         "PDI_INSPECTION",
                         "STAFF_ACTION",
                         "SUPPLIER_DELIVERY",
-                        "STOCK_COUNT"
+                        "STOCK_COUNT",
+                        "OPENING_STOCK"
                     ],
                     "example": "PDI_INSPECTION"
                 },
@@ -15072,13 +17340,126 @@
                 }
             }
         },
+        "VehicleAgeingBandCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "key": {
+                    "type": "string",
+                    "example": "0-30"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "0–30 days"
+                },
+                "maxDays": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 30
+                },
+                "minDays": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "VehicleAgeingSummary": {
+            "type": "object",
+            "properties": {
+                "asOf": {
+                    "description": "AsOf/TimeZone: the business date ages are counted to.",
+                    "type": "string",
+                    "example": "2026-11-16"
+                },
+                "bandSet": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/VehicleAgeingSummaryBandSet"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "bands": {
+                    "description": "Bands: every band of the configuration, in order, with its count (0 included); empty when not configured.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/VehicleAgeingBandCount"
+                    }
+                },
+                "configured": {
+                    "description": "Configured: a band configuration exists; BandSet identifies it (null when not configured).",
+                    "type": "boolean"
+                },
+                "missingByReason": {
+                    "description": "MissingByReason counts MissingOrigin by reason.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "missingOrigin": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "timeZone": {
+                    "type": "string",
+                    "example": "Asia/Kolkata"
+                },
+                "total": {
+                    "description": "Total units selected = WithOrigin + MissingOrigin.",
+                    "type": "integer",
+                    "example": 12
+                },
+                "unbanded": {
+                    "description": "Unbanded: units with an age but no band (only when no configuration exists).",
+                    "type": "integer",
+                    "example": 0
+                },
+                "withOrigin": {
+                    "type": "integer",
+                    "example": 11
+                }
+            }
+        },
+        "VehicleAgeingSummaryBandSet": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PROPOSED",
+                        "APPROVED"
+                    ],
+                    "example": "PROPOSED"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "VehicleUnit": {
             "type": "object",
             "properties": {
                 "ageDays": {
-                    "description": "AgeDays is the number of days since the received date (database date). It\nis the plain days-in-stock figure the list filters on; ageing buckets and\npolicy are E-07.",
+                    "description": "AgeDays is the stock age in whole days from the approved origin date to the\nbusiness date (E-07, ADR-029) — the same value as ageing.ageDays; null when the\nunit has no reliable origin date (never a fabricated age).",
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 12
+                },
+                "ageing": {
+                    "description": "Ageing is the unit's stock ageing (E-07): origin date and source, age, band, or\nwhy no reliable origin date exists. Calculated by the server on every read.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/StockAgeing"
+                        }
+                    ]
                 },
                 "batterySerial": {
                     "type": "string",
@@ -15151,7 +17532,8 @@
                 "sourceType": {
                     "type": "string",
                     "enum": [
-                        "GOODS_RECEIPT"
+                        "GOODS_RECEIPT",
+                        "OPENING_STOCK"
                     ],
                     "example": "GOODS_RECEIPT"
                 },
@@ -15212,9 +17594,18 @@
             "type": "object",
             "properties": {
                 "ageDays": {
-                    "description": "AgeDays is the number of days since the received date (database date). It\nis the plain days-in-stock figure the list filters on; ageing buckets and\npolicy are E-07.",
+                    "description": "AgeDays is the stock age in whole days from the approved origin date to the\nbusiness date (E-07, ADR-029) — the same value as ageing.ageDays; null when the\nunit has no reliable origin date (never a fabricated age).",
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 12
+                },
+                "ageing": {
+                    "description": "Ageing is the unit's stock ageing (E-07): origin date and source, age, band, or\nwhy no reliable origin date exists. Calculated by the server on every read.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/StockAgeing"
+                        }
+                    ]
                 },
                 "batterySerial": {
                     "type": "string",
@@ -15306,7 +17697,8 @@
                 "sourceType": {
                     "type": "string",
                     "enum": [
-                        "GOODS_RECEIPT"
+                        "GOODS_RECEIPT",
+                        "OPENING_STOCK"
                     ],
                     "example": "GOODS_RECEIPT"
                 },
@@ -15449,7 +17841,8 @@
                 "sourceType": {
                     "type": "string",
                     "enum": [
-                        "GOODS_RECEIPT"
+                        "GOODS_RECEIPT",
+                        "OPENING_STOCK"
                     ],
                     "example": "GOODS_RECEIPT"
                 },
@@ -15499,7 +17892,8 @@
                         "QUALITY_HOLD",
                         "REJECT",
                         "DISPLAY_ON",
-                        "DISPLAY_OFF"
+                        "DISPLAY_OFF",
+                        "OPENING_BALANCE"
                     ],
                     "example": "RECEIPT"
                 },
@@ -15521,7 +17915,8 @@
                     "enum": [
                         "GOODS_RECEIPT",
                         "PDI_INSPECTION",
-                        "STAFF_ACTION"
+                        "STAFF_ACTION",
+                        "OPENING_STOCK"
                     ],
                     "example": "GOODS_RECEIPT"
                 },
@@ -15610,6 +18005,21 @@
                     "type": "string",
                     "x-nullable": true
                 },
+                "openingStockBatchId": {
+                    "description": "Opening stock (G-07): the import batch, its OSI reference and the file line the unit came from.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "openingStockBatchReference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "OSI-000001"
+                },
+                "openingStockRowNumber": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 3
+                },
                 "purchaseOrderId": {
                     "type": "string",
                     "x-nullable": true
@@ -15643,7 +18053,8 @@
                 "type": {
                     "type": "string",
                     "enum": [
-                        "GOODS_RECEIPT"
+                        "GOODS_RECEIPT",
+                        "OPENING_STOCK"
                     ],
                     "example": "GOODS_RECEIPT"
                 }

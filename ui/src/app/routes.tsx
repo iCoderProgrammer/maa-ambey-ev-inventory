@@ -29,6 +29,12 @@ import {
   PdiInspectionPage,
   PdiQueuePage,
 } from '@/features/pdi/PdiPages'
+import {
+  OpeningStockImportPage,
+  OpeningStockPreviewPage,
+} from '@/features/openingstock/OpeningStockPages'
+import { OpeningStockCommitPage } from '@/features/openingstock/OpeningStockCommitPage'
+import { ReconciliationPage } from '@/features/reconciliation/ReconciliationPage'
 import { StockMovementDetailPage, StockMovementsPage } from '@/features/stock/TimelinePages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
 import { VehicleUnitDetailPage, VehicleUnitsPage } from '@/features/vehicles/VehiclePages'
@@ -59,6 +65,13 @@ export const routes: RouteObject[] = [
               { path: 'inventory/vehicles/:unitId', element: <VehicleUnitDetailPage /> },
               { path: 'inventory/movements', element: <StockMovementsPage /> },
               { path: 'inventory/movements/:movementId', element: <StockMovementDetailPage /> },
+              { path: 'inventory/reconciliation', element: <ReconciliationPage /> },
+              { path: 'inventory/opening-stock', element: <OpeningStockImportPage /> },
+              { path: 'inventory/opening-stock/:batchId', element: <OpeningStockPreviewPage /> },
+              {
+                path: 'inventory/opening-stock/:batchId/commit',
+                element: <OpeningStockCommitPage />,
+              },
               { path: 'inventory/parts', element: <PartsPage /> },
               { path: 'inventory/parts/categories', element: <PartCategoriesPage /> },
               { path: 'inventory/parts/:itemId', element: <PartDetailPage /> },

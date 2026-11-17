@@ -59,8 +59,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | E-03 | Spare/accessory SKU master | P0 | B-05, D-01, B-07 | COMPLETE |
 | E-04 | Parts receipts and issues | P0 | E-03, E-01, D-01 | COMPLETE |
 | E-05 | Stock count and adjustment approval | P0 | E-01, B-07, B-08 | COMPLETE (mechanism; threshold/approver OQ-40, vehicle discrepancies OQ-39, grants RB-5 pending) |
-| E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | NOT STARTED |
-| E-07 | Stock ageing calculations | P0 | D-04, D-07 | NOT STARTED |
+| E-06 | Ledger reconciliation job/report | P0 | E-01, D-04, E-04 | COMPLETE (2026-11-16; uncommitted) — read-only report, ADR-028; grant of `stock.reconciliation.view` pending (RB-5) |
+| E-07 | Stock ageing calculations | P0 | D-04, D-07 | INCOMPLETE (2026-11-16; uncommitted) — GRN-received vehicle stock done and verified end to end (ADR-029); opening-stock origin BLOCKED until G-06/G-07 create opening stock; bands PROPOSED (OQ-45) |
 | F-01 | Customer master | P0 | B-06, B-07, B-08 | NOT STARTED |
 | F-02 | Quotation builder and price snapshot | P0 | C-04, F-01, D-04, B-07 | NOT STARTED |
 | F-03 | Discount approval workflow | P0 | B-07, B-08, F-02 | NOT STARTED |
@@ -77,8 +77,8 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | G-03 | Sales and collections reports | P0 | F-07, F-08, F-10 | NOT STARTED |
 | G-04 | Pending procurement/PDI/reservation queues | P0 | D-02, D-03, D-06, F-04, F-05 | NOT STARTED |
 | G-05 | CSV/XLSX export framework | P0 | B-07, B-08, G-02, G-03 | NOT STARTED |
-| G-06 | Opening stock import preview | P0 | C-01, D-04, E-03, B-09 | NOT STARTED |
-| G-07 | Opening stock import commit and idempotency | P0 | G-06, D-04, E-01, B-08 | NOT STARTED |
+| G-06 | Opening stock import preview | P0 | C-01, D-04, E-03, B-09 | COMPLETE (2026-11-16; uncommitted) — preview only, ADR-030; A-04/OQ-47/OQ-48 and grant (RB-5) pending |
+| G-07 | Opening stock import commit and idempotency | P0 | G-06, D-04, E-01, B-08 | INCOMPLETE (2026-11-16; uncommitted) — backend + frontend implemented and browser-tested; 1 D-08 contract test fails on a backend OpenAPI annotation defect (reported, not fixed: backend edits not allowed in the frontend task); production commit blocked by OQ-47/OQ-49, grants (RB-5), A-04/H-08 |
 | H-01 | Unit and integration test suite | P0 | Relevant feature tasks implemented | NOT STARTED |
 | H-02 | End-to-end critical workflows | P0 | D-07, D-06, F-04, F-07, F-09 | NOT STARTED |
 | H-03 | Concurrency and idempotency tests | P0 | D-07, F-04, F-05, F-07, G-07 | NOT STARTED |
@@ -3188,6 +3188,316 @@ detail, links, D-08 regression, parts, hidden sources, denial, phone width). Evi
 
 #### Final status
 COMPLETE — backend `2b06c7e`; frontend complete and verified, not committed. Not started: E-03.
+
+### E-06 — Ledger reconciliation job/report
+
+- **Status:** COMPLETE (2026-11-16) — backend, frontend, integration, E2E and browser stages done; not committed
+  (awaiting user review). Pending: production grant of `stock.reconciliation.view` (RB-5 / A-05).
+- **Started:** 2026-11-16 · **Finished:** 2026-11-16
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_06_ledger-reconciliation-job-report.md
+  (+ user's E-06 implementation prompt of 2026-11-16, based on `docs/reports/PROJECT_AUDIT_REPORT_2026-11-16.md`)
+- Git at start: `dev` at `b122188`, clean except the untracked audit reports (`docs/reports/`).
+- Stage order: backend first, then frontend on the real API (as the user's prompt specified; no mock adapter).
+
+#### Dependencies
+| Dependency | Verified status | Evidence (code/tests/log) |
+| --- | --- | --- |
+| E-01 | COMPLETE | `stock_movements` (000015, extended by 000017–000019), append-only triggers, `vehicle_units_ledger_reconciles`; stock integration tests pass (audit run 2026-11-16 and this task) |
+| D-04 | COMPLETE | `vehicle_units` (000013) with guard trigger; vehicles tests pass |
+| E-04 | COMPLETE | `stock_item_balances` (000017), not-negative CHECK, `stock_item_balances_ledger_reconciles`; parts tests pass |
+| (noted) D-05 | IN PROGRESS (unchanged) | live `DUPLICATE_IDENTIFIER` browser re-verification still pending; not run in this task; not marked complete |
+
+Owner-decision items from the audit recorded separately and **not implemented**: OQ-42 (H-1 brand activation checks),
+OQ-43 (M-1 receiving brand re-check), OQ-44 (M-4 audit viewer) in `docs/ARCHITECTURE_DECISIONS.md`.
+Registry: `TASK_REGISTRY.csv` has no status/evidence columns and must not be edited (CLAUDE.md); E-06 status and
+evidence are recorded in this log (status board above) instead.
+
+#### Acceptance criteria
+- [x] AC1 Injected discrepancy is detected — vehicle status/location, missing/repeated receipt, no movements, broken
+      chains, parts balance mismatch/missing/negative (Go integration tests); parts drift end to end (Playwright, browser)
+- [x] AC2 Report is repeatable — same findings and references across reruns (`TestReconcileIsRepeatableAndReadOnly`, E2E)
+- [x] AC3 No mutation occurs — READ ONLY transaction (write refused, SQLSTATE 25006), table fingerprints unchanged,
+      no write route, UI has no repair action, only GET requests
+- [x] AC4 Results are permission-checked — new permission + item view permission + location scope; out-of-scope
+      locations named by ID only (`TestReconcilePermissionsAndScope`, route tests, E2E denial)
+
+#### Stage 1 — UI (built after the backend, on the real API)
+Result: COMPLETE. `ui/src/features/reconciliation/` (`api/reconciliation.ts` Zod contract, `hooks/useReconciliation.ts`,
+`lib/labels.ts`, `ReconciliationPage.tsx`), route `/inventory/reconciliation`, nav item (permission
+`stock.reconciliation.view`), `Permission.ReconciliationView`. States: permission check, denied, not run, running,
+clean, discrepancies, filtered-empty, invalid filter, API error (no partial results), network error, retry, paging;
+desktop table / phone cards. No repair/adjust control.
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Route: `GET /api/v1/stock-reconciliation` (filters itemType, type, severity, locationId, page, limit).
+- Migration: `000021_stock_reconciliation_permission` (permission row only; down refuses while granted). No run table.
+- Files: `internal/modules/stock/{reconcile.go,reconcile_http.go,http.go,service.go,pgstore.go,export_test.go}`,
+  `internal/modules/access/policy.go`; tests `reconcile_test.go` (5), `reconcile_integration_test.go` (10).
+- One READ ONLY, REPEATABLE READ transaction; structured logs `stock reconciliation started/completed/failed`.
+- Checks: gofmt, go vet, tidy, swagger-check, build, unit + integration all pass (details in evidence).
+
+#### Stage 3 — API integration
+Result: COMPLETE. Typed client + TanStack Query; contract test against `docs/openapi/swagger.json`; no mock in the
+production path; ESLint, Prettier, tsc, Vitest 35 files / 380 tests, build pass.
+
+#### Stage 4 — Browser testing
+Result: PASS. Playwright `e2e/reconciliation.e2e.ts` desktop + Pixel 7 (4 passed; ×2 repeat 8 passed) and a visible
+walkthrough in the user's Chrome. One defect found and fixed in this task (cached run shown as "not run" / "Run"
+returning the cached run); regression test added and re-verified. Evidence: `docs/evidence/E-06/verification.txt`.
+
+#### Files changed
+`migrations/000021_stock_reconciliation_permission.{up,down}.sql`, `internal/modules/access/policy.go`,
+`internal/modules/stock/{reconcile.go,reconcile_http.go,reconcile_test.go,reconcile_integration_test.go,export_test.go,
+http.go,service.go,pgstore.go}`, `docs/openapi/*` (regenerated), `ui/src/features/reconciliation/*`,
+`ui/src/features/access/api/access.ts`, `ui/src/app/{routes.tsx,navigation.ts}`, `ui/e2e/reconciliation.e2e.ts`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS,DEVELOPMENT_SETUP,TASK_EXECUTION_LOG}.md`, `docs/evidence/E-06/`.
+
+#### Known issues / pending approvals
+- Grant of `stock.reconciliation.view` to roles: owner sign-off (RB-5 / A-05). No per-user brand scope (RB-5).
+- Runs are not stored and there is no schedule (on demand only; ADR-028). Each page request recomputes the run.
+- Vehicle drift not exercised in the browser (no vehicle units on the throwaway stack without the activation fixture);
+  covered by PostgreSQL integration tests.
+- Down migration while the permission is granted is refused and leaves golang-migrate dirty (standard behaviour).
+
+#### Final status
+COMPLETE — E-06 only, uncommitted (awaiting review). Next task not started.
+
+### E-07 — Stock ageing calculations
+
+- **Status:** INCOMPLETE (2026-11-16) — everything for goods-receipt (GRN) vehicle stock is implemented and verified
+  (backend, frontend, integration, E2E, browser). The opening-stock origin rule is implemented and unit-tested, but
+  cannot be exercised end to end: no opening-stock record can exist until G-06/G-07 (Scenario B BLOCKED). Per the
+  task's completion rule, E-07 is therefore not marked COMPLETE. Not committed (awaiting review).
+- **Started/finished:** 2026-11-16
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/04_Inventory_Stock/E_07_stock-ageing-calculations.md
+  (+ the user's E-07 implementation prompt of 2026-11-16)
+- Git at start: `dev` at `b122188`; E-06 changes uncommitted and preserved (not reset, stashed or rewritten).
+- Order: backend first, then frontend on the real API (as the prompt specified; no mock adapter).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| D-04 | COMPLETE | `vehicle_units.received_date` NOT NULL; `vehicle_units_source_check` (000013) refuses a unit whose goods receipt is not POSTED or whose received date differs from the receipt's; vehicles tests pass |
+| D-07 | COMPLETE | registry D-07 = **Atomic receipt posting** (the prompt called it "PDI/Inspection"; D-06 is PDI) — `POST /goods-receipts/{id}/post` registers units with the receipt's date; receiving tests pass; E2E posts through it |
+| (E-06) | COMPLETE, uncommitted | reconciliation tests and E2E re-run green after E-07 |
+
+#### Acceptance criteria (registry prompt)
+- [x] Age uses the approved origin date — posted GRN received date only; no created_at/PO/PDI/today fallback
+- [ ] Age uses an approved **opening-stock** date — rule implemented + unit-tested; BLOCKED end to end (G-06/G-07)
+- [x] Boundary behaviour matches tests — every LED-008 band at both edges and ±1 day (Go unit + integration, E2E, UI)
+- [x] Filters and displayed values agree with the backend — list/summary/band filter/origin filter compared (Go, E2E)
+- [x] Missing origin labelled, never invented — MISSING_ORIGIN with reason, no age/band, counted separately
+
+#### Stage 1 — UI (after the backend)
+Result: COMPLETE. Vehicle list: "Stock age" column (age, band badge, origin), "Ageing band" and "Origin date" filters
+(options from the server configuration), ageing summary panel above the list (counts per band + missing origin,
+clicking filters server-side, band-set status note); detail: stock age, band, origin or "why no age". No age or band
+is computed in the browser. Files: `ui/src/features/vehicles/{api/vehicleUnits.ts,hooks/useVehicleUnits.ts,
+components/Ageing.tsx,lib/ageing.ts,lib/ageingRows.tsx,VehiclePages.tsx,ageing.test.tsx}` (+ fixtures in existing tests).
+
+#### Stage 2 — Backend
+Result: COMPLETE
+- Migration `000022_stock_ageing_bands` (band versions + bands, append-only guards, contiguity check at commit,
+  LED-008 v1 PROPOSED, permission `stock.ageing.configure`; down refuses once a person proposed/approved).
+- Package `internal/modules/ageing` (rules, calendar, store, service, HTTP); vehicles: `ageing` on every unit, filters
+  `ageingBand`/`originStatus`, `GET /vehicle-units/ageing-summary`; routes `GET /stock-ageing/configuration`,
+  `POST /stock-ageing/band-sets`, `POST /stock-ageing/band-sets/approve`; config `BUSINESS_TIME_ZONE`.
+- D-08 change (documented, ADR-029): `ageDays` now business-date based and null without a reliable origin; the D-08
+  age test was updated to the business calendar.
+
+#### Stage 3 — API integration
+Result: COMPLETE. Typed client with Zod contracts (self-consistency refinements), contract test against
+`docs/openapi/swagger.json`.
+
+#### Stage 4 — Browser testing
+Result: PASS (GRN scenarios). Playwright `e2e/ageing.e2e.ts` desktop + Pixel 7 with seven receipts posted through the
+API; `e2e/reconciliation.e2e.ts` re-run (E-06 regression). Visible walkthrough in the user's Chrome. Evidence:
+`docs/evidence/E-07/verification.txt`.
+
+#### Known issues / pending decisions
+- OQ-45: approve the bands (v1 = LED-008 recommended, PROPOSED), confirm the business time zone and the meaning of
+  "accepted GRN date" (received date on the posted receipt is used). OQ-46: age after sale (F-07).
+- Opening stock (G-06/G-07): no source exists yet; `OPENING_STOCK` is a reserved origin source.
+- No band-configuration screen (API only). Parts are not aged (no per-piece origin).
+- Vitest at default parallelism timed out in 2–3 heavier tests on a loaded machine (load average 14.5 / 12 cores);
+  390/390 pass with `--maxWorkers=4`. No timeout was changed.
+
+#### Final status
+INCOMPLETE — GRN stock ageing complete and verified; opening-stock origin blocked by G-06/G-07. Next task not started.
+
+### G-06 — Opening stock import preview
+
+- **Status:** COMPLETE (2026-11-16; technical, preview only) — backend, frontend, integration, E2E and browser stages
+  done; not committed (awaiting review). Client inputs pending: A-04 template sign-off, OQ-47 (opening statuses),
+  OQ-48 (XLSX, limits, retention); production grant of `stock.import.preview` (RB-5).
+- **Prompt file:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/06_Reports_Import_Export/G_06_opening-stock-import-preview.md
+  (+ the user's G-06 implementation prompt of 2026-11-16). Work was interrupted once by a usage limit and resumed.
+- Git at start: `dev` at `b122188`; E-06 + E-07 uncommitted and preserved (a snapshot of the baseline diff and status
+  was taken outside the repo before any G-06 change).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| C-01 | COMPLETE | brands/models/variants/colours schema; catalogue tests pass |
+| D-04 | COMPLETE | `vehicle_units` with normalised identifiers; vehicles tests pass |
+| E-03 | COMPLETE | SKU master (no parts in the OS-IMPORT-1 template: vehicles only; parts opening stock not in scope) |
+| B-09 | COMPLETE | private object store + attachments; reused for the uploaded file |
+| (A-04) | NOT DONE | no `docs/client-inputs/opening-stock-template.csv`; A-04 not marked complete |
+
+#### Acceptance criteria
+- [x] Preview is non-mutating — only batch/rows/attachment/audit written; business-table digests unchanged (Go, E2E, browser)
+- [x] Row errors map to lines/fields — line number + field + code + severity + message (+ suggestion)
+- [x] Unresolved catalogue mapping and brands/models pending verification are visible — ERROR vs BLOCKED_UNVERIFIED_MAPPING
+- [x] Upload/download is secure — permission, CSRF, content sniffing, size/row limits, private storage, owner-scoped access
+- [x] No invented opening stock is committed — no commit route; template without data rows; nothing created
+
+#### Stage 1 — UI (after the backend)
+Result: COMPLETE. `/inventory/opening-stock` (wizard: template card with column rules and download, upload card with
+drag-and-drop, progress, client pre-checks and safe retry with the same Idempotency-Key, your previews) and
+`/inventory/opening-stock/:batchId` (summary tiles, preview-only statement, rejected-file issues, rows with status,
+issues and highlighted identifiers, server-side filters, row details dialog). No commit button. Nav item with the permission.
+
+#### Stage 2 — Backend
+Result: COMPLETE. Migration 000023; package `internal/modules/openingstock`; routes GET specification/template/list/
+batch/rows, POST upload; attachments `canSee` rule; config `IMPORT_MAX_BYTES`/`IMPORT_MAX_ROWS`/`IMPORT_PREVIEW_TTL`.
+ADR-030; OQ-47, OQ-48.
+
+#### Stage 3 — API integration
+Result: COMPLETE. Typed client (Zod; `commitAvailable` must be false), `apiUpload` gained an optional `headers` option
+(Idempotency-Key); contract test against `docs/openapi/swagger.json`.
+
+#### Stage 4 — Browser testing
+Result: PASS. Playwright `e2e/opening-stock.e2e.ts` desktop + Pixel 7, with E-06/E-07 specs re-run (10 passed); visible
+walkthrough in the user's Chrome. Evidence: `docs/evidence/G-06/verification.txt`.
+
+#### Files changed
+New: `migrations/000023_opening_stock_import_preview.{up,down}.sql`, `internal/modules/openingstock/*`,
+`ui/src/features/openingstock/*`, `ui/e2e/opening-stock.e2e.ts`, `docs/evidence/G-06/verification.txt`.
+Modified: `internal/modules/access/policy.go`, `internal/modules/attachments/{service.go,cansee_test.go}`,
+`internal/config/config.go`, `internal/server/{server,server_test}.go`, `cmd/api/main.go`, `.env.example`,
+`docs/openapi/*`, `ui/src/lib/api/client.ts`, `ui/src/features/access/api/access.ts`, `ui/src/app/{routes.tsx,navigation.ts}`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS,DEVELOPMENT_SETUP,TASK_EXECUTION_LOG}.md`.
+
+#### Known issues / pending decisions
+- A-04 template sign-off; OQ-47 opening statuses; OQ-48 XLSX support, limits, retention of expired previews.
+- Vitest default parallelism is load-sensitive (heavy tests 3–4 s vs 5 s limit with 12 workers); recommendation in the evidence.
+- The shared `useListParams` same-frame race still affects older list pages (not changed outside G-06).
+
+#### Final status
+COMPLETE (technical) — G-06 only, uncommitted. G-07 not started.
+
+### G-07 — Opening stock import commit and idempotency (backend)
+
+- **Status:** INCOMPLETE (2026-11-16) — backend stage COMPLETE; frontend (Prompt B) not started by instruction
+  ("backend only"); not committed. Production commits remain blocked by design until OQ-47/OQ-49 are decided,
+  `stock.import.approve`/`stock.import.commit` are granted (RB-5) and a real file is approved (A-04, H-08).
+- **Prompt:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/06_Reports_Import_Export/G_07_opening-stock-import-commit-and-idempotency.md
+  (Prompt A) + the user's G-07 backend prompt of 2026-11-16.
+- Git at start: `dev` at `b122188`; E-06, E-07, G-06 uncommitted and preserved (baseline snapshot compared at the end).
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| G-06 | COMPLETE (uncommitted) | preview batches/rows/attachment; G-06 tests pass |
+| D-04 | COMPLETE | `vehicle_units`, chassis unique key, `RegisterFromReceiptUnit` pattern reused; receiving/vehicles tests pass |
+| E-01 | COMPLETE | single `stock_movements` ledger + triggers; `stock.RecordOpeningBalance` added beside `RecordReceipt` |
+| B-08 | COMPLETE | `audit.Record` in the same transaction; audit tests pass |
+
+#### Acceptance criteria
+- [x] A batch commits once (unique commit per batch; concurrent and repeated requests tested)
+- [x] Fatal errors yield zero committed rows (whole-batch refusal; DB checks units = rows at COMMIT; rollback test)
+- [x] Source provenance preserved (unit → staged row → batch/file/uploader; commit/approval records; no PO/GRN invented)
+- [x] Replay is safe (same key → same commit, `replayed: true`; lost-response retry; other users 409)
+- [x] No fabricated stock; unverified mappings cannot become stock (BLOCKED rows refused; DB trigger; no seeds)
+
+#### Stage 1 — UI
+Result: NOT APPLICABLE in this session — the user asked for backend only; the G-07 confirmation screen is pending.
+
+#### Stage 2 — Backend
+Result: COMPLETE. Migration 000024; routes POST `/opening-stock-imports/{id}/approval`, POST/GET
+`/opening-stock-imports/{id}/commit`; `OPENING_STOCK_APPROVED_STATUSES` (default empty); ADR-031, OQ-49. Checks and
+tests: `docs/evidence/G-07/verification.txt`.
+
+#### Stage 3 — API integration
+Result: NOT STARTED (frontend). The UI contract tests (openingstock, stock timeline, vehicles) fail until the frontend
+adopts the new fields/values (`approval`, `commit`, `OPENING_BALANCE`, `OPENING_STOCK`, `source.openingStock*`).
+
+#### Stage 4 — Browser testing
+Result: NOT APPLICABLE (no screen in this session).
+
+#### Files changed
+New: `migrations/000024_opening_stock_import_commit.{up,down}.sql`, `internal/modules/openingstock/{commit.go,
+commit_store.go,commit_test.go,commit_integration_test.go}`, `docs/evidence/G-07/verification.txt`.
+Modified: `internal/modules/openingstock/{store.go,service.go,http.go,export_test.go,harness_test.go,
+preview_integration_test.go}`, `internal/modules/access/policy.go`, `internal/modules/stock/{types.go,ledger.go,
+timeline.go,timeline_http.go,reconcile.go}`, `internal/modules/vehicles/{types.go,pgstore.go,service.go,rules_test.go}`,
+`internal/httpx/response.go`, `internal/config/config.go`, `cmd/api/main.go`, `.env.example`, `docs/openapi/*`,
+`docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS,TASK_EXECUTION_LOG}.md`; gofmt-only: `internal/server/{server,server_test}.go`.
+
+#### Known issues / pending decisions
+- OQ-47 approved opening statuses; OQ-49 warnings at commit, who approves/commits and segregation; RB-5 grants;
+  A-04 template; H-08 physical reconciliation; OQ-29 cost basis.
+- `e06_test` (throwaway API database) left at version 23 (not migrated without approval).
+
+#### Final status
+INCOMPLETE — backend COMPLETE; frontend pending. Next task not started.
+
+### G-07 — Opening stock import commit and idempotency (frontend)
+
+- **Status:** INCOMPLETE (2026-11-16) — frontend implemented, integrated and browser-tested; not committed. One check
+  fails: the D-08 vehicle contract test, because of a backend OpenAPI defect found here (below) that this frontend
+  task may not fix. Production commits stay blocked by design (OQ-47/OQ-49, RB-5, A-04, H-08).
+- **Prompt:** Prompt B of the G-07 prompt file + the user's G-07 frontend prompt of 2026-11-16.
+- Git at start: `dev` at `b122188`; E-06, E-07, G-06 and G-07 backend uncommitted and preserved (snapshot compared).
+
+#### Acceptance criteria
+- [x] Review shows the server's counts and why a batch cannot be committed; invalid lines are listed, never hidden
+- [x] Approval needs typed reference/date, unticked confirmations ticked by the user, a yes/no date answer and a
+      confirmation dialog; never sent automatically
+- [x] Commit needs approval, no blockers, the commit permission and an explicit confirmation; one request per attempt
+- [x] Unknown outcome → GET …/commit first; retry reuses the key; existing commit shown after reload
+- [x] G-06 preview stays preview-only (statement kept, no commit button; link to the separate page)
+
+#### Stage 1 — UI
+Result: COMPLETE. `/inventory/opening-stock/:batchId/commit` (OpeningStockCommitPage): batch card, 1. Review,
+2. Approval, 3. Commit, result card. Preview page: status badges + "Review, approve and commit" link for holders of
+approve/commit. Vehicle detail: "Opening stock import" provenance link; movement source link.
+
+#### Stage 2 — Backend
+Result: NOT APPLICABLE (G-07 backend done earlier; not modified). Defect found, NOT fixed:
+`internal/modules/vehicles/types.go` `Movement` (VehicleUnitMovement) swag tags still list
+`movementType` RECEIPT…DISPLAY_OFF and `sourceType` GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION, while the server sends
+`OPENING_BALANCE` / `OPENING_STOCK` for opening-stock units (MovementTypes/MovementSourceTypes include them).
+Repro: `GET /api/v1/vehicle-units/{id}/stock-movements` for a committed opening-stock unit → `movementType:
+"OPENING_BALANCE"`, absent from docs/openapi. Expected: both enums list the new values (2 struct tags + `make swagger`).
+Effect: `vehiclePages.test.tsx` "matches the server contract … movements" fails.
+
+#### Stage 3 — API integration
+Result: COMPLETE. `api/commit.ts` (approveImport, commitImport with Idempotency-Key, getImportCommit 404→null), hooks
+useImportCommit/useApproveImport/useCommitImport, schemas updated to the server contract (batch approval/commit, spec
+approvedOpeningStatuses, vehicle source openingStock*, OPENING_BALANCE/OPENING_STOCK in timeline and vehicle movements).
+
+#### Stage 4 — Browser testing
+Result: PASS (Playwright desktop + mobile, and a walkthrough in the user's Chrome) on a separate scratch stack
+(API :8198 on scratch database g07_mig, Vite :5198). Evidence: `docs/evidence/G-07/verification-frontend.txt`.
+
+#### Files changed (frontend task)
+New: `ui/src/features/openingstock/{OpeningStockCommitPage.tsx,api/commit.ts,lib/commitFlow.ts,commitWorkflow.test.tsx}`,
+`ui/e2e/opening-stock-commit.e2e.ts`, `docs/evidence/G-07/verification-frontend.txt`.
+Modified: `ui/src/features/openingstock/{api/openingStock.ts,hooks/useOpeningStock.ts,OpeningStockPages.tsx,
+openingStock.test.tsx}`, `ui/src/app/routes.tsx`, `ui/src/features/access/api/access.ts`,
+`ui/src/features/vehicles/{api/vehicleUnits.ts,lib/presentation.ts,VehiclePages.tsx,vehicles.test.tsx,
+vehiclePages.test.tsx,ageing.test.tsx}`, `ui/src/features/stock/{api/timeline.ts,lib/timeline.ts}`,
+`ui/src/features/pdi/pdi.test.tsx` (fixture fields), `docs/{DEVELOPMENT_SETUP,TASK_EXECUTION_LOG}.md`.
+
+#### Known issues / pending decisions
+- Backend OpenAPI defect above (1 failing frontend contract test).
+- OQ-47, OQ-49, RB-5 grants, A-04, H-08 — production commit refused until decided.
+- Vitest default parallelism still load-sensitive (timeouts of heavy tests under load; pass at `--maxWorkers=6`).
+
+#### Final status
+INCOMPLETE — frontend done; one backend annotation fix needed for a green contract suite. Next task not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

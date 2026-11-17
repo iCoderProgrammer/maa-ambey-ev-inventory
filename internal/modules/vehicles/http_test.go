@@ -133,3 +133,35 @@ func TestVehicleUnitListAndMovementInputIsValidated(t *testing.T) {
 	}
 	expectError(t, h.get(s, "/vehicle-units/not-a-uuid/stock-movements"), http.StatusNotFound, "NOT_FOUND")
 }
+
+// E-07: the ageing summary is denied by default, and ageing filters are checked
+// before any data is read (repository nil: reaching it would panic).
+func TestAgeingQueriesAreCheckedFirst(t *testing.T) {
+	h, s := unitHarness(t)
+	if w := h.raw(http.MethodGet, "/api/v1/vehicle-units/ageing-summary", "", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	expectError(t, h.get(s, "/vehicle-units/ageing-summary"), http.StatusForbidden, "FORBIDDEN")
+	h.grant(s, access.PermVehicleUnitView, access.PermAllLocations)
+	for query, field := range map[string]string{
+		"?originStatus=SOMETIMES":            "originStatus",
+		"?originStatus=MISSING&ageingBand=a": "ageingBand",
+		"?originStatus=MISSING&maxAgeDays=5": "originStatus",
+		// No band configuration is available here: a band filter cannot be applied.
+		"?ageingBand=0-30": "ageingBand",
+	} {
+		for _, path := range []string{"/vehicle-units", "/vehicle-units/ageing-summary"} {
+			e := expectError(t, h.get(s, path+query), http.StatusUnprocessableEntity, "VALIDATION_FAILED")
+			if len(e.Details) == 0 || e.Details[0].Field != field {
+				t.Errorf("%s%s: %+v", path, query, e.Details)
+			}
+		}
+	}
+	// No route writes an age or a band to a unit.
+	for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		if w := h.raw(m, "/api/v1/vehicle-units/ageing-summary", "{}", "application/json", &s); w.Code != http.StatusMethodNotAllowed &&
+			w.Code != http.StatusNotFound {
+			t.Errorf("%s ageing-summary: %d", m, w.Code)
+		}
+	}
+}

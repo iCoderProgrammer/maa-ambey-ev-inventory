@@ -1,0 +1,59 @@
+G-07 Opening stock import commit — FRONTEND verification evidence (2026-11-16)
+Base: dev @ b122188 with E-06, E-07, G-06 and G-07 backend uncommitted (preserved; snapshot taken before this task).
+Backend code not modified. No permission granted outside scratch databases; no stock created outside them.
+
+CONTRACT TESTS (previously failing by design after the G-07 backend)
+  openingStock.test.tsx "matches the server field for field" -> PASS (batch approval/commit, spec approvedOpeningStatuses;
+    the writes allowed are now upload + approval + commit; the preview module still has no commit call)
+  stock/timeline.test.tsx "matches the server contract" -> PASS (OPENING_BALANCE, OPENING_STOCK)
+  vehicles/vehicles.test.tsx "matches the server contract" -> PASS (source.openingStockBatchId/Reference/RowNumber)
+  NEW FAILURE, backend defect (not fixed, backend edits not allowed in this task):
+  vehicles/vehiclePages.test.tsx "matches the server contract for documents, movements and list parameters" -> FAIL:
+    docs/openapi VehicleUnitMovement.movementType/sourceType enums lack OPENING_BALANCE/OPENING_STOCK, which the server
+    sends (internal/modules/vehicles/types.go Movement struct tags not updated in G-07 backend). The UI schema follows
+    the server's actual values. Fix: add the two values to those tags, make swagger.
+
+FRONTEND CHECKS (ui/)
+  npx eslint . --max-warnings=0 -> 0 · npx prettier --check . -> all formatted
+  npx tsc -b -> 0 · npx tsc -p tsconfig.e2e.json --noEmit -> 0 · npx vite build --outDir <scratch> -> built (chunk-size warning, existing)
+  npx vitest run --maxWorkers=6 -> 38 files, 427 passed, 1 failed (the D-08 contract test above). After the walkthrough
+    fix: npx vitest run src/features/openingstock -> 39 passed.
+  npx vitest run (default parallelism, load 7-17) -> the same contract failure + 1-4 heavy tests timing out (5 s), a
+    different set each run (known CPU contention, see G-06 evidence); no timeout or config changed.
+  New: commitWorkflow.test.tsx 26 tests — G-07 contract vs swagger; approval: nothing preselected, empty-form validation
+    without request, confirmation dialog + cancel, exact body, batch re-read, server field errors, 403, no form without
+    approve permission; commit: not offered with fatal errors / no approval / no approved status / expired / rejected;
+    confirmation with server data and explicit tick; two same-frame clicks -> one POST with an osc-<uuid> key; 201
+    result; 200 replay; lost response -> GET status -> result, one POST; nothing committed -> retry and re-open reuse
+    the SAME key (3 POSTs, 1 key); failed status check -> nothing sent; existing commit after reload, no actions; 409
+    already committed -> shows that commit; 409 statuses/expired/approval/invalid state, 422 rows blocked (line +
+    column), 403 -> explained, nothing shown as committed; server count shown, not the browser's; no permission -> refused;
+    G-06 preview keeps its statement, has no commit button, links to the review page only for approve/commit holders.
+  Mutation checks (each made the named test fail, then reverted): double-click guard removed; key renewed per attempt;
+    status-check failure ignored.
+
+DEFECT FOUND IN THE BROWSER AND FIXED (frontend)
+  Before committing, the page asks GET …/commit. When that check failed (401 after the session ended) the page still
+  sent the POST (it got 401, nothing was created). Now a failed check stops and explains; regression test added.
+
+END-TO-END (Playwright headless, workers=1) — separate scratch stack: API :8198 (this tree) on scratch database g07_mig
+  (seeds, test users e2e.g07 / e2e.g07viewer, PROPOSED grants only, RBAC_ALLOW_PROPOSED_GRANTS=true, catalogue fixture
+  "G07 Test Brand", OPENING_STOCK_APPROVED_STATUSES=AVAILABLE,RECEIVED_PENDING_PDI as a test setting); Vite :5198.
+  The earlier stack (API :8197, e06_test at version 23) was not touched.
+  e2e/opening-stock-commit.e2e.ts + e2e/opening-stock.e2e.ts: 10 passed (desktop + mobile).
+  With e2e/ageing.e2e.ts (E-07) and e2e/reconciliation.e2e.ts (E-06) [+ vehicles/stock-movements specs skipped: their
+  fixtures are not on this stack]: 16 passed, 4 skipped. The commit spec aborts the first commit response after the
+  server committed: the page asks GET …/commit and shows the commit; 1 POST; reload shows it again; psql: 1 commit,
+  2 units with OPENING_BALANCE movements from the batch; vehicle page shows "OSI-… · line 3"; no sideways scroll; no
+  console errors. QUALITY_HOLD line -> "Nothing was committed." + STATUS_NOT_APPROVED, counts unchanged. Viewer refused.
+
+BROWSER (user's Chrome via Claude in Chrome, new tab, scratch stack :5198, account e2e.g07): PASS
+  Upload walkthrough-g07.csv -> OSI-000013 preview (statement kept, no commit button, "Review, approve and commit"
+  link) -> review page (batch ID, file, template, uploader, SHA-256, badges, counts, approved statuses) -> empty
+  approval refused field by field -> typed PC-WALKTHROUGH-1 / 2026-11-15, ticked both confirmations, "Yes" -> dialog
+  -> Record approval -> server approval shown -> commit dialog (batch, file, 2 lines, approval, statement) disabled until
+  ticked -> first attempt: session ended (another stack's tab on localhost shares the cookie) -> both requests 401,
+  nothing created -> found + fixed the pre-check defect -> signed in again -> commit -> "Committed · OSC-000005",
+  2 units -> reload: same result, no actions -> MAE-VEH-000023: provenance OSI-000013 · line 3, origin 1 Feb 2026
+  (Opening stock), movement "Opening balance (opening stock import)". Console: no errors. DB: 1 commit, 2 units,
+  2 OPENING_BALANCE movements; API log: one POST 201.

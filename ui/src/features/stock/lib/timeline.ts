@@ -14,6 +14,7 @@ export const timelineTypeLabels: Record<TimelineMovementType, string> = {
   PARTS_RECEIPT: 'Parts received',
   PARTS_ISSUE: 'Parts issued',
   COUNT_ADJUSTMENT: 'Count adjustment',
+  OPENING_BALANCE: 'Opening balance',
 }
 
 export const sourceTypeLabels: Record<TimelineSourceType, string> = {
@@ -22,6 +23,7 @@ export const sourceTypeLabels: Record<TimelineSourceType, string> = {
   STAFF_ACTION: 'Staff action',
   SUPPLIER_DELIVERY: 'Supplier delivery',
   STOCK_COUNT: 'Stock count',
+  OPENING_STOCK: 'Opening stock import',
 }
 
 export const itemTypeLabels: Record<TimelineItemType, string> = {

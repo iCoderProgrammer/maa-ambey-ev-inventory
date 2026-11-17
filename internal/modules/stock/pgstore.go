@@ -11,7 +11,12 @@ import (
 )
 
 // PGStore is the PostgreSQL Repository.
-type PGStore struct{ pool *pgxpool.Pool }
+type PGStore struct {
+	pool *pgxpool.Pool
+	// reconcileHook (tests only, export_test.go) runs inside a reconciliation's
+	// transaction between the vehicle and the parts queries.
+	reconcileHook func(context.Context, pgx.Tx) error
+}
 
 // NewPGStore returns a Repository backed by pool.
 func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool} }

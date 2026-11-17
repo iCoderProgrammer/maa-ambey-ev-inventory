@@ -46,6 +46,17 @@ const unit: VehicleUnit = {
   supplierName: 'Example Supplier',
   receivedDate: '2026-10-23',
   ageDays: 3,
+  ageing: {
+    status: 'AGED',
+    originDate: '2026-10-23',
+    originSource: 'GRN',
+    ageDays: 3,
+    bandKey: '0-30',
+    bandLabel: '0–30 days',
+    missingReason: null,
+    missingExplanation: null,
+    asOf: '2026-11-12',
+  },
   unitCost: '95000.00',
   costCurrency: 'INR',
   costHidden: false,
@@ -69,6 +80,9 @@ const detail: VehicleUnitDetail = {
     goodsReceiptUnitId: 'gu1',
     supplierReference: 'DC-1',
     receivedDate: '2026-10-23',
+    openingStockBatchId: null,
+    openingStockBatchReference: null,
+    openingStockRowNumber: null,
   },
   events: [
     {
@@ -164,6 +178,8 @@ describe('vehicle unit API client', () => {
   it('exposes no create, update or delete call for the read-only API', () => {
     const calls = Object.entries(api).filter(([, v]) => typeof v === 'function')
     expect(calls.map(([k]) => k).sort()).toEqual([
+      'getAgeingConfiguration',
+      'getAgeingSummary',
       'getVehicleUnit',
       'listVehicleUnitMovements',
       'listVehicleUnits',

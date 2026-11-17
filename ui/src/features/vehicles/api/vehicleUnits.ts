@@ -32,8 +32,48 @@ export const unitStatusSchema = z.enum([
 ])
 export type VehicleUnitStatus = z.infer<typeof unitStatusSchema>
 
-/** Where a unit came from; GOODS_RECEIPT is the only source so far. */
-export const unitSourceTypeSchema = z.enum(['GOODS_RECEIPT'])
+/** Where a unit came from: a posted goods receipt, or a committed opening-stock batch (G-07). */
+export const unitSourceTypeSchema = z.enum(['GOODS_RECEIPT', 'OPENING_STOCK'])
+
+/**
+ * Stock ageing (E-07; ADR-029). Calculated by the server on every read — the
+ * browser never derives an age or a band. AGED: a reliable origin date (the
+ * posted goods receipt's received date; opening stock once it exists) and an
+ * age in whole days to the business date (asOf); bandKey/bandLabel null only
+ * when no band configuration exists. MISSING_ORIGIN: no age and no band, with
+ * the reason.
+ */
+export const missingOriginReasonSchema = z.enum([
+  'UNSUPPORTED_SOURCE',
+  'GRN_NOT_POSTED',
+  'GRN_DATE_MISMATCH',
+  'OPENING_NOT_APPROVED',
+  'NO_ORIGIN_DATE',
+  'FUTURE_ORIGIN_DATE',
+])
+export type MissingOriginReason = z.infer<typeof missingOriginReasonSchema>
+
+export const stockAgeingSchema = z
+  .object({
+    status: z.enum(['AGED', 'MISSING_ORIGIN']),
+    originDate: z.iso.date().nullable(),
+    originSource: z.enum(['GRN', 'OPENING_STOCK']).nullable(),
+    ageDays: z.number().int().min(0).nullable(),
+    bandKey: z.string().nullable(),
+    bandLabel: z.string().nullable(),
+    missingReason: missingOriginReasonSchema.nullable(),
+    missingExplanation: z.string().nullable(),
+    asOf: z.iso.date(),
+  })
+  // An age exists exactly when the origin is reliable; a missing origin has no age or band.
+  .refine(
+    (a) =>
+      a.status === 'AGED'
+        ? a.ageDays !== null && a.originSource !== null && a.missingReason === null
+        : a.ageDays === null && a.bandKey === null && a.missingReason !== null,
+    { message: 'ageing is inconsistent', path: ['status'] },
+  )
+export type StockAgeing = z.infer<typeof stockAgeingSchema>
 
 export const vehicleUnitSchema = z
   .object({
@@ -61,8 +101,9 @@ export const vehicleUnitSchema = z
     supplierId: z.string().nullable(),
     supplierName: z.string().nullable(),
     receivedDate: z.iso.date(),
-    /** Whole days since receivedDate (server date). Ageing policy/buckets are not defined here (E-07). */
-    ageDays: z.number().int().min(0),
+    /** Same as ageing.ageDays (E-07): null without a reliable origin date — never a made-up 0. */
+    ageDays: z.number().int().min(0).nullable(),
+    ageing: stockAgeingSchema,
     /** Acquisition cost excluding tax (decimal string); null when hidden. */
     unitCost: z
       .string()
@@ -79,6 +120,10 @@ export const vehicleUnitSchema = z
     message: 'a hidden cost must not carry an amount',
     path: ['unitCost'],
   })
+  .refine((u) => u.ageDays === u.ageing.ageDays, {
+    message: 'ageDays must equal ageing.ageDays',
+    path: ['ageDays'],
+  })
 export type VehicleUnit = z.infer<typeof vehicleUnitSchema>
 
 export const unitSourceSchema = z.object({
@@ -94,6 +139,10 @@ export const unitSourceSchema = z.object({
   goodsReceiptUnitId: z.string().nullable(),
   supplierReference: z.string().nullable(),
   receivedDate: z.iso.date(),
+  /** Opening stock (G-07): the import batch, its OSI reference and the file line. */
+  openingStockBatchId: z.string().nullable(),
+  openingStockBatchReference: z.string().nullable(),
+  openingStockRowNumber: z.number().int().nullable(),
 })
 export type VehicleUnitSource = z.infer<typeof unitSourceSchema>
 
@@ -171,6 +220,9 @@ export interface VehicleUnitListParams {
   /** Whole days; a non-numeric value is sent as typed so the server reports it (422). */
   minAgeDays?: number | string
   maxAgeDays?: number | string
+  /** E-07: a band key of the current ageing configuration; KNOWN/MISSING origin date. */
+  ageingBand?: string
+  originStatus?: 'KNOWN' | 'MISSING'
   sort?: VehicleUnitSort
   page?: number
   limit?: number
@@ -210,6 +262,7 @@ export const unitMovementTypeSchema = z.enum([
   'REJECT',
   'DISPLAY_ON',
   'DISPLAY_OFF',
+  'OPENING_BALANCE',
 ])
 export type VehicleUnitMovementType = z.infer<typeof unitMovementTypeSchema>
 
@@ -229,7 +282,7 @@ export const unitMovementSchema = z.object({
   toLocationId: z.string().nullable(),
   toLocationCode: z.string().nullable(),
   toLocationName: z.string().nullable(),
-  sourceType: z.enum(['GOODS_RECEIPT', 'PDI_INSPECTION', 'STAFF_ACTION']),
+  sourceType: z.enum(['GOODS_RECEIPT', 'PDI_INSPECTION', 'STAFF_ACTION', 'OPENING_STOCK']),
   sourceId: z.string().nullable(),
   sourceReference: z.string().nullable(),
   actorId: z.string(),
@@ -260,4 +313,79 @@ export function listVehicleUnitMovements(
     movementPage,
     { signal },
   )
+}
+
+/** GET /vehicle-units/ageing-summary filters: the list filters without sort and paging. */
+export type AgeingSummaryParams = Omit<VehicleUnitListParams, 'sort' | 'page' | 'limit'>
+
+const bandSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  minDays: z.number().int().min(0),
+  maxDays: z.number().int().min(0).nullable(),
+})
+export type AgeingBand = z.infer<typeof bandSchema>
+
+/**
+ * Ageing of the units the filters select (E-07), counted by the server with the
+ * same rules as each unit's ageing: total = withOrigin + missingOrigin.
+ */
+export const ageingSummarySchema = z
+  .object({
+    asOf: z.iso.date(),
+    timeZone: z.string(),
+    configured: z.boolean(),
+    bandSet: z
+      .object({
+        version: z.number().int().positive(),
+        status: z.enum(['PROPOSED', 'APPROVED']),
+        source: z.string(),
+      })
+      .nullable(),
+    total: z.number().int().min(0),
+    withOrigin: z.number().int().min(0),
+    missingOrigin: z.number().int().min(0),
+    bands: z.array(bandSchema.extend({ count: z.number().int().min(0) })),
+    unbanded: z.number().int().min(0),
+    missingByReason: z.record(z.string(), z.number().int().min(0)),
+  })
+  .refine((s) => s.total === s.withOrigin + s.missingOrigin, {
+    message: 'total must be withOrigin + missingOrigin',
+    path: ['total'],
+  })
+export type AgeingSummary = z.infer<typeof ageingSummarySchema>
+
+export function getAgeingSummary(
+  params: AgeingSummaryParams = {},
+  signal?: AbortSignal,
+): Promise<AgeingSummary> {
+  return apiRequest(`${base}/ageing-summary${queryString(params)}`, ageingSummarySchema, { signal })
+}
+
+/** GET /stock-ageing/configuration: the current bands (PROPOSED until approved) and business calendar. */
+export const ageingConfigurationSchema = z.object({
+  configured: z.boolean(),
+  bandSet: z
+    .object({
+      version: z.number().int().positive(),
+      status: z.enum(['PROPOSED', 'APPROVED']),
+      source: z.string(),
+      createdById: z.string().nullable(),
+      createdByName: z.string().nullable(),
+      createdAt: stamp,
+      approvedById: z.string().nullable(),
+      approvedByName: z.string().nullable(),
+      approvedAt: stamp.nullable(),
+      approvalReference: z.string().nullable(),
+      bands: z.array(bandSchema),
+    })
+    .nullable(),
+  timeZone: z.string(),
+  asOf: z.iso.date(),
+  boundaryRule: z.string(),
+})
+export type AgeingConfiguration = z.infer<typeof ageingConfigurationSchema>
+
+export function getAgeingConfiguration(signal?: AbortSignal): Promise<AgeingConfiguration> {
+  return apiRequest('/stock-ageing/configuration', ageingConfigurationSchema, { signal })
 }

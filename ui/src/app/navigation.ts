@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
+  FileUp,
   History,
   LayoutDashboard,
   ListChecks,
@@ -11,6 +12,7 @@ import {
   PackageCheck,
   Paperclip,
   Receipt,
+  Scale,
   Settings,
   ShoppingCart,
   Tags,
@@ -98,6 +100,24 @@ export const navigation: NavSection[] = [
         summary:
           'Stock counts at a location, approval by another person and the adjustments it posts.',
         permission: 'stock.adjustment.view',
+      },
+      {
+        label: 'Stock Reconciliation',
+        path: '/inventory/reconciliation',
+        icon: Scale,
+        backlog: [],
+        summary:
+          'Read-only check that vehicle units and parts balances agree with the stock movement ledger.',
+        permission: 'stock.reconciliation.view',
+      },
+      {
+        label: 'Opening Stock Import',
+        path: '/inventory/opening-stock',
+        icon: FileUp,
+        backlog: [],
+        summary:
+          'Template, upload and row-by-row validation preview of opening stock. Creates no stock (commit is G-07).',
+        permission: 'stock.import.preview',
       },
     ],
   },

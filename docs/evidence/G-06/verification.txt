@@ -1,0 +1,73 @@
+G-06 Opening stock import preview — verification evidence (2026-11-16)
+Base: dev @ b122188 with E-06 + E-07 uncommitted (preserved; baseline diff/status snapshot taken before G-06).
+Throwaway PostgreSQL 18 container only (e06-pg, 127.0.0.1:55498); scratch databases per Go test. Shared dev DB untouched.
+A-04 NOT complete: no client template file exists; OS-IMPORT-1 columns come from A-04's field list + the schema (OQ-48).
+
+BACKEND
+  gofmt -l cmd internal -> no files · go vet ./... -> 0 · go mod tidy -diff -> 0 · make swagger + swagger-check -> 0
+  go build ./... -> 0 · golangci-lint NOT RUN (not installed)
+  TEST_DATABASE_URL= go test -count=1 ./...                       -> all packages ok
+  TEST_DATABASE_URL=<throwaway> REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./... -> all 24 packages ok
+      (stock = E-06, ageing + vehicles = E-07/D-04/D-08, receiving = D-07, attachments = B-09, database = migrations)
+  Migration 000023: up 23 -> down 1 (import tables gone) -> up 23.
+  New tests (internal/modules/openingstock):
+    unit: TestTemplateHasNoDataAndParsesBack, TestParseFileIssues (not UTF-8, no marker, old version, no header,
+      missing/duplicate/unknown/empty column, stray quote, no rows, too many rows, empty), TestParseRowsKeepLinesAndValues
+      (BOM, CRLF, quoted multi-line cell, blank line skipped, column order, field-count mismatch), TestValidateEveryRule
+      (32 cases: every catalogue/location/status/date/cost/supplier/identifier rule, in-file duplicates naming the
+      other line, date suggestion without correction)
+    integration (PostgreSQL, HTTP): TestPreviewValidatesEveryRowAndChangesNoStock (template + specification; 15-row file
+      with valid, warning, existing chassis, open-draft chassis, in-file twins, existing motor, unknown/pending brand,
+      unknown model, model of other brand, pending variant, pending colour, out-of-scope and inactive location, invalid
+      status/future date/missing provenance/bad cost -> statuses and field:code per line; normalised + source values;
+      file stored privately byte for byte as an attachment owned by the batch; audit; 15 business tables digest
+      unchanged; filters/paging; 422 filters; DB refuses UPDATE/DELETE of previews), TestFileLevelRefusals (xlsx, zip
+      named .csv, pdf, .txt, declared image -> 415; empty 422; too large 413; no key 422; nothing stored; missing/
+      duplicate/unknown columns, no marker, no rows, too many rows -> REJECTED batch, 0 rows),
+      TestPermissionsVisibilityAndExpiry (401/403; other importer 404; all-locations sees; expired after TTL),
+      TestIdempotentAndConcurrentUploads (8 concurrent same key -> 1 batch, 1 attachment; replay 200 +
+      Idempotent-Replayed; same key other file 409; corrected file new batch, first unchanged)
+    internal/modules/attachments TestCanSeeOpeningStockImportFiles (owner rule; generic allow-list still refuses CSV)
+  Defects found and fixed during testing: nil file-issue list stored as JSON null (DB CHECK refused it).
+
+FRONTEND (ui/)
+  npx eslint . --max-warnings=0 -> 0 · npx prettier --check . -> all formatted · tsc -b and tsc -p tsconfig.e2e.json -> 0
+  npx vite build --outDir <scratch> -> built (existing >500 kB chunk warning)
+  npx vitest run (default parallelism): runs at start load ~2: 37 files / 402 passed (twice). Later runs with the
+    throwaway stack, Chrome and back-to-back runs (load 11-16 on 12 cores): 2-3 different heavy tests timed out each
+    run (5 s). Every one passes in isolation. npx vitest run --maxWorkers=6 -> 37 files / 403 passed.
+  New: src/features/openingstock/openingStock.test.tsx 13 tests (contract vs swagger, no commit call; upload with
+    Idempotency-Key and progress; commitAvailable=true refused; template download; upload -> preview; client-side
+    xlsx refusal; 415 explained, nothing stored; network loss retried with the SAME key; 403; summary/rows/duplicate
+    highlight/no commit; server-side filters + empty filter; same-frame filter changes (mutation-checked: fails with
+    the old useListParams); row details with suggestion and source; rejected file and expired preview; 404)
+  Defect found and fixed: the shared useListParams same-frame race (logged in E-02) dropped a cleared filter on the
+    preview page; the page now uses E-02's useUrlFilters (regression test above).
+
+E-07 VITEST TIMEOUT INVESTIGATION
+  Slowest tests inside a full default run on an idle machine: vehiclePages "combines filters" 3987 ms, parts SKU
+  editor 3462 ms, timeline filters 3369 ms, D-05 duplicateIdentifier 3097-3365 ms (≈1.2 s in isolation). 12 jsdom
+  workers on 12 cores leave ~1 s headroom under the 5 s default; any extra load (dev stack, Chrome, Docker, Go
+  tests) pushes a varying subset over. Cause: CPU contention + long per-keystroke userEvent tests, not test logic or
+  product code. Not changed here (out of G-06 scope; no timeout raised). Recommendation: cap Vitest workers (e.g.
+  maxWorkers 50%) in CI/dev, and/or shorten the heaviest tests (paste instead of per-key typing).
+
+END-TO-END (Playwright headless; API :8197 from this tree, Vite :5197)
+  e2e/opening-stock.e2e.ts desktop + Pixel 7: PASS (after the useListParams fix). Template download
+    (opening-stock-template-OS-IMPORT-1.csv); xlsx refused in the browser and 415 from the API; controlled CSV of 8
+    rows (valid, already-registered chassis, in-file twins, pending launch brand "Lectrix EV", unknown brand, unknown
+    location, future date) -> summary 8 / 1 valid / 3 duplicates, each row's message, server-side filters, row
+    details, no commit button; psql counts of vehicle_units/stock_movements/stock_item_balances/goods_receipts + units
+    digest unchanged; no sideways scroll; no console errors. Refused without the permission (page + API 403).
+  Regression in the same run: e2e/ageing.e2e.ts (E-07) and e2e/reconciliation.e2e.ts (E-06) desktop + Pixel 7: PASS.
+  Total: 10 passed.
+
+BROWSER (user's Chrome via Claude in Chrome, throwaway stack, account e2e.recon): PASS
+  Wizard (note, steps, template card, upload card, previous previews) -> chose walkthrough CSV -> Upload and validate
+  -> OSI-000005: 6 rows, 1 valid, 5 errors, 3 duplicate rows, 1 unresolved; "Preview completed. No inventory records
+  have been created or modified."; line 4 existing chassis highlighted, lines 5/6 twins, line 7 Ceeon India BLOCKED
+  (pending verification) + unknown model, line 8 four cell errors; line 8 details with suggestions and values as
+  uploaded; Duplicates filter -> lines 4, 5, 6. Console: no errors. Network: one POST 201; three 503 = dev-mode
+  aborted first requests (StrictMode, documented in B-01/B-03), each followed by 200.
+  DB counts before/after: vehicle_units/stock_movements/stock_item_balances/goods_receipts 28/44/16/28 unchanged;
+  import batches 4 -> 5.

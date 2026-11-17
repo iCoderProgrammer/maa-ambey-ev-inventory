@@ -6,11 +6,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/access"
+	"github.com/iCoderProgrammer/maa-ambey-ev-inventory/internal/modules/ageing"
 )
 
 // D-08: vehicle list search, filters, ordering and age; detail documents;
@@ -83,8 +85,13 @@ func TestSearchCoversEveryStoredIdentifier(t *testing.T) {
 func TestFiltersCombineAcrossModelDatesAgeAndStatus(t *testing.T) {
 	f := setupD08(t)
 	f.h.scope(f.viewer, f.locL1)
-	ageA := f.count(t, `SELECT current_date - DATE '2026-01-15'`)
-	ageO := f.count(t, `SELECT current_date - DATE '2026-03-01'`)
+	// Ages count to the business date (E-07: business time zone, not the database's date).
+	cal, err := ageing.NewCalendar(ageing.DefaultTimeZone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ageA := ageing.DaysBetween(time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), cal.Today())
+	ageO := ageing.DaysBetween(time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), cal.Today())
 	for query, want := range map[string][]string{
 		"":                     {f.a1, f.b1, f.o1},
 		"?modelId=" + f.modelA: {f.a1, f.o1},
@@ -129,8 +136,8 @@ func TestFiltersCombineAcrossModelDatesAgeAndStatus(t *testing.T) {
 		if u.ID == f.o1 {
 			want = ageO
 		}
-		if u.AgeDays != want {
-			t.Errorf("%s: ageDays %d, want %d", u.UnitNumber, u.AgeDays, want)
+		if u.AgeDays == nil || *u.AgeDays != want || u.Ageing.AgeDays == nil || *u.Ageing.AgeDays != want {
+			t.Errorf("%s: ageDays %v, want %d", u.UnitNumber, u.AgeDays, want)
 		}
 	}
 }

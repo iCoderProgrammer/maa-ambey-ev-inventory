@@ -39,15 +39,15 @@ import (
 var (
 	TimelineItemTypes     = []string{ItemVehicleUnit, ItemStockItem}
 	TimelineMovementTypes = []string{TypeReceipt, TypePDIPass, TypeQualityHold, TypeReject, TypeDisplayOn, TypeDisplayOff,
-		TypePartsReceipt, TypePartsIssue, TypeCountAdjustment}
-	TimelineSourceTypes = []string{SourceGoodsReceipt, SourcePDIInspection, SourceStaffAction, SourceSupplierDelivery, SourceStockCount}
+		TypePartsReceipt, TypePartsIssue, TypeCountAdjustment, TypeOpeningBalance}
+	TimelineSourceTypes = []string{SourceGoodsReceipt, SourcePDIInspection, SourceStaffAction, SourceSupplierDelivery, SourceStockCount, SourceOpeningStock}
 )
 
 // TimelineMovement is one ledger entry as the caller may see it.
 type TimelineMovement struct {
 	ID           string    `json:"id"`
 	ItemType     string    `json:"itemType" enums:"VEHICLE_UNIT,STOCK_ITEM" example:"VEHICLE_UNIT"`
-	MovementType string    `json:"movementType" enums:"RECEIPT,PDI_PASS,QUALITY_HOLD,REJECT,DISPLAY_ON,DISPLAY_OFF,PARTS_RECEIPT,PARTS_ISSUE,COUNT_ADJUSTMENT" example:"PDI_PASS"`
+	MovementType string    `json:"movementType" enums:"RECEIPT,PDI_PASS,QUALITY_HOLD,REJECT,DISPLAY_ON,DISPLAY_OFF,PARTS_RECEIPT,PARTS_ISSUE,COUNT_ADJUSTMENT,OPENING_BALANCE" example:"PDI_PASS"`
 	CreatedAt    time.Time `json:"createdAt"`
 	// VEHICLE_UNIT rows: the unit; null on STOCK_ITEM rows.
 	VehicleUnit *TimelineUnit `json:"vehicleUnit" extensions:"x-nullable"`
@@ -67,7 +67,7 @@ type TimelineMovement struct {
 	ToLocationID     *string `json:"toLocationId" extensions:"x-nullable"`
 	ToLocationCode   *string `json:"toLocationCode" extensions:"x-nullable" example:"SR1"`
 	ToLocationName   *string `json:"toLocationName" extensions:"x-nullable"`
-	SourceType       string  `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION,SUPPLIER_DELIVERY,STOCK_COUNT" example:"PDI_INSPECTION"`
+	SourceType       string  `json:"sourceType" enums:"GOODS_RECEIPT,PDI_INSPECTION,STAFF_ACTION,SUPPLIER_DELIVERY,STOCK_COUNT,OPENING_STOCK" example:"PDI_INSPECTION"`
 	// SourceID/SourceReference: null when the source has none, or when sourceHidden is true.
 	SourceID        *string `json:"sourceId" extensions:"x-nullable"`
 	SourceReference *string `json:"sourceReference" extensions:"x-nullable" example:"PDI-000001"`

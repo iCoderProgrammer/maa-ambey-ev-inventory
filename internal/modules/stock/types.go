@@ -29,6 +29,9 @@ const (
 	TypeReject      = "REJECT"       // QUALITY_HOLD -> REJECTED (caller: PDI, D-06)
 	TypeDisplayOn   = "DISPLAY_ON"   // AVAILABLE -> DISPLAY (API)
 	TypeDisplayOff  = "DISPLAY_OFF"  // DISPLAY -> AVAILABLE (API)
+	// TypeOpeningBalance: an opening-stock unit enters the ledger (G-07): none ->
+	// its opening status, 0 -> 1, sourced from its import batch.
+	TypeOpeningBalance = "OPENING_BALANCE"
 )
 
 // Transition is one approved lifecycle edge (System Architecture §6).
@@ -53,6 +56,8 @@ const (
 	SourceStaffAction  = "STAFF_ACTION"
 	// SourcePDIInspection: a PDI movement recorded by an inspection (D-06).
 	SourcePDIInspection = "PDI_INSPECTION"
+	// SourceOpeningStock: an OPENING_BALANCE from a committed opening-stock import batch (G-07).
+	SourceOpeningStock = "OPENING_STOCK"
 )
 
 // MoveSource names the record a vehicle movement comes from. Only PDI
