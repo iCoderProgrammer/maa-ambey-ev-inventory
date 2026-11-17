@@ -45,3 +45,22 @@ NO INVENTORY MUTATION: no vehicle unit, movement, balance, approval of real data
 The only approval written was by the E2E test on the scratch DB (test user, placeholder data); no commit was run
 in the scratch stack. (TestPreflightPermissionsAndReadOnlyTransaction commits placeholder rows inside its own
 per-test throwaway database under a test status list, to prove a committed batch is reported as final.) Production config unchanged (OPENING_STOCK_APPROVED_STATUSES empty, no role grants).
+
+ADDENDUM 2026-11-17 — G-06 E2E fixture repair + H-08 regression (uncommitted; H-08 itself committed as 408c18d)
+  Root cause: G-06 main E2E used the first existing vehicle unit, falling back to chassis "NO-EXISTING-UNIT" (valid
+  on an empty database). Fixed by registering a test-owned unit via PO -> approval -> goods receipt -> posting
+  (e2e/receivedUnit.ts, documented E2E_PO_* fixture applied to h08_scratch from
+  docs/evidence/BROWSER-TEST-2026-11-11/po-fixture.sql with the h08 test users; PROPOSED scratch grants:
+  inventory_manager + catalogue.view, purchase_orders.view/manage, goods_receipts.view/manage/post;
+  accountant + purchase_orders.view/approve).
+  Tooling note: /snap/bin/go began returning no output (exit 0); all Go checks below were re-run with
+  /snap/go/current/bin/go (go1.27.4). Results through the wrapper were discarded.
+  gofmt empty · go vet ok · swagger-check ok · docs/openapi no drift · go build ok
+  go test ./... (unit) ok · integration (h08_scratch) all 24 packages ok
+  ui: typecheck ok · lint ok (after fixing opening-stock-preflight.e2e.ts) · format ok · build ok
+  vitest 39 files / 438 tests ok (openingstock: 3 files / 48 tests)
+  playwright: opening-stock.e2e.ts 4 passed (twice, alone); opening-stock-preflight.e2e.ts 6 passed (alone);
+    opening-stock + preflight + reconciliation together 14 passed.
+  Not run: opening-stock-commit.e2e.ts (G-07: needs stock.import.approve/commit on the importer and a configured
+    approved-status list - not configured, per instruction), ageing.e2e.ts (E-07: needs E2E_AGEING_PO, a receipt-ready
+    approved PO fixture named by ID - not created, per instruction).

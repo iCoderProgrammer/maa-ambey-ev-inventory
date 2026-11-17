@@ -288,7 +288,11 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   `e2e/opening-stock.e2e.ts` (G-06) uses `E2E_CATALOGUE_*` with `stock.import.preview` and `vehicle_units.view` and a
   location in scope, `E2E_CATALOGUE_VIEWER_*` **without** `stock.import.preview`, `E2E_OS_BRAND`/`E2E_OS_MODEL`/
   `E2E_OS_VARIANT` naming an ACTIVE catalogue entry (throwaway fixture) and the `E2E_RECON_DB_*` variables (row counts
-  only — it writes nothing with psql). It uploads a controlled CSV and checks that no stock table changed. The API reads
+  only — it writes nothing with psql). Its "already registered" chassis is a unit the test registers itself through
+  a goods receipt posting (`e2e/receivedUnit.ts`), so it also needs `E2E_PRICE_APPROVER_*` (approves the PO), the
+  `E2E_PO_*` eligible fixture and, on `E2E_CATALOGUE_*`, `catalogue.view`, `purchase_orders.view/manage` and
+  `goods_receipts.view/manage/post` (PROPOSED grants); it is skipped without them. This creates one posted receipt
+  and one vehicle unit per run (append-only, never deleted). It uploads a controlled CSV and checks that no stock table changed. The API reads
   `IMPORT_MAX_BYTES`, `IMPORT_MAX_ROWS` and `IMPORT_PREVIEW_TTL`. Throwaway database only.
   `e2e/opening-stock-commit.e2e.ts` (G-07) uses the same variables, with `E2E_CATALOGUE_*` also holding
   `stock.import.approve` and `stock.import.commit` (PROPOSED grants, `RBAC_ALLOW_PROPOSED_GRANTS=true`), and an API

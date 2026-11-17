@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { hasReceiptFixture, registerUnitThroughReceipt } from './receivedUnit'
 import { hasAccount, signIn, watchConsole } from './support'
 
 /**
@@ -12,7 +13,11 @@ import { hasAccount, signIn, watchConsole } from './support'
  *
  * THROWAWAY DATABASE ONLY. Needs E2E_CATALOGUE_* with stock.import.preview and
  * vehicle_units.view and one location in scope; E2E_OS_BRAND / E2E_OS_MODEL /
- * E2E_OS_VARIANT naming an ACTIVE catalogue entry (fixture) and E2E_RECON_DB_*
+ * E2E_OS_VARIANT naming an ACTIVE catalogue entry (fixture) and E2E_RECON_DB_*.
+ * The "already registered" chassis is the test's own unit, registered through a
+ * goods receipt posting (./receivedUnit.ts): E2E_CATALOGUE also needs the D-07
+ * grants, E2E_PRICE_APPROVER_* approves its PO and E2E_PO_* names the eligible
+ * fixture. The row counts are taken after that unit exists.
  * for the row counts. Placeholder identifiers only.
  */
 
@@ -82,19 +87,18 @@ function line(
   ].join(',')
 }
 
-async function existingChassis(page: Page): Promise<string | null> {
-  const res = await page.request.get('/api/v1/vehicle-units?limit=1')
-  const body = (await res.json()) as { data?: { items: { chassisNumber: string | null }[] } }
-  return body.data?.items[0]?.chassisNumber ?? null
-}
-
 test.describe('opening stock import preview', () => {
   test('template, refused xlsx, row-level preview, no commit, no stock change', async ({
     page,
+    browser,
   }, info) => {
     test.skip(
       !hasAccount('catalogue') || !fixture.brand,
       'Set E2E_CATALOGUE_* and E2E_OS_* (throwaway fixture)',
+    )
+    test.skip(
+      !hasAccount('priceApprover') || !hasReceiptFixture(),
+      'Set E2E_PRICE_APPROVER_* and E2E_PO_* (throwaway fixture for the registered unit)',
     )
     test.skip(!db.container || !db.user || !db.name, 'Set E2E_RECON_DB_* (throwaway database only)')
     test.setTimeout(120_000)
@@ -106,7 +110,14 @@ test.describe('opening stock import preview', () => {
     }
     const loc = me.data.locationScope.locations.at(0)?.code ?? ''
     expect(loc, 'E2E_CATALOGUE needs a location in scope').not.toBe('')
-    const taken = (await existingChassis(page)) ?? 'NO-EXISTING-UNIT'
+    // A registered vehicle unit owned by this test (D-07 posting), for line 4.
+    const taken = `OS-${tag}-REG`
+    const approverContext = await browser.newContext()
+    const approver = await approverContext.newPage()
+    await signIn(approver, '/', 'priceApprover')
+    await registerUnitThroughReceipt(page, approver, tag, taken)
+    await approverContext.close()
+    await page.goto('/inventory/opening-stock')
     const before = businessCounts()
 
     // Step 1: template.

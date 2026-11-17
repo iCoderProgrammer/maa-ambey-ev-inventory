@@ -136,10 +136,10 @@ test.describe('opening stock reconciliation preflight (H-08)', () => {
     const me = (await (await page.request.get('/api/v1/me')).json()) as {
       data: { locationScope: { locations: { code: string }[] } }
     }
-    const [locA, locB] = me.data.locationScope.locations.map((l) => l.code)
-    expect(locA && locB, 'E2E_CATALOGUE needs two locations in scope').toBeTruthy()
-    const a = locA ?? ''
-    const b = locB ?? ''
+    const codes = me.data.locationScope.locations.map((l) => l.code)
+    expect(codes.length, 'E2E_CATALOGUE needs two locations in scope').toBeGreaterThanOrEqual(2)
+    const a = codes.at(0) ?? ''
+    const b = codes.at(1) ?? ''
 
     const lines = [
       line(fixture, `PF-${tag}-1`, a), // 3 valid

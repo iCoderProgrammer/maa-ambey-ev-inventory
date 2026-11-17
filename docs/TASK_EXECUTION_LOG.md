@@ -3560,6 +3560,23 @@ Modified: `internal/modules/openingstock/{store.go (interface),http.go (route),e
 #### Final status
 INCOMPLETE — readiness + preflight done; H-08 blocked on client data and owner decisions. Next task not started.
 
+### G-06 E2E fixture repair + H-08 regression (2026-11-17; user-requested; not a registry task)
+
+- H-08 preflight committed as `408c18d` (on user request). This follow-up is uncommitted.
+- **Root cause:** `e2e/opening-stock.e2e.ts` borrowed the first existing vehicle unit for its "already registered"
+  line and fell back to the literal chassis `NO-EXISTING-UNIT` when none existed; on a fresh database that line is
+  VALID (2 valid instead of 1, 2 duplicates instead of 3) and both main runs failed.
+- **Fix (test only):** new `e2e/receivedUnit.ts` registers a test-owned unit through the supported D-02 → D-03 →
+  D-07 path (PO, second-user approval, goods receipt, posting) using the documented `E2E_PO_*` fixture; the G-06
+  test uses that chassis and takes its row counts afterwards. Assertions unchanged. No production code, rules,
+  migrations or grants changed. Posted stock is append-only, so the test unit is not deleted.
+- Also fixed: a lint error in the committed `e2e/opening-stock-preflight.e2e.ts` (unnecessary `??`), missed earlier
+  because that file did not exist when lint last ran in the H-08 session.
+- Results: G-06 E2E 4/4 (alone, twice), H-08 E2E 6/6, combined G-06 + H-08 + E-06 14/14; Vitest 438/438; Go unit +
+  integration all packages ok; typecheck, lint, format, build, swagger-check, OpenAPI drift ok. G-07 and E-07 E2E not
+  run (prerequisites below). Evidence: `docs/evidence/H-08/verification.txt` (addendum).
+- Status: G-06 unchanged (COMPLETE, technical) with its main E2E now re-verified; H-08 unchanged (INCOMPLETE).
+
 <!-- Copy this template for each started task. Update after every stage. -->
 
 <!--
