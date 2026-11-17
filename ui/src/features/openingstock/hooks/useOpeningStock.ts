@@ -10,6 +10,7 @@ import {
   type RowParams,
 } from '../api/openingStock'
 import { approveImport, commitImport, getImportCommit, type ApprovalInput } from '../api/commit'
+import { getPreflight } from '../api/preflight'
 
 /** Opening stock import preview queries (G-06). The only write is the upload, which creates no stock. */
 export const openingStockKeys = {
@@ -19,6 +20,7 @@ export const openingStockKeys = {
   batch: (id: string) => [...openingStockKeys.all, 'batch', id] as const,
   rows: (id: string, p: RowParams) => [...openingStockKeys.all, 'rows', id, p] as const,
   commit: (id: string) => [...openingStockKeys.all, 'commit', id] as const,
+  preflight: (id: string) => [...openingStockKeys.all, 'preflight', id] as const,
 }
 
 export function useImportSpecification({ enabled = true } = {}) {
@@ -73,6 +75,21 @@ export function useImportCommit(id: string, { enabled = true } = {}) {
     queryKey: openingStockKeys.commit(id),
     queryFn: ({ signal }) => getImportCommit(id, signal),
     enabled,
+    retry: false,
+  })
+}
+
+/**
+ * The read-only reconciliation preflight (H-08). Runs each time the page opens
+ * and when the user asks; never refreshed in the background (it reads the
+ * stored file and the current database each time).
+ */
+export function usePreflight(id: string, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: openingStockKeys.preflight(id),
+    queryFn: ({ signal }) => getPreflight(id, signal),
+    enabled,
+    refetchOnWindowFocus: false,
     retry: false,
   })
 }

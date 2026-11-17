@@ -1022,6 +1022,37 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 
 ---
 
+## ADR-032 — Opening stock reconciliation preflight (H-08, readiness only)
+
+- **Status:** Accepted (technical, read only). H-08 itself is **not complete**: the physical-count format and
+  sign-off, the actual client file, OQ-47, OQ-49, A-04 and the RB-5 grants are pending (OQ-50). Nothing here imports,
+  approves or commits stock, and no production commit is enabled.
+- **Route.** `GET /api/v1/opening-stock-imports/{id}/preflight`, readable with any of `stock.import.preview`,
+  `stock.import.approve`, `stock.import.commit` (no new permission, no grant, no migration). Same visibility as the
+  batch (uploader, or every location); rows are validated with the caller's location scope.
+- **Reuse, not duplication.** It runs exactly the G-07 commit checks — stored file re-read (SHA-256, size, template,
+  identical staged lines: `sameSource`), `Validate` against the current database, `rowGate` — but reads through one
+  READ ONLY, REPEATABLE READ transaction without row locks (`PreflightSnapshot`), writes no audit event and never
+  calls approval or commit. A write inside it fails with SQLSTATE 25006 (tested). G-06/G-07 code and rules unchanged.
+- **Categories (row).** BLOCKING_ERROR (error now, cost not positive, or status excluded by a configured list) >
+  UNVERIFIED (catalogue entry not verified/active) > MANUAL_RECONCILIATION (result differs from the stored preview:
+  CHANGED_SINCE_PREVIEW, or not eligible at preview but valid now) > WARNING (never accepted, OQ-49) > VALID.
+  `changedSincePreview` flags any row whose status/resolution changed since the upload. While
+  `OPENING_STOCK_APPROVED_STATUSES` is empty the status gate is reported once as a batch blocker (OQ-47), not on
+  every row.
+- **Quantities.** Rows per location × brand × model × variant × status, exactly as uploaded: imported (file) and
+  valid today. `physicalCount` and `difference` are always null: the system holds no counted quantities, and their
+  format (per chassis list or per group count), storage and sign-off are an H-08 decision (OQ-50). The G-07 approval's
+  count reference/date is shown as REFERENCE_ONLY.
+- **Blockers.** ALREADY_COMMITTED, BATCH_REJECTED, TEMPLATE_NOT_SUPPORTED, PREVIEW_EXPIRED (OQ-48), SOURCE_INVALID,
+  ROWS_NOT_VALID (OQ-49), APPROVAL_NOT_RECORDED (OQ-49), OPENING_STATUSES_NOT_APPROVED (OQ-47),
+  PHYSICAL_COUNT_QUANTITIES_NOT_RECORDED (H-08) — each names the decision it waits for; none is decided here.
+- **UI.** `/inventory/opening-stock/:batchId/preflight` (link from the preview): read-only statement, integrity
+  checks, blockers, category tiles, imported vs physical count, exceptions with filter and a CSV download built from
+  the server's answer (formula-like cells prefixed with `'`). No approve or commit action.
+
+---
+
 ## Open questions (need client / accountant sign-off)
 
 | # | Question | Blocks |
@@ -1075,3 +1106,4 @@ the server-side session (B-07) and intersect it with any client-supplied `brandI
 | OQ-48 | **Opening stock import (G-06).** (a) Confirm the OS-IMPORT-1 columns (A-04) and whether XLSX upload is required (needs an approved parser dependency). (b) Approve the limits (5 MiB, 5000 rows) and preview lifetime (7 days). (c) Retention: may staged previews and their files be purged after expiry, and after how long? | A-04, G-06, G-07 |
 | OQ-49 | **Opening stock commit (G-07).** (a) May any preview warning be accepted at commit (missing received date or cost, possible duplicate motor/battery/charger serial)? G-07 accepts none: such lines must be corrected first. (b) Who may approve (physical-count sign-off) and commit opening stock, and must they be different people from the uploader / each other? G-07 enforces only the separate permissions, granted to no role. (c) Which opening statuses are approved (sets `OPENING_STOCK_APPROVED_STATUSES`, see OQ-47)? | A-04, G-07, H-08 |
 | OQ-44 | **Owner decision (audit M-4, 2026-11-16).** There is no audit-log viewer and no registry task for one (B-08 prompt refers to an "audit-list task"); `audit.events.view` exists unused. Should a task be added? Not part of E-06. | B-08, H-04 |
+| OQ-50 | **H-08 opening stock physical reconciliation.** (a) The actual opening-stock source file(s) from the client (no real data exists in the system; fixtures are placeholders). (b) The physical count: format (chassis-level list or counts per location/model/variant/status), who counts, who signs, and where the signed count is stored so it can be compared (the preflight shows "Not recorded" until then). (c) How a physical-count discrepancy is resolved and signed off (corrected file only, or an approved correction movement — none exists, OQ-33/OQ-39). (d) Whether H-08 sign-off is a separate step from the G-07 approval (OQ-49b). | H-08, G-07, A-04 |

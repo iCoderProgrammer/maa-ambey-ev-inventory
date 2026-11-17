@@ -86,7 +86,7 @@ acceptance criteria. Each must be verified when started; until then all tasks st
 | H-05 | Performance checks and indexes | P0 | Core list/search/report endpoints implemented | NOT STARTED |
 | H-06 | Backup and restore drill | P0 | B-05, production-like environment | NOT STARTED |
 | H-07 | Staging/UAT and defect triage | P0 | All P0 feature tasks | NOT STARTED |
-| H-08 | Opening data import and physical reconciliation | P0 | G-06, G-07, D-04, E-06 | NOT STARTED |
+| H-08 | Opening data import and physical reconciliation | P0 | G-06, G-07, D-04, E-06 | INCOMPLETE (2026-11-17; uncommitted) — readiness + read-only reconciliation preflight done (ADR-032); real file, physical count format/sign-off (OQ-50), OQ-47, OQ-49, A-04, RB-5 pending |
 | H-09 | Training documentation and runbooks | P0 | Stable workflows | NOT STARTED |
 | H-10 | Production rollout and smoke test | P0 | H-04, H-05, H-06, H-07, H-08 | NOT STARTED |
 
@@ -3498,6 +3498,67 @@ vehiclePages.test.tsx,ageing.test.tsx}`, `ui/src/features/stock/{api/timeline.ts
 
 #### Final status
 INCOMPLETE — frontend done; one backend annotation fix needed for a green contract suite. Next task not started.
+
+### H-08 — Opening data import and physical reconciliation (readiness + non-mutating preflight)
+
+- **Status:** INCOMPLETE (2026-11-17) — readiness audit and read-only reconciliation preflight implemented, tested and
+  browser-verified; not committed. H-08 acceptance criteria are NOT met and cannot be until the client supplies the
+  real opening-stock file and a signed physical count and the owner decides OQ-47, OQ-49, OQ-50, A-04 and RB-5.
+- **Prompt:** prompt-pack/Maa_Ambey_Claude_Code_Task_Prompts/07_QA_Operations/H_08_opening-data-import-and-physical-reconciliation.md
+  (+ the user's H-08 readiness/preflight prompt of 2026-11-17, which limits scope to a non-mutating preflight).
+- Git at start: `dev` at `ff54fa8`; `ff54fa8` exists on `dev` and contains E-06, E-07, G-06, G-07 (104 files,
+  migrations 000021–000024); only `docs/reports/` untracked (preserved, not touched).
+- **Discrepancy noted:** this log still describes E-06/E-07/G-06/G-07 as "uncommitted" — they were committed in
+  `ff54fa8`. The G-07 frontend's failing D-08 contract test (OpenAPI enum defect) is fixed in `ff54fa8`
+  (`vehicles/types.go` lists OPENING_BALANCE/OPENING_STOCK; Vitest 438/438 pass). Their statuses were not edited here.
+
+#### Dependencies
+| Dependency | Verified status | Evidence |
+| --- | --- | --- |
+| G-06 | COMPLETE (technical), committed `ff54fa8` | preview tests pass; reused `Validate`, `Parse`, `CollectRefs` |
+| G-07 | backend + frontend done, committed; production commit blocked by design | commit tests pass; reused `sameSource`, `rowGate`, `storedRows`, `readLookups` |
+| D-04 | COMPLETE | vehicles tests pass |
+| E-06 | COMPLETE (grant pending) | reconciliation Go + E2E pass |
+
+#### Acceptance criteria
+- [ ] No unapproved opening stock is treated as verified — preflight never treats anything as verified (warnings not
+      accepted, unverified catalogue separate); full criterion needs the real import (BLOCKED)
+- [ ] Duplicates are resolved — duplicates detected and reported (file, inventory, open receipt); resolution needs the
+      real file (BLOCKED)
+- [ ] Physical-count discrepancy sign-off is recorded — no count format/storage exists (OQ-50, BLOCKED)
+- [x] (this scope) Preflight is read only, repeatable, permission-checked, reuses G-07 checks, never approves/commits
+
+#### Stage 1 — UI
+Result: COMPLETE (built after the backend, on the real API). `/inventory/opening-stock/:batchId/preflight`
+(`OpeningStockPreflightPage.tsx`), link from the preview; states: permission check/denied, loading, API error + retry,
+integrity failed, rejected/committed (rows not checked), empty exceptions, filtered-empty; CSV download of exceptions.
+
+#### Stage 2 — Backend
+Result: COMPLETE. Route `GET /opening-stock-imports/{id}/preflight`; `preflight.go`, `preflight_store.go`;
+Repository `PreflightSnapshot`; no migration, no permission, no config. ADR-032, OQ-50.
+
+#### Stage 3 — API integration
+Result: COMPLETE. `api/preflight.ts` (Zod; `nonMutating: true` required, counts must add up), `usePreflight`,
+OpenAPI contract test.
+
+#### Stage 4 — Browser testing
+Result: PASS (Playwright 6/6 desktop + mobile; visible walkthrough in the user's Chrome). G-06 main E2E not
+re-verified (fixture precondition). Evidence: `docs/evidence/H-08/verification.txt`.
+
+#### Files changed
+New: `internal/modules/openingstock/{preflight.go,preflight_store.go,preflight_test.go,preflight_integration_test.go}`,
+`ui/src/features/openingstock/{OpeningStockPreflightPage.tsx,api/preflight.ts,preflight.test.tsx}`,
+`ui/e2e/opening-stock-preflight.e2e.ts`, `docs/evidence/H-08/verification.txt`.
+Modified: `internal/modules/openingstock/{store.go (interface),http.go (route),export_test.go}`, `docs/openapi/*`,
+`ui/src/features/openingstock/{hooks/useOpeningStock.ts,lib/labels.ts,OpeningStockPages.tsx (link)}`,
+`ui/src/app/routes.tsx`, `docs/{ARCHITECTURE_DECISIONS,API_CONVENTIONS,DEVELOPMENT_SETUP,TASK_EXECUTION_LOG}.md`.
+
+#### Known issues / pending decisions
+- OQ-50 (real file, physical count format/storage/sign-off, discrepancy resolution), OQ-47, OQ-49, A-04, RB-5.
+- Scratch database `h08_scratch` and its test users remain on the local PostgreSQL (throwaway; drop when not needed).
+
+#### Final status
+INCOMPLETE — readiness + preflight done; H-08 blocked on client data and owner decisions. Next task not started.
 
 <!-- Copy this template for each started task. Update after every stage. -->
 

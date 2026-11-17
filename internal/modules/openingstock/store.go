@@ -155,6 +155,10 @@ type Repository interface {
 	Commit(ctx context.Context, in CommitInput) (CommitResult, error)
 	CommitByKey(ctx context.Context, committer, key string) (CommitResult, bool, error)
 	CommitOf(ctx context.Context, batchID string) (CommitResult, bool, error)
+
+	// H-08.
+	// PreflightSnapshot reads the staged rows and current lookups in one read-only transaction.
+	PreflightSnapshot(ctx context.Context, batchID string, refs Refs) (PreflightSnapshot, error)
 }
 
 // PGStore is the PostgreSQL Repository.

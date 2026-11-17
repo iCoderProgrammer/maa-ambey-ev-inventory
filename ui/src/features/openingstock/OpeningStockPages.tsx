@@ -609,6 +609,16 @@ function Preview({ id }: { id: string }) {
           </>
         )}
       </Card>
+      {b.status === 'PREVIEWED' && (
+        <p className="mb-4 text-sm">
+          <Link to={`${basePath}/${b.id}/preflight`} className={linkClass}>
+            Run the reconciliation preflight
+          </Link>{' '}
+          <span className="text-muted">
+            — re-checks this file against today&apos;s catalogue and inventory; changes nothing.
+          </span>
+        </p>
+      )}
       {b.status === 'PREVIEWED' && <NextStep batch={b} />}
       {b.status === 'PREVIEWED' && <RowsTable id={b.id} />}
       <p className="mt-4">

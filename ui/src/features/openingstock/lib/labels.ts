@@ -74,3 +74,22 @@ export function describeUploadError(error: unknown): UploadFailure {
   }
   return { ...base, kind: 'error', message: error.message, retrySame: error.status >= 500 }
 }
+
+// ── H-08 reconciliation preflight ─────────────────────────────────────────
+
+export const preflightCategoryLabels = {
+  WARNING: 'Warning — not accepted',
+  BLOCKING_ERROR: 'Blocking error',
+  UNVERIFIED: 'Unverified catalogue',
+  MANUAL_RECONCILIATION: 'Needs manual reconciliation',
+} as const
+
+export const preflightCategoryTones = {
+  WARNING: 'warning',
+  BLOCKING_ERROR: 'danger',
+  UNVERIFIED: 'info',
+  MANUAL_RECONCILIATION: 'warning',
+} as const satisfies Record<keyof typeof preflightCategoryLabels, BadgeTone>
+
+export const PREFLIGHT_NO_CHANGE_TEXT =
+  'Read-only check. No inventory records were created or changed, and nothing was approved or committed.'

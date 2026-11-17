@@ -1698,6 +1698,273 @@ definitions:
         type: string
         x-nullable: true
     type: object
+  OpeningStockPreflight:
+    properties:
+      approval:
+        allOf:
+        - $ref: '#/definitions/OpeningStockImportApproval'
+        x-nullable: true
+      approvedOpeningStatuses:
+        items:
+          type: string
+        type: array
+      batchId:
+        type: string
+      batchReference:
+        example: OSI-000001
+        type: string
+      batchStatus:
+        enum:
+        - PREVIEWED
+        - REJECTED
+        example: PREVIEWED
+        type: string
+      blockers:
+        items:
+          $ref: '#/definitions/OpeningStockPreflightBlocker'
+        type: array
+      businessDate:
+        example: "2026-11-17"
+        type: string
+      checkedAt:
+        type: string
+      commit:
+        allOf:
+        - $ref: '#/definitions/OpeningStockImportCommitSummary'
+        x-nullable: true
+      exceptions:
+        description: 'Exceptions: every row that is not VALID, in file order.'
+        items:
+          $ref: '#/definitions/OpeningStockPreflightRow'
+        type: array
+      expired:
+        type: boolean
+      expiresAt:
+        type: string
+      fileName:
+        example: opening-stock.csv
+        type: string
+      fileSha256:
+        type: string
+      fileSizeBytes:
+        example: 2048
+        type: integer
+      issueCounts:
+        items:
+          $ref: '#/definitions/OpeningStockPreflightIssueCount'
+        type: array
+      nonMutating:
+        description: 'NonMutating is always true: the preflight created, changed,
+          approved and committed nothing.'
+        type: boolean
+      physicalCount:
+        $ref: '#/definitions/OpeningStockPreflightPhysicalCount'
+      previewSummary:
+        $ref: '#/definitions/OpeningStockImportSummary'
+      quantities:
+        items:
+          $ref: '#/definitions/OpeningStockPreflightQuantity'
+        type: array
+      rowsChecked:
+        description: |-
+          RowsChecked: the rows were re-validated (false when the batch is committed,
+          rejected, in another template or its file failed the integrity check).
+        type: boolean
+      source:
+        $ref: '#/definitions/OpeningStockPreflightSource'
+      summary:
+        $ref: '#/definitions/OpeningStockPreflightSummary'
+      templateVersion:
+        example: OS-IMPORT-1
+        type: string
+        x-nullable: true
+      uploadedAt:
+        type: string
+      uploadedByName:
+        type: string
+        x-nullable: true
+    type: object
+  OpeningStockPreflightBlocker:
+    properties:
+      code:
+        example: OPENING_STATUSES_NOT_APPROVED
+        type: string
+      decision:
+        description: 'Decision: the open question or task that resolves it ("" when
+          the data must be corrected).'
+        example: OQ-47
+        type: string
+      message:
+        type: string
+    type: object
+  OpeningStockPreflightIssueCount:
+    properties:
+      code:
+        example: DUPLICATE_CHASSIS_EXISTING
+        type: string
+      rows:
+        example: 2
+        type: integer
+      severity:
+        enum:
+        - ERROR
+        - BLOCKED
+        - WARNING
+        example: ERROR
+        type: string
+    type: object
+  OpeningStockPreflightPhysicalCount:
+    properties:
+      countDate:
+        example: "2026-11-15"
+        type: string
+        x-nullable: true
+      message:
+        type: string
+      reference:
+        example: PC-2026-11-15
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - NOT_RECORDED
+        - REFERENCE_ONLY
+        example: NOT_RECORDED
+        type: string
+    type: object
+  OpeningStockPreflightQuantity:
+    properties:
+      brand:
+        example: Brand A
+        type: string
+      difference:
+        type: integer
+        x-nullable: true
+      fileRows:
+        description: 'FileRows: vehicles listed in the file (the imported quantity).'
+        example: 12
+        type: integer
+      locationCode:
+        example: L1
+        type: string
+      modelCode:
+        example: MA
+        type: string
+      physicalCount:
+        description: 'PhysicalCount and Difference stay null: the system holds no
+          counted quantities (H-08).'
+        type: integer
+        x-nullable: true
+      stockStatus:
+        example: AVAILABLE
+        type: string
+      validRows:
+        description: 'ValidRows: of those, rows that pass every commit check today.'
+        example: 11
+        type: integer
+      variantCode:
+        example: STD
+        type: string
+    type: object
+  OpeningStockPreflightRow:
+    properties:
+      category:
+        enum:
+        - WARNING
+        - BLOCKING_ERROR
+        - UNVERIFIED
+        - MANUAL_RECONCILIATION
+        example: BLOCKING_ERROR
+        type: string
+      changedSincePreview:
+        description: 'ChangedSincePreview: the row''s result today differs from its
+          stored preview.'
+        type: boolean
+      currentStatus:
+        enum:
+        - VALID
+        - WARNING
+        - ERROR
+        - BLOCKED_UNVERIFIED_MAPPING
+        example: ERROR
+        type: string
+      issues:
+        items:
+          $ref: '#/definitions/OpeningStockRowIssue'
+        type: array
+      previewStatus:
+        enum:
+        - VALID
+        - WARNING
+        - ERROR
+        - BLOCKED_UNVERIFIED_MAPPING
+        example: VALID
+        type: string
+      rowNumber:
+        example: 5
+        type: integer
+      source:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  OpeningStockPreflightSource:
+    properties:
+      checksumMatches:
+        type: boolean
+      fileAvailable:
+        type: boolean
+      matchesStagedRows:
+        type: boolean
+      message:
+        type: string
+      sizeMatches:
+        type: boolean
+      status:
+        enum:
+        - VERIFIED
+        - INVALID
+        - NOT_CHECKED
+        example: VERIFIED
+        type: string
+      templateCompatible:
+        type: boolean
+    type: object
+  OpeningStockPreflightSummary:
+    properties:
+      blockingErrorRows:
+        example: 5
+        type: integer
+      changedSincePreviewRows:
+        description: 'ChangedSincePreviewRows: rows whose result today differs from
+          the stored preview.'
+        example: 2
+        type: integer
+      duplicateRows:
+        description: 'DuplicateRows: rows with any duplicate identifier issue (file,
+          inventory or open receipt).'
+        example: 4
+        type: integer
+      manualReconciliationRows:
+        example: 2
+        type: integer
+      missingChassisRows:
+        description: 'MissingChassisRows: rows without a chassis/frame number.'
+        example: 1
+        type: integer
+      totalRows:
+        example: 120
+        type: integer
+      unverifiedRows:
+        example: 3
+        type: integer
+      validRows:
+        example: 100
+        type: integer
+      warningRows:
+        example: 10
+        type: integer
+    type: object
   OpeningStockRowIssue:
     properties:
       code:
@@ -7571,6 +7838,57 @@ paths:
           schema:
             $ref: '#/definitions/ErrorResponse'
       summary: Commit an approved opening stock import batch (G-07)
+      tags:
+      - opening-stock-imports
+  /opening-stock-imports/{id}/preflight:
+    get:
+      description: 'Read only and safe to repeat: re-checks the batch exactly as a
+        commit would, now, without approving, committing or writing anything (one
+        READ ONLY transaction, no locks, no audit event). Source: the stored file
+        is read again and its SHA-256, size, template and lines are compared with
+        the upload and the staged rows. Rows: re-validated against the current catalogue,
+        locations, suppliers and identifiers with the caller''s location scope, then
+        classified VALID, WARNING (never accepted, OQ-49), BLOCKING_ERROR, UNVERIFIED
+        (catalogue entry not verified/active) or MANUAL_RECONCILIATION (result differs
+        from the stored preview); exceptions lists every non-VALID row with its issues.
+        Quantities: rows per location, brand, model, variant and status as uploaded;
+        physicalCount and difference are always null because the system holds no counted
+        quantities (H-08 decision pending). Blockers name what stops the batch and
+        the owner decision it waits for. Rows are not checked for committed or rejected
+        batches or when the file fails the integrity check (source.status INVALID).
+        Requires stock.import.preview, stock.import.approve or stock.import.commit;
+        another user''s batch is 404 unless the caller has every location.'
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/DataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/OpeningStockPreflight'
+              type: object
+        "401":
+          description: UNAUTHENTICATED or SESSION_EXPIRED
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: FORBIDDEN
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: NOT_FOUND
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      summary: Reconciliation preflight of an opening stock import batch (H-08)
       tags:
       - opening-stock-imports
   /opening-stock-imports/{id}/rows:

@@ -44,6 +44,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	rg.POST("/opening-stock-imports/:id/approval", h.access.Require(access.PermImportApprove), h.Approve)
 	rg.POST("/opening-stock-imports/:id/commit", h.access.Require(access.PermImportCommit), h.Commit)
 	rg.GET("/opening-stock-imports/:id/commit", view, h.GetCommit)
+	rg.GET("/opening-stock-imports/:id/preflight", view, h.Preflight)
 }
 
 func (h *Handler) respond(c *gin.Context, status int, v any, err error) {
@@ -408,4 +409,25 @@ func (h *Handler) GetCommit(c *gin.Context) {
 	}
 	res, err := h.svc.GetCommit(c.Request.Context(), a, c.Param("id"))
 	h.respond(c, http.StatusOK, res, err)
+}
+
+// Preflight godoc
+//
+//	@Summary		Reconciliation preflight of an opening stock import batch (H-08)
+//	@Description	Read only and safe to repeat: re-checks the batch exactly as a commit would, now, without approving, committing or writing anything (one READ ONLY transaction, no locks, no audit event). Source: the stored file is read again and its SHA-256, size, template and lines are compared with the upload and the staged rows. Rows: re-validated against the current catalogue, locations, suppliers and identifiers with the caller's location scope, then classified VALID, WARNING (never accepted, OQ-49), BLOCKING_ERROR, UNVERIFIED (catalogue entry not verified/active) or MANUAL_RECONCILIATION (result differs from the stored preview); exceptions lists every non-VALID row with its issues. Quantities: rows per location, brand, model, variant and status as uploaded; physicalCount and difference are always null because the system holds no counted quantities (H-08 decision pending). Blockers name what stops the batch and the owner decision it waits for. Rows are not checked for committed or rejected batches or when the file fails the integrity check (source.status INVALID). Requires stock.import.preview, stock.import.approve or stock.import.commit; another user's batch is 404 unless the caller has every location.
+//	@Tags			opening-stock-imports
+//	@Produce		json
+//	@Param			id	path		string	true	"Batch ID"
+//	@Success		200	{object}	httpx.DataResponse{data=openingstock.Preflight}
+//	@Failure		401	{object}	httpx.ErrorResponse	"UNAUTHENTICATED or SESSION_EXPIRED"
+//	@Failure		403	{object}	httpx.ErrorResponse	"FORBIDDEN"
+//	@Failure		404	{object}	httpx.ErrorResponse	"NOT_FOUND"
+//	@Router			/opening-stock-imports/{id}/preflight [get]
+func (h *Handler) Preflight(c *gin.Context) {
+	a, ok := h.access.Current(c)
+	if !ok {
+		return
+	}
+	p, err := h.svc.Preflight(c.Request.Context(), a, c.Param("id"))
+	h.respond(c, http.StatusOK, p, err)
 }

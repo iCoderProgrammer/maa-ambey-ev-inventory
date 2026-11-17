@@ -294,6 +294,12 @@ cd ui && E2E_BASE_URL=http://localhost:5173 \
   `stock.import.approve` and `stock.import.commit` (PROPOSED grants, `RBAC_ALLOW_PROPOSED_GRANTS=true`), and an API
   started with `OPENING_STOCK_APPROVED_STATUSES` containing `AVAILABLE` and not `QUALITY_HOLD` (a test setting, never an
   owner decision). It approves and commits controlled files — this CREATES vehicle units: throwaway database only.
+  `e2e/opening-stock-preflight.e2e.ts` (H-08) uses `E2E_CATALOGUE_*` (`stock.import.preview` with **two** locations in
+  scope), `E2E_CATALOGUE_VIEWER_*` without import permissions, `E2E_OS_*`, optionally `E2E_OS_PENDING_BRAND`/
+  `_MODEL`/`_VARIANT` (a catalogue entry pending verification) and `E2E_H08_APPROVER_*` (`stock.import.approve` +
+  `locations.all`, PROPOSED grants), and `E2E_RECON_DB_*`. It briefly deactivates the second location with psql
+  (restored at the end) and records one G-07 approval; it never commits. Run with `OPENING_STOCK_APPROVED_STATUSES`
+  empty. Throwaway database only.
   Run each stack on its own host name or one at a time: the session cookie is per host, not per port, so two
   stacks on `localhost` in one browser sign each other out.
   `e2e/stock-counts.e2e.ts` (E-05) uses `E2E_CATALOGUE_*` (the E-04 grants plus `stock.adjustment.view/create`),

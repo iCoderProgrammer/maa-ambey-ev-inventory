@@ -786,6 +786,21 @@ Commit-time codes besides the G-06 row codes: `WARNING_NOT_ACCEPTED`, `STATUS_NO
 `OPENING_STOCK` (timeline and vehicle movement filters accept both); vehicle `sourceType` `OPENING_STOCK` with
 `source.openingStockBatchId`, `openingStockBatchReference`, `openingStockRowNumber`.
 
+## Opening stock reconciliation preflight (H-08, ADR-032)
+
+`GET /api/v1/opening-stock-imports/{id}/preflight` — read only, safe to repeat; never approves, commits or writes
+(READ ONLY transaction, no audit event). Permission: any of `stock.import.preview|approve|commit`; 404 for a batch the
+caller may not see. Response `data` (`OpeningStockPreflight`): batch/file facts, `nonMutating: true`, `rowsChecked`,
+`source` (`status` VERIFIED | INVALID | NOT_CHECKED, `fileAvailable`, `checksumMatches`, `sizeMatches`,
+`templateCompatible`, `matchesStagedRows`, `message`), `summary` (total, valid, warning, blockingError, unverified,
+manualReconciliation, duplicate, missingChassis, changedSincePreview rows), `previewSummary` (as staged),
+`issueCounts[]`, `quantities[]` (location/brand/model/variant/status as uploaded, `fileRows`, `validRows`,
+`physicalCount: null`, `difference: null`), `physicalCount` (NOT_RECORDED | REFERENCE_ONLY + approval reference/date),
+`approvedOpeningStatuses`, `approval`, `commit`, `blockers[]` (`code`, `message`, `decision`) and `exceptions[]`
+(every non-VALID row: `category`, `previewStatus`, `currentStatus`, `changedSincePreview`, `source`, `issues`).
+Rows are not checked (summary zero) for committed/rejected batches or when the stored file fails the integrity check.
+Errors: 401, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
+
 ## Middleware chain
 
 Order (outermost first): request ID → access log → panic recovery → CORS → request timeout;

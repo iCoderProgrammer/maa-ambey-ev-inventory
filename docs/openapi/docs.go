@@ -3574,6 +3574,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/opening-stock-imports/{id}/preflight": {
+            "get": {
+                "description": "Read only and safe to repeat: re-checks the batch exactly as a commit would, now, without approving, committing or writing anything (one READ ONLY transaction, no locks, no audit event). Source: the stored file is read again and its SHA-256, size, template and lines are compared with the upload and the staged rows. Rows: re-validated against the current catalogue, locations, suppliers and identifiers with the caller's location scope, then classified VALID, WARNING (never accepted, OQ-49), BLOCKING_ERROR, UNVERIFIED (catalogue entry not verified/active) or MANUAL_RECONCILIATION (result differs from the stored preview); exceptions lists every non-VALID row with its issues. Quantities: rows per location, brand, model, variant and status as uploaded; physicalCount and difference are always null because the system holds no counted quantities (H-08 decision pending). Blockers name what stops the batch and the owner decision it waits for. Rows are not checked for committed or rejected batches or when the file fails the integrity check (source.status INVALID). Requires stock.import.preview, stock.import.approve or stock.import.commit; another user's batch is 404 unless the caller has every location.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opening-stock-imports"
+                ],
+                "summary": "Reconciliation preflight of an opening stock import batch (H-08)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Batch ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/DataResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/OpeningStockPreflight"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED or SESSION_EXPIRED",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "FORBIDDEN",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "NOT_FOUND",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/opening-stock-imports/{id}/rows": {
             "get": {
                 "description": "Staged rows in file order (rowNumber = line in the uploaded file): the values exactly as uploaded (source), the normalised values and resolved references G-07 will use (normalised, null when invalid), a display snapshot of the resolution (resolved) and every issue (field, code, severity, message, suggestion). Filters: status, duplicate=true (any duplicate identifier issue), unresolved=true (any catalogue/location mapping issue). Requires stock.import.preview.",
@@ -13261,6 +13320,369 @@ const docTemplate = `{
                 "variantId": {
                     "type": "string",
                     "x-nullable": true
+                }
+            }
+        },
+        "OpeningStockPreflight": {
+            "type": "object",
+            "properties": {
+                "approval": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OpeningStockImportApproval"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "approvedOpeningStatuses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "batchId": {
+                    "type": "string"
+                },
+                "batchReference": {
+                    "type": "string",
+                    "example": "OSI-000001"
+                },
+                "batchStatus": {
+                    "type": "string",
+                    "enum": [
+                        "PREVIEWED",
+                        "REJECTED"
+                    ],
+                    "example": "PREVIEWED"
+                },
+                "blockers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockPreflightBlocker"
+                    }
+                },
+                "businessDate": {
+                    "type": "string",
+                    "example": "2026-11-17"
+                },
+                "checkedAt": {
+                    "type": "string"
+                },
+                "commit": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OpeningStockImportCommitSummary"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "exceptions": {
+                    "description": "Exceptions: every row that is not VALID, in file order.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockPreflightRow"
+                    }
+                },
+                "expired": {
+                    "type": "boolean"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "opening-stock.csv"
+                },
+                "fileSha256": {
+                    "type": "string"
+                },
+                "fileSizeBytes": {
+                    "type": "integer",
+                    "example": 2048
+                },
+                "issueCounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockPreflightIssueCount"
+                    }
+                },
+                "nonMutating": {
+                    "description": "NonMutating is always true: the preflight created, changed, approved and committed nothing.",
+                    "type": "boolean"
+                },
+                "physicalCount": {
+                    "$ref": "#/definitions/OpeningStockPreflightPhysicalCount"
+                },
+                "previewSummary": {
+                    "$ref": "#/definitions/OpeningStockImportSummary"
+                },
+                "quantities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockPreflightQuantity"
+                    }
+                },
+                "rowsChecked": {
+                    "description": "RowsChecked: the rows were re-validated (false when the batch is committed,\nrejected, in another template or its file failed the integrity check).",
+                    "type": "boolean"
+                },
+                "source": {
+                    "$ref": "#/definitions/OpeningStockPreflightSource"
+                },
+                "summary": {
+                    "$ref": "#/definitions/OpeningStockPreflightSummary"
+                },
+                "templateVersion": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "OS-IMPORT-1"
+                },
+                "uploadedAt": {
+                    "type": "string"
+                },
+                "uploadedByName": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "OpeningStockPreflightBlocker": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "OPENING_STATUSES_NOT_APPROVED"
+                },
+                "decision": {
+                    "description": "Decision: the open question or task that resolves it (\"\" when the data must be corrected).",
+                    "type": "string",
+                    "example": "OQ-47"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "OpeningStockPreflightIssueCount": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "DUPLICATE_CHASSIS_EXISTING"
+                },
+                "rows": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "ERROR",
+                        "BLOCKED",
+                        "WARNING"
+                    ],
+                    "example": "ERROR"
+                }
+            }
+        },
+        "OpeningStockPreflightPhysicalCount": {
+            "type": "object",
+            "properties": {
+                "countDate": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-11-15"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "PC-2026-11-15"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "NOT_RECORDED",
+                        "REFERENCE_ONLY"
+                    ],
+                    "example": "NOT_RECORDED"
+                }
+            }
+        },
+        "OpeningStockPreflightQuantity": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string",
+                    "example": "Brand A"
+                },
+                "difference": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "fileRows": {
+                    "description": "FileRows: vehicles listed in the file (the imported quantity).",
+                    "type": "integer",
+                    "example": 12
+                },
+                "locationCode": {
+                    "type": "string",
+                    "example": "L1"
+                },
+                "modelCode": {
+                    "type": "string",
+                    "example": "MA"
+                },
+                "physicalCount": {
+                    "description": "PhysicalCount and Difference stay null: the system holds no counted quantities (H-08).",
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "stockStatus": {
+                    "type": "string",
+                    "example": "AVAILABLE"
+                },
+                "validRows": {
+                    "description": "ValidRows: of those, rows that pass every commit check today.",
+                    "type": "integer",
+                    "example": 11
+                },
+                "variantCode": {
+                    "type": "string",
+                    "example": "STD"
+                }
+            }
+        },
+        "OpeningStockPreflightRow": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "WARNING",
+                        "BLOCKING_ERROR",
+                        "UNVERIFIED",
+                        "MANUAL_RECONCILIATION"
+                    ],
+                    "example": "BLOCKING_ERROR"
+                },
+                "changedSincePreview": {
+                    "description": "ChangedSincePreview: the row's result today differs from its stored preview.",
+                    "type": "boolean"
+                },
+                "currentStatus": {
+                    "type": "string",
+                    "enum": [
+                        "VALID",
+                        "WARNING",
+                        "ERROR",
+                        "BLOCKED_UNVERIFIED_MAPPING"
+                    ],
+                    "example": "ERROR"
+                },
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpeningStockRowIssue"
+                    }
+                },
+                "previewStatus": {
+                    "type": "string",
+                    "enum": [
+                        "VALID",
+                        "WARNING",
+                        "ERROR",
+                        "BLOCKED_UNVERIFIED_MAPPING"
+                    ],
+                    "example": "VALID"
+                },
+                "rowNumber": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "source": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "OpeningStockPreflightSource": {
+            "type": "object",
+            "properties": {
+                "checksumMatches": {
+                    "type": "boolean"
+                },
+                "fileAvailable": {
+                    "type": "boolean"
+                },
+                "matchesStagedRows": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "sizeMatches": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "VERIFIED",
+                        "INVALID",
+                        "NOT_CHECKED"
+                    ],
+                    "example": "VERIFIED"
+                },
+                "templateCompatible": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "OpeningStockPreflightSummary": {
+            "type": "object",
+            "properties": {
+                "blockingErrorRows": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "changedSincePreviewRows": {
+                    "description": "ChangedSincePreviewRows: rows whose result today differs from the stored preview.",
+                    "type": "integer",
+                    "example": 2
+                },
+                "duplicateRows": {
+                    "description": "DuplicateRows: rows with any duplicate identifier issue (file, inventory or open receipt).",
+                    "type": "integer",
+                    "example": 4
+                },
+                "manualReconciliationRows": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "missingChassisRows": {
+                    "description": "MissingChassisRows: rows without a chassis/frame number.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "totalRows": {
+                    "type": "integer",
+                    "example": 120
+                },
+                "unverifiedRows": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "validRows": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "warningRows": {
+                    "type": "integer",
+                    "example": 10
                 }
             }
         },

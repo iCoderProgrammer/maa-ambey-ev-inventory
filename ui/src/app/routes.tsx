@@ -34,6 +34,7 @@ import {
   OpeningStockPreviewPage,
 } from '@/features/openingstock/OpeningStockPages'
 import { OpeningStockCommitPage } from '@/features/openingstock/OpeningStockCommitPage'
+import { OpeningStockPreflightPage } from '@/features/openingstock/OpeningStockPreflightPage'
 import { ReconciliationPage } from '@/features/reconciliation/ReconciliationPage'
 import { StockMovementDetailPage, StockMovementsPage } from '@/features/stock/TimelinePages'
 import { SupplierDetailPage, SuppliersPage } from '@/features/suppliers/SupplierPages'
@@ -71,6 +72,10 @@ export const routes: RouteObject[] = [
               {
                 path: 'inventory/opening-stock/:batchId/commit',
                 element: <OpeningStockCommitPage />,
+              },
+              {
+                path: 'inventory/opening-stock/:batchId/preflight',
+                element: <OpeningStockPreflightPage />,
               },
               { path: 'inventory/parts', element: <PartsPage /> },
               { path: 'inventory/parts/categories', element: <PartCategoriesPage /> },

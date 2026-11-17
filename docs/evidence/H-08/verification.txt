@@ -1,0 +1,47 @@
+H-08 — Opening stock reconciliation readiness and non-mutating preflight — verification (2026-11-17)
+Scope: readiness + read-only preflight only. H-08 is NOT complete (no real file, no physical count, OQ-47/49/50, A-04, RB-5).
+
+GIT AT START
+  branch dev, HEAD ff54fa8 (E-06, E-07, G-06, G-07 committed; 104 files). Untracked: docs/reports/ only (preserved).
+
+BACKEND (repo root)
+  gofmt -l cmd internal -> empty · go vet ./... -> ok · go mod tidy -diff -> no diff · make swagger-check -> ok
+  go build ./... -> ok
+  TEST_DATABASE_URL= go test -count=1 ./... -> all packages ok
+  TEST_DATABASE_URL=<h08_scratch, migrated to 24> REQUIRE_INTEGRATION_TESTS=1 go test -count=1 ./... -> all 24 packages ok
+    new: TestPreflightClassify, TestPreflightEvaluate, TestPreflightBlockers (unit);
+         TestPreflightReportsEveryCategoryAndChangesNothing, TestPreflightSeesChangesSincePreview,
+         TestPreflightPermissionsAndReadOnlyTransaction (write inside tx -> SQLSTATE 25006),
+         TestPreflightSourceIntegrity (integration). Business + import + attachments + audit digests unchanged.
+  Note: dev database maa_ambey_inventory is at migration 12 and was NOT touched; a new scratch database h08_scratch
+  was created for integration/browser tests.
+
+FRONTEND (ui/)
+  npm run typecheck -> ok · npm run lint -> ok · npm run format:check -> ok · npm run build -> ok (existing chunk warning)
+  npx vitest run --maxWorkers=4 -> 39 files / 438 tests passed (new: preflight.test.tsx, 9 tests incl. OpenAPI contract)
+  npx tsc -p tsconfig.e2e.json --noEmit -> ok
+
+E2E (Playwright headless, workers=1) — scratch stack: API :8208 on h08_scratch (seeds, test users e2e.h08 /
+  e2e.h08viewer / e2e.h08approver, PROPOSED grants only, RBAC_ALLOW_PROPOSED_GRANTS=true, placeholder catalogue
+  "H08 Test Brand" ACTIVE + "H08 Pending Brand" pending, locations H08A/H08B, OPENING_STOCK_APPROVED_STATUSES empty),
+  Vite :5208.
+  e2e/opening-stock-preflight.e2e.ts -> 6 passed (desktop + Pixel 7)
+  e2e/reconciliation.e2e.ts (E-06) -> 4 passed
+  e2e/opening-stock.e2e.ts (G-06) -> permission test 2 passed; main test 2 FAILED on fixture precondition: it expects
+    an already-registered vehicle unit (existingChassis) and the scratch DB has none (needs a posted GRN). Not a code
+    regression (G-06 code unchanged except an added link; G-06 Go integration + Vitest pass). Not re-verified here.
+  e2e/opening-stock-commit.e2e.ts (G-07), e2e/ageing.e2e.ts (E-07): NOT RUN (need commit grants/approved statuses and
+    an approved PO fixture). G-07 and E-07 code untouched; their Go integration tests pass.
+
+BROWSER (user's Chrome via Claude in Chrome, new tab, scratch stack :5208, account e2e.h08): PASS
+  sign in -> preview OSI-000008 -> "Run the reconciliation preflight" -> read-only banner, integrity Verified (5 checks),
+  blockers OQ-49/OQ-49/OQ-47/H-08, tiles 7/2/1/3/1, imported vs physical count ("Not recorded"), exceptions + filter
+  (Unverified catalogue) -> H08B deactivated with psql -> "Run again": valid 1, blocking 4, changed since preview 1
+  -> H08B restored. Network: GET /preflight 200 only. Console: no errors.
+  DB fingerprint (vehicle_units/stock_movements/import rows/commits/md5 rows) before = after = 0/2/52/0/f1ab8bda…
+  (stock_movements=2 are E-06 E2E parts fixtures).
+
+NO INVENTORY MUTATION: no vehicle unit, movement, balance, approval of real data or commit created by the preflight.
+The only approval written was by the E2E test on the scratch DB (test user, placeholder data); no commit was run
+in the scratch stack. (TestPreflightPermissionsAndReadOnlyTransaction commits placeholder rows inside its own
+per-test throwaway database under a test status list, to prove a committed batch is reported as final.) Production config unchanged (OPENING_STOCK_APPROVED_STATUSES empty, no role grants).
